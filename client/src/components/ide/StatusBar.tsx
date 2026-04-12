@@ -16,6 +16,7 @@ import {
   Globe,
   XCircle,
 } from 'lucide-react';
+import { Code2, Braces } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Tooltip,
@@ -355,6 +356,34 @@ export function StatusBar({
             </TooltipTrigger>
             <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
               Select Encoding
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className={cn(
+                  'flex items-center gap-1 h-full px-1.5',
+                  'text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]',
+                  'hover:bg-[var(--ide-surface)] transition-colors'
+                )}
+                onClick={() => {
+                  const current = localStorage.getItem('editor-engine') || 'monaco';
+                  const next = current === 'monaco' ? 'codemirror' : 'monaco';
+                  localStorage.setItem('editor-engine', next);
+                  window.location.reload();
+                }}
+                data-testid="status-editor-engine"
+              >
+                {(localStorage.getItem('editor-engine') || 'monaco') === 'monaco' ? (
+                  <><Code2 className="h-3 w-3 text-blue-400" /><span>Monaco</span></>
+                ) : (
+                  <><Braces className="h-3 w-3 text-green-400" /><span>CodeMirror</span></>
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[10px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+              Switch Editor Engine (Monaco / CodeMirror)
             </TooltipContent>
           </Tooltip>
 

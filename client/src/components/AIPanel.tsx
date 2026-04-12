@@ -17,7 +17,7 @@ import {
   Settings2, Search, FlaskConical, Brain, Globe,
   Pause, GripVertical, Pencil, ListOrdered, ChevronUp, SlidersHorizontal,
   Map, Hammer, Play, CheckCircle2, Circle, Clock, ArrowRight, Layers,
-  Volume2, VolumeX, Download, Square, RefreshCw
+  Volume2, VolumeX, Download, Square, RefreshCw, Server
 } from "lucide-react";
 import ArtifactTypeCarousel, { ArtifactTypePill } from "./ArtifactTypeCarousel";
 import FigmaDesignCard, { FigmaLinkIndicator, detectFigmaUrl } from "./FigmaDesignCard";
@@ -808,6 +808,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [agentProvider, setAgentProvider] = useState<"builtin" | "openhands" | "goose">(() => {
+    try {
+      const saved = localStorage.getItem("ai-agent-provider");
+      if (saved && ["builtin", "openhands", "goose"].includes(saved)) return saved as any;
+    } catch {}
+    return "builtin";
+  });
   const [model, setModel] = useState<AIModel>(() => {
     try {
       const saved = localStorage.getItem("ai-preferred-model");
@@ -4261,6 +4268,32 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         </DropdownMenuItem>
                       );
                     })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors" data-testid="button-agent-provider">
+                      {agentProvider === "builtin" ? <Zap className="w-2.5 h-2.5 text-blue-400" /> : agentProvider === "openhands" ? <Globe className="w-2.5 h-2.5 text-green-400" /> : <Server className="w-2.5 h-2.5 text-orange-400" />}
+                      <span>{agentProvider === "builtin" ? "E-Code" : agentProvider === "openhands" ? "OpenHands" : "Goose"}</span>
+                      <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
+                    <DropdownMenuItem className="gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setAgentProvider("builtin"); try { localStorage.setItem("ai-agent-provider", "builtin"); } catch {} }} data-testid="provider-builtin">
+                      <Zap className="w-4 h-4 text-blue-400" />
+                      <div className="flex flex-col flex-1"><span className="font-medium">E-Code AI</span><span className="text-[10px] text-[var(--ide-text-muted)]">Built-in GPT-4 / Claude agent</span></div>
+                      {agentProvider === "builtin" && <Check className="w-3.5 h-3.5 text-[#0CCE6B]" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setAgentProvider("openhands"); try { localStorage.setItem("ai-agent-provider", "openhands"); } catch {} }} data-testid="provider-openhands">
+                      <Globe className="w-4 h-4 text-green-400" />
+                      <div className="flex flex-col flex-1"><span className="font-medium">OpenHands</span><span className="text-[10px] text-[var(--ide-text-muted)]">Autonomous AI engineer (MIT, 70k+)</span></div>
+                      {agentProvider === "openhands" && <Check className="w-3.5 h-3.5 text-[#0CCE6B]" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setAgentProvider("goose"); try { localStorage.setItem("ai-agent-provider", "goose"); } catch {} }} data-testid="provider-goose">
+                      <Server className="w-4 h-4 text-orange-400" />
+                      <div className="flex flex-col flex-1"><span className="font-medium">Goose</span><span className="text-[10px] text-[var(--ide-text-muted)]">Block / Linux Foundation (Apache 2.0)</span></div>
+                      {agentProvider === "goose" && <Check className="w-3.5 h-3.5 text-[#0CCE6B]" />}
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <div className={`relative rounded-md ${topMode === "plan" ? "p-[1px]" : ""}`}

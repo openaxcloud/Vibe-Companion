@@ -302,6 +302,12 @@ export class MainRouter {
       safeImport("project-tasks", () => import("./project-tasks.router")),
     ]);
 
+    const [openhandsMod, gooseMod, agentProvidersMod] = await Promise.all([
+      safeImport("openhands", () => import("./openhands.router")),
+      safeImport("goose", () => import("./goose.router")),
+      safeImport("agent-providers", () => import("./agent-providers.router")),
+    ]);
+
     mount(app, '/api', def(placeholderMod));
     mount(app, '/api', def(logsMod));
     if (authCompleteMod) mount(app, '/api/auth', tierLimiters.auth, (authCompleteMod as any).authCompleteRouter);
@@ -436,6 +442,10 @@ export class MainRouter {
     mount(app, '/api/workspaces', tierLimiters.api, def(workspacesMod));
     mount(app, '/api/project-auth', tierLimiters.api, def(projectAuthMod));
     mount(app, '/api/projects', tierLimiters.api, def(projectTasksMod));
+
+    mount(app, '/api/openhands', tierLimiters.api, def(openhandsMod));
+    mount(app, '/api/goose', tierLimiters.api, def(gooseMod));
+    mount(app, '/api/agent-providers', tierLimiters.api, def(agentProvidersMod));
 
     if (setupPreviewRoutes) setupPreviewRoutes(app);
 

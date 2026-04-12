@@ -1,5 +1,17 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, lazy, Suspense } from 'react';
 import CodeEditor, { detectLanguage } from '@/components/CodeEditor';
+
+const MonacoCodeEditor = lazy(() => import('./MonacoCodeEditor'));
+
+type EditorEngine = 'codemirror' | 'monaco';
+
+function getEditorEngine(): EditorEngine {
+  try {
+    return (localStorage.getItem('editor-engine') as EditorEngine) || 'monaco';
+  } catch {
+    return 'monaco';
+  }
+}
 
 interface ReplitMonacoEditorProps {
   projectId: string;
@@ -15,6 +27,7 @@ interface ReplitMonacoEditorProps {
   remoteAwareness?: any;
   blameData?: any[];
   filename?: string;
+  editorEngine?: EditorEngine;
 }
 
 export function ReplitMonacoEditor({
@@ -31,7 +44,10 @@ export function ReplitMonacoEditor({
   remoteAwareness,
   blameData,
   filename,
+  editorEngine,
 }: ReplitMonacoEditorProps) {
+  const engine = editorEngine || getEditorEngine();
+
   const value = useMemo(() => {
     if (!fileId) return '';
     return fileContents[fileId] ?? '';
@@ -40,7 +56,6 @@ export function ReplitMonacoEditor({
   const language = useMemo(() => {
     if (filename) return detectLanguage(filename);
     if (!fileId) return 'javascript';
-    // Try to detect from the fileId if it looks like a path
     const parts = fileId.split('/');
     const lastPart = parts[parts.length - 1];
     if (lastPart && lastPart.includes('.')) {
@@ -71,8 +86,33 @@ export function ReplitMonacoEditor({
     );
   }
 
+  if (engine === 'monaco') {
+    return (
+      <div className="h-full" data-testid="editor-monaco-wrapper">
+        <Suspense fallback={
+          <div className="h-full flex items-center justify-center bg-[#0d1117] text-[#c9d1d9] text-sm">
+            Loading Monaco Editor...
+          </div>
+        }>
+          <MonacoCodeEditor
+            value={value}
+            onChange={handleChange}
+            language={language}
+            onCursorChange={onCursorChange ? handleCursorChange : undefined}
+            fontSize={fontSize}
+            tabSize={tabSize}
+            wordWrap={wordWrap}
+            minimap={minimap}
+            filename={filename}
+            projectId={projectId}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full">
+    <div className="h-full" data-testid="editor-codemirror-wrapper">
       <CodeEditor
         value={value}
         onChange={handleChange}

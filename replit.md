@@ -28,7 +28,16 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 
 **Production Domain**: `e-code.ai` — configured via `APP_DOMAIN` env var (production). Dev URLs: `{projectId}.dev.e-code.ai`. Email from: `noreply@e-code.ai`. Desktop app connects to `https://e-code.ai`.
 
-**AI Integration**: Supports Anthropic Claude Sonnet, OpenAI GPT-4o, and Google Gemini Flash models. The AI agent offers various modes (Economy, Power, Turbo) with **usage-based token billing** — credits are deducted per-token using centralized pricing from `MODEL_TOKEN_PRICING` in `shared/schema.ts`. Overage billing via Stripe metered subscriptions kicks in when monthly included credits are exhausted (if payment method on file). Helper functions `calculateTokenCredits()` and `getProviderPricing()` centralize cost calculation. All AI routes use `storage.deductMonthlyCreditsFromRoute()` which automatically reports overage to Stripe. The AI agent includes tool-use capabilities for file operations, skill creation, downloadable file generation (PDF, DOCX, XLSX, PPTX, CSV), and web search (Tavily API with Google/Bing fallback). A message queue system allows users to manage follow-up messages during streaming. Modular AI agent services support DALL-E 3, NanoBanana (Stable Diffusion XL), Brave Image Search, and ElevenLabs TTS, each with fixed credit costs defined in `SERVICE_CREDIT_COSTS`.
+**AI Integration**: Multi-agent provider architecture supporting three backends:
+1. **Built-in E-Code AI** — Anthropic Claude Sonnet, OpenAI GPT-4.1/o4-mini/o3, Google Gemini Flash with MCP tool-use
+2. **OpenHands** (MIT, 70k+ stars) — Autonomous AI software engineer via REST API integration (`server/integrations/openhands-client.ts`, routes at `/api/openhands/*`)
+3. **Goose** (Apache 2.0, Block/Linux Foundation) — AI agent via REST API integration (`server/integrations/goose-client.ts`, routes at `/api/goose/*`)
+Unified provider status at `/api/agent-providers/status`. Provider selection persisted in `localStorage("ai-agent-provider")`. Each external provider supports health checks, session management, streaming events, and configuration (server URL, API key, model). The built-in agent offers various modes (Economy, Power, Turbo) with **usage-based token billing** — credits deducted per-token from `MODEL_TOKEN_PRICING` in `shared/schema.ts`. Modular AI agent services support DALL-E 3, NanoBanana (Stable Diffusion XL), Brave Image Search, and ElevenLabs TTS.
+
+**Code Editor**: Dual-engine editor with toggle in the status bar:
+1. **Monaco Editor** (default) — VS Code's editor engine via `@monaco-editor/react`. Full IntelliSense, TypeScript/JSX support, bracket colorization, sticky scroll, minimap. Component at `client/src/components/editor/MonacoCodeEditor.tsx`.
+2. **CodeMirror 6** — Lightweight alternative with Yjs collaboration, git blame, AI completions. Component at `client/src/components/CodeEditor.tsx`.
+Editor engine preference stored in `localStorage("editor-engine")`. Toggle available in status bar and via `EditorEngineToggle` component.
 
 **Project Structure**: Introduces a Multi-Artifact Architecture allowing projects to support various output formats (web-app, mobile-app, slides, video, 3D game, document, spreadsheet, design). Each artifact has its own configuration and entry point. Dedicated artifact types like Mobile App, Slides, and Video have specialized editors and AI tools. A Design Canvas provides an infinite visual board workspace with HTML mockups and annotations.
 
