@@ -12,7 +12,6 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { ensureAuthenticated } from '../middleware/auth';
 import { db } from '../db';
 import { runnerWorkspaces, projects } from '@shared/schema';
 import { eq } from 'drizzle-orm';
@@ -22,46 +21,62 @@ import * as runner from '../runnerClient';
 const logger = createLogger('workspaces');
 const router = Router();
 
-router.use(ensureAuthenticated);
+function requireAuth(req: Request, res: Response, next: Function) {
+  const userId = (req as any).session?.userId
+    || ((typeof req.isAuthenticated === 'function' && req.isAuthenticated()) ? (req.user as any)?.id : undefined);
+  if (userId) {
+    (req as any)._userId = userId;
+    return next();
+  }
+  return res.status(401).json({ error: 'Authentication required' });
+}
 
-// ─── GET /api/workspaces/:projectId ──────────────────────────────────────
-// Returns existing workspace info with a fresh token, or online: false
+router.use(requireAuth);
+
 router.get('/:projectId', async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.projectId, 10);
-  if (isNaN(projectId)) return res.status(400).json({ error: 'Invalid projectId' });
+  const projectId = req.params.projectId;
+  if (!projectId) return res.status(400).json({ error: 'Invalid projectId' });
 
   if (!runner.isRunnerConfigured()) {
     return res.json({ online: false, reason: 'Runner service not configured' });
   }
 
-  const [existing] = await db
-    .select()
-    .from(runnerWorkspaces)
-    .where(eq(runnerWorkspaces.projectId, projectId))
-    .limit(1);
+  try {
+    const numericId = parseInt(projectId, 10);
+    if (isNaN(numericId)) {
+      return res.json({ online: false, reason: 'Runner requires numeric project IDs' });
+    }
 
-  if (!existing) {
-    return res.json({ online: false, reason: 'No workspace found' });
+    const [existing] = await db
+      .select()
+      .from(runnerWorkspaces)
+      .where(eq(runnerWorkspaces.projectId, numericId))
+      .limit(1);
+
+    if (!existing) {
+      return res.json({ online: false, reason: 'No workspace found' });
+    }
+
+    const userId = (req as any)._userId ?? 0;
+    const token = runner.generateAccessToken(existing.workspaceId, userId);
+
+    return res.json({
+      online: true,
+      workspaceId: existing.workspaceId,
+      runnerUrl: existing.runnerUrl ?? (await runner.pingRunner()).baseUrl,
+      token,
+      terminalWsUrl: runner.buildTerminalWsUrl(existing.workspaceId),
+      previewUrl: `/api/runner/preview/${existing.workspaceId}`,
+    });
+  } catch (err: any) {
+    logger.warn(`Workspace GET error: ${err.message}`);
+    return res.json({ online: false, reason: 'Workspace lookup failed' });
   }
-
-  const userId = (req.user as any)?.id ?? 0;
-  const token = runner.generateAccessToken(existing.workspaceId, userId);
-
-  return res.json({
-    online: true,
-    workspaceId: existing.workspaceId,
-    runnerUrl: existing.runnerUrl ?? (await runner.pingRunner()).baseUrl,
-    token,
-    terminalWsUrl: runner.buildTerminalWsUrl(existing.workspaceId),
-    previewUrl: `/api/runner/preview/${existing.workspaceId}`,
-  });
 });
 
-// ─── POST /api/workspaces/:projectId ─────────────────────────────────────
-// Returns: { online, workspaceId, runnerUrl, token, terminalWsUrl, previewUrl }
 router.post('/:projectId', async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.projectId, 10);
-  if (isNaN(projectId)) return res.status(400).json({ error: 'Invalid projectId' });
+  const projectId = req.params.projectId;
+  if (!projectId) return res.status(400).json({ error: 'Invalid projectId' });
 
   if (!runner.isRunnerConfigured()) {
     return res.json({
@@ -70,97 +85,111 @@ router.post('/:projectId', async (req: Request, res: Response) => {
     });
   }
 
-  // Ping first — inform frontend if runner is down
-  const health = await runner.pingRunner();
-  if (!health.online) {
-    logger.warn(`Runner offline when creating workspace for project ${projectId}`);
-    return res.json({
-      online: false,
-      baseUrl: health.baseUrl,
-      reason: 'Runner service is unreachable',
-    });
-  }
+  try {
+    const numericId = parseInt(projectId, 10);
+    if (isNaN(numericId)) {
+      return res.json({ online: false, reason: 'Runner requires numeric project IDs' });
+    }
 
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
-  if (!project) return res.status(404).json({ error: 'Project not found' });
+    const health = await runner.pingRunner();
+    if (!health.online) {
+      logger.warn(`Runner offline when creating workspace for project ${projectId}`);
+      return res.json({
+        online: false,
+        baseUrl: health.baseUrl,
+        reason: 'Runner service is unreachable',
+      });
+    }
 
-  // Return existing workspace if already active
-  const [existing] = await db
-    .select()
-    .from(runnerWorkspaces)
-    .where(eq(runnerWorkspaces.projectId, projectId))
-    .limit(1);
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, numericId))
+      .limit(1);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
 
-  const userId = (req.user as any)?.id ?? 0;
+    const [existing] = await db
+      .select()
+      .from(runnerWorkspaces)
+      .where(eq(runnerWorkspaces.projectId, numericId))
+      .limit(1);
 
-  if (existing) {
-    const token = runner.generateAccessToken(existing.workspaceId, userId);
-    return res.json({
+    const userId = (req as any)._userId ?? 0;
+
+    if (existing) {
+      const token = runner.generateAccessToken(existing.workspaceId, userId);
+      return res.json({
+        online: true,
+        workspaceId: existing.workspaceId,
+        runnerUrl: existing.runnerUrl ?? health.baseUrl,
+        token,
+        terminalWsUrl: runner.buildTerminalWsUrl(existing.workspaceId),
+        previewUrl: `/api/runner/preview/${existing.workspaceId}`,
+      });
+    }
+
+    const info = await runner.createWorkspace(numericId, project.name);
+    if (!info) {
+      return res.json({
+        online: false,
+        baseUrl: health.baseUrl,
+        reason: 'Runner failed to create workspace',
+      });
+    }
+
+    const [saved] = await db
+      .insert(runnerWorkspaces)
+      .values({
+        projectId: numericId,
+        workspaceId: info.workspaceId,
+        status: info.status ?? 'starting',
+        previewUrl: info.previewUrl ?? runner.buildPreviewUrl(info.workspaceId),
+        runnerUrl: process.env.RUNNER_BASE_URL ?? null,
+      })
+      .returning();
+
+    const token = runner.generateAccessToken(saved.workspaceId, userId);
+
+    logger.info(`Workspace ${saved.workspaceId} created for project ${projectId}`);
+
+    res.status(201).json({
       online: true,
-      workspaceId: existing.workspaceId,
-      runnerUrl: existing.runnerUrl ?? health.baseUrl,
+      workspaceId: saved.workspaceId,
+      runnerUrl: saved.runnerUrl ?? health.baseUrl,
       token,
-      terminalWsUrl: runner.buildTerminalWsUrl(existing.workspaceId),
-      previewUrl: `/api/runner/preview/${existing.workspaceId}`,
+      terminalWsUrl: runner.buildTerminalWsUrl(saved.workspaceId),
+      previewUrl: saved.previewUrl ?? `/api/runner/preview/${saved.workspaceId}`,
     });
+  } catch (err: any) {
+    logger.warn(`Workspace POST error: ${err.message}`);
+    return res.json({ online: false, reason: 'Workspace creation failed' });
   }
-
-  // Create new workspace
-  const info = await runner.createWorkspace(projectId, project.name);
-  if (!info) {
-    return res.json({
-      online: false,
-      baseUrl: health.baseUrl,
-      reason: 'Runner failed to create workspace',
-    });
-  }
-
-  const [saved] = await db
-    .insert(runnerWorkspaces)
-    .values({
-      projectId,
-      workspaceId: info.workspaceId,
-      status: info.status ?? 'starting',
-      previewUrl: info.previewUrl ?? runner.buildPreviewUrl(info.workspaceId),
-      runnerUrl: process.env.RUNNER_BASE_URL ?? null,
-    })
-    .returning();
-
-  const token = runner.generateAccessToken(saved.workspaceId, userId);
-
-  logger.info(`Workspace ${saved.workspaceId} created for project ${projectId}`);
-
-  res.status(201).json({
-    online: true,
-    workspaceId: saved.workspaceId,
-    runnerUrl: saved.runnerUrl ?? health.baseUrl,
-    token,
-    terminalWsUrl: runner.buildTerminalWsUrl(saved.workspaceId),
-    previewUrl: saved.previewUrl ?? `/api/runner/preview/${saved.workspaceId}`,
-  });
 });
 
-// ─── DELETE /api/workspaces/:projectId ────────────────────────────────────
 router.delete('/:projectId', async (req: Request, res: Response) => {
-  const projectId = parseInt(req.params.projectId, 10);
-  if (isNaN(projectId)) return res.status(400).json({ error: 'Invalid projectId' });
+  const projectId = req.params.projectId;
+  if (!projectId) return res.status(400).json({ error: 'Invalid projectId' });
 
-  const [row] = await db
-    .select()
-    .from(runnerWorkspaces)
-    .where(eq(runnerWorkspaces.projectId, projectId))
-    .limit(1);
+  try {
+    const numericId = parseInt(projectId, 10);
+    if (isNaN(numericId)) return res.json({ stopped: false, reason: 'Invalid project ID format' });
 
-  if (!row) return res.json({ stopped: false, reason: 'No workspace found' });
+    const [row] = await db
+      .select()
+      .from(runnerWorkspaces)
+      .where(eq(runnerWorkspaces.projectId, numericId))
+      .limit(1);
 
-  await runner.stopWorkspace(row.workspaceId);
-  await db.delete(runnerWorkspaces).where(eq(runnerWorkspaces.projectId, projectId));
+    if (!row) return res.json({ stopped: false, reason: 'No workspace found' });
 
-  res.json({ stopped: true, workspaceId: row.workspaceId });
+    await runner.stopWorkspace(row.workspaceId);
+    await db.delete(runnerWorkspaces).where(eq(runnerWorkspaces.projectId, numericId));
+
+    res.json({ stopped: true, workspaceId: row.workspaceId });
+  } catch (err: any) {
+    logger.warn(`Workspace DELETE error: ${err.message}`);
+    return res.json({ stopped: false, reason: 'Workspace deletion failed' });
+  }
 });
 
 export default router;
