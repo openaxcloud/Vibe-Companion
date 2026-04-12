@@ -8,7 +8,7 @@ export default function VsCodeSandbox() {
   const comparisons = [
     {
       feature: "AI Code Generation",
-      eCode: "GPT-5 + Claude built-in",
+      eCode: "GPT-4.1 + Claude built-in",
       codesandbox: "Not available",
       advantage: "eCode"
     },

@@ -8,7 +8,7 @@ export default function VsGitHubCodespaces() {
   const comparisons = [
     {
       feature: "AI-Powered Development",
-      eCode: "GPT-5.1 + Claude Sonnet 4.5 built-in",
+      eCode: "GPT-4.1 + Claude Sonnet 4 built-in",
       github: "GitHub Copilot (additional cost)",
       advantage: "eCode"
     },
@@ -131,7 +131,7 @@ export default function VsGitHubCodespaces() {
               <div data-testid="advantage-ai">
                 <h3 className="font-semibold text-[13px] sm:text-base mb-1 sm:mb-2">Better AI Integration</h3>
                 <p className="text-[11px] sm:text-[13px] text-muted-foreground">
-                  Multiple AI models (GPT-5, Claude) built-in at no extra cost. Custom prompts and templates included.
+                  Multiple AI models (GPT-4.1, Claude) built-in at no extra cost. Custom prompts and templates included.
                 </p>
               </div>
               <div data-testid="advantage-setup">

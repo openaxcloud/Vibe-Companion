@@ -39,7 +39,7 @@ export default function Compare() {
   ];
 
   const advantages = [
-    "AI-powered code generation with GPT-5 and Claude",
+    "AI-powered code generation with GPT-4.1 and Claude",
     "Real-time collaboration with WebSocket",
     "One-click deployment to production",
     "Built-in database and authentication",

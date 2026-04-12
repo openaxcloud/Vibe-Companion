@@ -14,7 +14,7 @@ export interface AIPreferences {
 
 const DEFAULT_PREFERENCES: AIPreferences = {
   enabled: true,
-  model: 'Claude Sonnet 4.5',
+  model: 'Claude Sonnet 4',
   autoTrigger: true,
   confidenceThreshold: 0.7,
   triggerDelay: 300,
@@ -136,11 +136,13 @@ export function useAIPreferences() {
   // Get available AI models
   const getAvailableModels = useCallback(() => {
     return [
-      { value: 'Claude Sonnet 4.5', label: 'Claude Sonnet 4.5', description: 'Best coding model in the world' },
-      { value: 'Claude Opus 4.5', label: 'Claude Opus 4.5', description: 'Most capable frontier model' },
-      { value: 'GPT-5.1', label: 'GPT-5.1', description: 'Latest flagship with adaptive reasoning' },
-      { value: 'GPT-5', label: 'GPT-5', description: 'Advanced reasoning model' },
-      { value: 'E-Code Agent', label: 'E-Code Agent', description: 'Optimized for building' },
+      { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', description: 'Best overall — top intelligence for coding and reasoning' },
+      { value: 'claude-opus-4-20250514', label: 'Claude Opus 4', description: 'Most powerful Claude — complex analysis and deep reasoning' },
+      { value: 'gpt-4.1', label: 'GPT-4.1', description: 'OpenAI flagship — best coding and instruction following' },
+      { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', description: 'Fast and efficient — best price-to-performance ratio' },
+      { value: 'o3', label: 'o3', description: 'Most powerful reasoning — frontier performance' },
+      { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'State-of-the-art reasoning and 1M context' },
+      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Fast multimodal AI with thinking capabilities' },
     ];
   }, []);
 

@@ -36,7 +36,7 @@ import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
 // Composant pour le testeur de prompts interactif
 function PromptTester() {
   const [prompt, setPrompt] = useState('');
-  const [model, setModel] = useState('gpt-5');
+  const [model, setModel] = useState('gpt-4.1');
   const [response, setResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [variables, setVariables] = useState({
@@ -113,10 +113,14 @@ function PromptTester() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="gpt-5">GPT-5 (Latest)</SelectItem>
-              <SelectItem value="claude-3.5">Claude 3.5 Sonnet</SelectItem>
-              <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
-              <SelectItem value="llama-3">Llama 3</SelectItem>
+              <SelectItem value="gpt-4.1">GPT-4.1</SelectItem>
+              <SelectItem value="gpt-4.1-mini">GPT-4.1 Mini</SelectItem>
+              <SelectItem value="o4-mini">o4-mini</SelectItem>
+              <SelectItem value="o3">o3</SelectItem>
+              <SelectItem value="claude-sonnet-4-20250514">Claude Sonnet 4</SelectItem>
+              <SelectItem value="claude-opus-4-20250514">Claude Opus 4</SelectItem>
+              <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+              <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -189,10 +193,11 @@ function ModelComparison() {
   const [isComparing, setIsComparing] = useState(false);
 
   const models = [
-    { id: 'gpt-5', name: 'GPT-5', speed: 95, accuracy: 98, cost: 3 },
-    { id: 'claude-3.5', name: 'Claude 3.5 Sonnet', speed: 90, accuracy: 97, cost: 2.5 },
-    { id: 'gemini-pro', name: 'Gemini Pro', speed: 92, accuracy: 95, cost: 2 },
-    { id: 'llama-3', name: 'Llama 3', speed: 85, accuracy: 90, cost: 1 }
+    { id: 'gpt-4.1', name: 'GPT-4.1', speed: 95, accuracy: 98, cost: 3 },
+    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', speed: 90, accuracy: 97, cost: 2.5 },
+    { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', speed: 88, accuracy: 99, cost: 5 },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', speed: 92, accuracy: 95, cost: 2 },
+    { id: 'o3', name: 'o3', speed: 80, accuracy: 99, cost: 4 }
   ];
 
   const handleCompare = () => {
@@ -420,19 +425,19 @@ export default function AIDocumentation() {
                   <ul className="space-y-2">
                     <li className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-green-500" />
-                      GPT-5 (Latest)
+                      GPT-4.1 / GPT-4.1 Mini / GPT-4.1 Nano
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-green-500" />
-                      Claude 3.5 Sonnet
+                      o4-mini / o3
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-green-500" />
-                      Gemini Pro
+                      Claude Sonnet 4 / Claude Opus 4
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-green-500" />
-                      Llama 3 & Mixtral
+                      Gemini 2.5 Pro / Gemini 2.5 Flash
                     </li>
                   </ul>
                 </CardContent>
@@ -1076,8 +1081,8 @@ export default function AIDocumentation() {
             <div className="space-y-4">
               {[
                 {
-                  question: 'Quelle est la différence entre GPT-5 et Claude 3.5 Sonnet?',
-                  answer: 'GPT-5 excelle dans la génération de code créatif et la compréhension de contextes complexes, tandis que Claude 3.5 Sonnet est particulièrement efficace pour le raisonnement logique et l\'analyse de code. Nous recommandons de tester les deux pour votre cas d\'usage spécifique.',
+                  question: 'Quelle est la différence entre GPT-4.1 et Claude Sonnet 4?',
+                  answer: 'GPT-4.1 excelle dans la génération de code créatif et la compréhension de contextes complexes, tandis que Claude Sonnet 4 est particulièrement efficace pour le raisonnement logique et l\'analyse de code. Nous recommandons de tester les deux pour votre cas d\'usage spécifique.',
                   category: 'Modèles'
                 },
                 {

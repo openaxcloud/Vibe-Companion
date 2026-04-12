@@ -19,7 +19,7 @@ export function AICodeCompletion({
 export function useAICompletion(_editor: unknown) {
   const [enabled, setEnabled] = useState(true);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [model, setModel] = useState('Claude Sonnet 4.5');
+  const [model, setModel] = useState('Claude Sonnet 4');
   const [autoTrigger, setAutoTrigger] = useState(true);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.7);
 

@@ -416,7 +416,7 @@ export default function Landing() {
                     { 
                       icon: <Bot className="h-4 w-4" />, 
                       label: "AI Assistant",
-                      text: "Build an intelligent AI chatbot with OpenAI GPT-5 integration, conversation memory and context, document upload for RAG knowledge base, code execution sandbox, streaming responses with typing animation, conversation history with search, export to PDF, and multi-language support", 
+                      text: "Build an intelligent AI chatbot with OpenAI GPT-4.1 integration, conversation memory and context, document upload for RAG knowledge base, code execution sandbox, streaming responses with typing animation, conversation history with search, export to PDF, and multi-language support", 
                       color: "from-ecode-orange to-ecode-orange-hover", 
                       id: "chatbot" 
                     },

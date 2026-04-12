@@ -14,7 +14,7 @@ export default function VsAwsCloud9() {
     },
     {
       feature: "AI Development",
-      eCode: "Built-in GPT-5 + Claude",
+      eCode: "Built-in GPT-4.1 + Claude",
       aws: "Not available",
       advantage: "eCode"
     },

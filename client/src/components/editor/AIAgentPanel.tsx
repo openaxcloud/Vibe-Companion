@@ -360,8 +360,8 @@ export function AIAgentPanel({ projectId, onClose, selectedCode, currentFilePath
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="openai">GPT-5.1</SelectItem>
-                <SelectItem value="anthropic">Claude Sonnet 4.5</SelectItem>
+                <SelectItem value="openai">GPT-4.1</SelectItem>
+                <SelectItem value="anthropic">Claude Sonnet 4</SelectItem>
                 <SelectItem value="gemini">Gemini 2.5 Pro</SelectItem>
               </SelectContent>
             </Select>

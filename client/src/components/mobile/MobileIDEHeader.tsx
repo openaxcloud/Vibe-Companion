@@ -39,7 +39,7 @@ interface MobileIDEHeaderProps {
 
 export function MobileIDEHeader({
   projectName,
-  modelName = 'Claude Sonnet 4.5',
+  modelName = 'Claude Sonnet 4',
   isRunning = false,
   onRun,
   onStop,
