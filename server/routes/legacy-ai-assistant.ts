@@ -1464,6 +1464,8 @@ Rules:
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
 
       const turboMaxTokens = Math.min(resolved.maxTokens, 16384);
 
@@ -2345,6 +2347,13 @@ Rules:
         }
       }
 
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+      res.write(`data: ${JSON.stringify({ type: "status", message: "Preparing workspace..." })}\n\n`);
+
       const existingFiles = await storage.getFiles(projectId);
       const agentModifiedFiles = new Set<string>();
 
@@ -2617,10 +2626,6 @@ You have access to web search tools. Use them when:
 
 Use \`web_search\` to search for information. Use \`fetch_url\` to read the full content of a specific URL when you need more detail than the search snippet provides.
 Always cite your sources in your response when using information from web searches.` : ""}${agentSkillsContext}${mcpToolsContext}${planContext}`;
-
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
 
       if (ecodeRegenerated && ecodeFile) {
         res.write(`data: ${JSON.stringify({ type: "file_created", file: { id: ecodeFile.id, filename: "ecode.md", content: ecodeFile.content } })}\n\n`);
@@ -4118,6 +4123,8 @@ DESIGN QUALITY (for web projects):
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
 
       if (requestedModel === "gemini") {
         const geminiTools: Tool[] = [{
