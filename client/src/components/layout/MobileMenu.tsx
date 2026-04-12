@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -71,11 +70,11 @@ export function MobileMenu({ onOpenSpotlight }: MobileMenuProps) {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="left"
-          className="w-full sm:w-[380px] p-0 bg-white dark:bg-gray-900 dark:bg-zinc-950"
+          className="w-full sm:w-[380px] p-0 bg-white dark:bg-zinc-950"
         >
           <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 dark:border-zinc-800">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-zinc-800">
               <div className="flex items-center justify-between mb-4">
                 <ECodeLogo size="sm" showText />
               </div>
@@ -83,7 +82,7 @@ export function MobileMenu({ onOpenSpotlight }: MobileMenuProps) {
               {/* User Profile */}
               {user && (
                 <div
-                  className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 dark:bg-zinc-900 border border-gray-200 dark:border-gray-700 dark:border-zinc-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+                  className="p-3 rounded-lg bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
                   onClick={() => handleNavigate(`/@${user.username}`)}
                 >
                   <div className="flex items-center gap-3">
@@ -91,7 +90,7 @@ export function MobileMenu({ onOpenSpotlight }: MobileMenuProps) {
                       {user.username?.[0]?.toUpperCase() || 'U'}
                     </div>
                     <div className="flex-1">
-                      <div className="font-semibold text-[13px] text-gray-900 dark:text-white dark:text-white">
+                      <div className="font-semibold text-[13px] text-gray-900 dark:text-white">
                         {user.username}
                       </div>
                       <div className="text-[11px] text-gray-500 dark:text-zinc-400">
@@ -153,7 +152,7 @@ export function MobileMenu({ onOpenSpotlight }: MobileMenuProps) {
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-[13px] transition-colors ${
                           location === link.path
                             ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                            : 'text-gray-700 dark:text-gray-300 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
+                            : 'text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
                         }`}
                         onClick={() => handleNavigate(link.path)}
                       >
@@ -178,7 +177,7 @@ export function MobileMenu({ onOpenSpotlight }: MobileMenuProps) {
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-[13px] transition-colors ${
                           location === link.path
                             ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                            : 'text-gray-700 dark:text-gray-300 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
+                            : 'text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
                         }`}
                         onClick={() => handleNavigate(link.path)}
                       >
@@ -203,7 +202,7 @@ export function MobileMenu({ onOpenSpotlight }: MobileMenuProps) {
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-[13px] transition-colors ${
                           location === link.path
                             ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                            : 'text-gray-700 dark:text-gray-300 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
+                            : 'text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
                         }`}
                         onClick={() => handleNavigate(link.path)}
                       >
@@ -218,10 +217,10 @@ export function MobileMenu({ onOpenSpotlight }: MobileMenuProps) {
 
             {/* Footer */}
             {user && (
-              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 dark:border-zinc-800">
+              <div className="px-6 py-4 border-t border-gray-200 dark:border-zinc-800">
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-2 text-gray-700 dark:text-gray-300 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400"
+                  className="w-full justify-start gap-2 text-gray-700 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400"
                   onClick={handleLogout}
                 >
                   <LogOut className="h-4 w-4" />

@@ -97,7 +97,7 @@ export default function Accessibility() {
         {/* Accessibility Features */}
         <div className="max-w-4xl mx-auto mb-16">
           <h2 className="text-2xl font-bold text-center mb-8">Accessibility Features</h2>
-          <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid sm:grid-cols-2 gap-6">
             {accessibilityFeatures.map((feature) => (
               <Card key={feature.title} className="p-6 hover:shadow-lg transition-shadow">
                 <div className="flex items-start gap-4">
@@ -154,7 +154,7 @@ export default function Accessibility() {
         {/* Technical Specifications */}
         <div className="max-w-4xl mx-auto mb-16">
           <h2 className="text-2xl font-bold text-center mb-8">Technical Specifications</h2>
-          <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid sm:grid-cols-2 gap-6">
             <Card className="p-6">
               <h3 className="font-semibold mb-4">Supported Assistive Technologies</h3>
               <ul className="space-y-2">
@@ -237,7 +237,7 @@ export default function Accessibility() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/contact">
-                <Button size="lg" className="gap-2 min-h-[48px] bg-white dark:bg-gray-900 text-teal-600 hover:bg-teal-50" data-testid="button-accessibility-contact">
+                <Button size="lg" className="gap-2 min-h-[48px] bg-white text-teal-600 hover:bg-teal-50 dark:bg-white dark:text-teal-600 dark:hover:bg-teal-50" data-testid="button-accessibility-contact">
                   <Mail className="h-5 w-5" />
                   Contact Accessibility Team
                 </Button>
