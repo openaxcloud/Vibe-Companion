@@ -576,7 +576,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     agent: 'Agent', preview: 'Preview', deploy: 'Deploy', console: 'Console',
     database: 'Database', git: 'Git', secrets: 'Secrets', auth: 'Auth',
     settings: 'Settings', history: 'History', workflows: 'Workflows',
-    extensions: 'Extensions', packages: 'Packages', terminal: 'Terminal',
+    extensions: 'Extensions', packages: 'Packages', terminal: 'Shell',
     debug: 'Debug', checkpoints: 'Checkpoints', security: 'Security',
     collaboration: 'Collaboration', search: 'Search',
     automations: 'Automations', config: 'Config', feedback: 'Feedback',
@@ -698,7 +698,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'database':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><DatabasePanel projectId={projectId} /></Suspense>;
       case 'terminal':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitTerminalPanel projectId={projectId} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ShellPanel projectId={projectId} /></Suspense>;
       case 'files':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Files..." /></div>}><ReplitFileExplorer projectId={projectId} files={Array.isArray(filesRaw) ? filesRaw : []} onFileSelect={(file: { id: string; name: string }) => handleFileSelect({ id: parseInt(file.id, 10), name: file.name })} selectedFileId={selectedFileId !== null ? String(selectedFileId) : null} /></Suspense>;
       case 'history':
@@ -911,7 +911,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitDeploymentPanel projectId={projectId} /></Suspense>;
     }
     if (currentTab.id === 'terminal') {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitTerminalPanel projectId={projectId} /></Suspense>;
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ShellPanel projectId={projectId} /></Suspense>;
     }
     if (currentTab.id === 'resources') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ResourcesPanel projectId={projectId} /></Suspense>;

@@ -24,11 +24,19 @@ It is automatically updated when the AI agent makes significant changes.
 
 ## Project Structure
 <!-- AUTO-GENERATED: The AI agent updates this section automatically after changes -->
-- `index.js` — Main entry point
+- `index.html`
+- `index.js`
+- `main.js`
+- `package.json` — Node.js dependencies and scripts
+- `assets/`
+  - `gourmet_pasta.png`
+  - `pasta_dish.png`
+  - `restaurant_interior.png`
 
 ## Dependencies & Frameworks
 <!-- AUTO-GENERATED: Detected from project files -->
-_No dependencies detected yet._
+- Node.js (npm/yarn)
+- `http-server`
 
 ## Communication Preferences
 - Provide complete, working code when making changes
@@ -51,4 +59,4 @@ Add any project-specific notes, API keys to reference, deployment targets,
 or domain knowledge the AI should be aware of when assisting you.
 
 ---
-_Last auto-updated: 2026-04-12T10:47:10.560Z_
+_Last auto-updated: 2026-04-12T10:56:35.355Z_
