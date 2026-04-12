@@ -882,14 +882,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   }, []);
   useEffect(() => {
     if (!projectId) return;
-    fetch(`/api/projects/${projectId}/ai-credentials`, { credentials: "include" })
-      .then(r => r.ok ? r.json() : [])
-      .then((data: { provider: string; mode: string; hasApiKey: boolean; configured: boolean }[]) => {
-        const map: Record<string, { mode: string; hasApiKey: boolean; configured: boolean }> = {};
-        data.forEach(d => { map[d.provider] = { mode: d.mode, hasApiKey: d.hasApiKey, configured: d.configured }; });
-        setCredentialModes(map);
-      })
-      .catch(() => {});
+    const allConfigured: Record<string, { mode: string; hasApiKey: boolean; configured: boolean }> = {
+      openai: { mode: "managed", hasApiKey: false, configured: true },
+      anthropic: { mode: "managed", hasApiKey: false, configured: true },
+      google: { mode: "managed", hasApiKey: false, configured: true },
+      openrouter: { mode: "managed", hasApiKey: false, configured: true },
+      perplexity: { mode: "managed", hasApiKey: false, configured: true },
+      mistral: { mode: "managed", hasApiKey: false, configured: true },
+    };
+    setCredentialModes(allConfigured);
   }, [projectId]);
 
   const getCredLabel = (aiModel: AIModel): { text: string; isManaged: boolean } => {
@@ -1523,23 +1524,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + `\n\nError: ${data.message}` } : m)
               );
             }
-            if (data.byokNoKey && currentModel) {
-              const providerLabels: Record<string, string> = { anthropic: "Anthropic (Claude)", openai: "OpenAI (GPT-4o)", google: "Google (Gemini)", openrouter: "OpenRouter" };
-              const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter", perplexity: "perplexity", mistral: "mistral" };
-              const cp = providerMap[currentModel];
-              setShowManagedApproval({ provider: cp, providerLabel: providerLabels[cp] || cp });
-            }
           } else {
             if (data.content) {
               setMsgs((prev) =>
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + data.content } : m)
               );
-            }
-            if (data.byokNoKey && currentModel) {
-              const providerLabels: Record<string, string> = { anthropic: "Anthropic (Claude)", openai: "OpenAI (GPT-4o)", google: "Google (Gemini)", openrouter: "OpenRouter" };
-              const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter", perplexity: "perplexity", mistral: "mistral" };
-              const cp = providerMap[currentModel];
-              setShowManagedApproval({ provider: cp, providerLabel: providerLabels[cp] || cp });
             }
           }
         } catch {}
@@ -2012,16 +2001,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       return submitPlanMode();
     }
 
-    if (projectId) {
-      const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter", perplexity: "perplexity", mistral: "mistral" };
-      const currentProvider = providerMap[model];
-      const cfg = credentialModes[currentProvider];
-      const providerLabels: Record<string, string> = { anthropic: "Anthropic (Claude)", openai: "OpenAI (GPT-4o)", google: "Google (Gemini)", openrouter: "OpenRouter" };
-      if (!cfg || !cfg.configured) {
-        setShowManagedApproval({ provider: currentProvider, providerLabel: providerLabels[currentProvider] || currentProvider });
-        return;
-      }
-    }
+    
 
     const content = input.trim();
     const currentAttachments = [...attachments];
