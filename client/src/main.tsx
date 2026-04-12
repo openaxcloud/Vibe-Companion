@@ -11,7 +11,8 @@ window.addEventListener("unhandledrejection", (e) => {
   console.error("[UNHANDLED REJECTION]", e.reason);
 });
 
-console.log("[main.tsx] React app mounting...");
+const BUILD_TS = "20260412-1020";
+console.log("[main.tsx] React app mounting...", BUILD_TS);
 
 try {
   createRoot(document.getElementById("root")!).render(<App />);
