@@ -467,21 +467,65 @@ router.get('/projects/:id/preview/', requireAuth, ensureProjectAccess, async (re
       return res.status(404).send(`File not found: ${fileParam}`);
     }
     
-    // Find root index.html by path (not just name) to avoid matching nested index.html
-    const rootIndexFile = findFileByPath(files, 'index.html');
-    if (rootIndexFile) {
-      const content = rootIndexFile.content ?? '';
+    // Find index.html - first at root, then in common subdirectories
+    const searchPaths = [
+      'index.html',
+      'client/index.html',
+      'client/public/index.html',
+      'public/index.html',
+      'src/index.html',
+      'frontend/index.html',
+      'frontend/public/index.html',
+      'app/index.html',
+      'web/index.html',
+      'www/index.html',
+      'dist/index.html',
+      'build/index.html',
+    ];
+
+    let indexFile: any = null;
+    let indexFilePath = '';
+    for (const searchPath of searchPaths) {
+      const found = findFileByPath(files, searchPath);
+      if (found) {
+        indexFile = found;
+        indexFilePath = searchPath;
+        break;
+      }
+    }
+
+    // Fallback: find any index.html in the project
+    if (!indexFile) {
+      indexFile = files.find((f: any) => {
+        if (f.isDirectory) return false;
+        const fname = f.filename || f.path || '';
+        return fname.endsWith('/index.html') || fname === 'index.html';
+      });
+      if (indexFile) {
+        indexFilePath = indexFile.filename || indexFile.path || '';
+      }
+    }
+
+    if (indexFile) {
+      const content = indexFile.content ?? '';
       if (!content) {
         res.type('html').send('');
         return;
       }
-      const modifiedContent = injectPreviewScripts(content, projectId);
+      const basePath = indexFilePath.includes('/') ? indexFilePath.substring(0, indexFilePath.lastIndexOf('/')) : '';
+      let modifiedContent = injectPreviewScripts(content, projectId);
+      if (basePath) {
+        modifiedContent = modifiedContent.replace(
+          /<head([^>]*)>/i,
+          `<head$1><base href="/api/preview/projects/${projectId}/preview/${basePath}/">`
+        );
+      }
       res.type('html').send(modifiedContent);
       return;
     }
     
-    // No root index.html found, return 404
-    return res.status(404).send('No index.html found in project root');
+    // No index.html found anywhere
+    return res.status(404).send('No index.html found in project');
   } catch (error) {
     console.error('Error serving preview root:', error);
     res.status(500).send('Failed to serve preview');
