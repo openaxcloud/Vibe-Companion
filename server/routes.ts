@@ -1818,6 +1818,11 @@ export async function registerRoutes(
         { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "gemini", description: "Fast multimodal AI — thinking capabilities with 1M context", maxTokens: 1000000, supportsStreaming: true, costPer1kTokens: 0.0000375, available: true },
       );
     }
+    if (process.env.OPENHANDS_API_KEY) {
+      models.push(
+        { id: "openhands", name: "OpenHands Agent", provider: "openhands", description: "Autonomous AI software engineer — runs code, edits files, browses web", maxTokens: 200000, supportsStreaming: true, costPer1kTokens: 0, available: true },
+      );
+    }
     return models;
   }
 

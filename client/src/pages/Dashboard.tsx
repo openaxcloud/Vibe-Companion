@@ -213,7 +213,7 @@ export default function Dashboard() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
-  const [aiModel, setAiModel] = useState<"claude" | "gpt" | "gemini">("gpt");
+  const [aiModel, setAiModel] = useState<"claude" | "gpt" | "gemini" | "openhands" | "goose">("gpt");
   const [deleteConfirmDialogOpen, setDeleteConfirmDialogOpen] = useState(false);
   const [deleteTargetProject, setDeleteTargetProject] = useState<{ id: string; name: string } | null>(null);
   const [sidebarNav, setSidebarNav] = useState<"home" | "projects">("home");
@@ -511,8 +511,10 @@ export default function Dashboard() {
       setAiPrompt("");
       if (data.projectId) {
         sessionStorage.setItem(`agent-prompt-${data.projectId}`, promptText);
-        if (variables.model) {
-          try { localStorage.setItem("ai-preferred-model", variables.model); } catch {}
+        if (variables.model === "openhands" || variables.model === "goose") {
+          try { localStorage.setItem("ai-agent-provider", variables.model); } catch {}
+        } else if (variables.model) {
+          try { localStorage.setItem("ai-preferred-model", variables.model); localStorage.setItem("ai-agent-provider", "builtin"); } catch {}
         }
         window.location.href = `/ide/${data.projectId}?bootstrap=${data.bootstrapToken || '1'}`;
       } else {
@@ -792,10 +794,16 @@ export default function Dashboard() {
             />
             <div className="flex items-center justify-between px-3 pb-3">
               <div className="flex items-center gap-1">
-                {(["claude", "gpt", "gemini"] as const).map(m => {
-                  const cfg = { claude: { label: "Claude", active: "bg-[#7C65CB]/10 text-[#7C65CB] border-[#7C65CB]/25" }, gpt: { label: "GPT-4.1", active: "bg-[#0CCE6B]/10 text-[#059669] border-[#0CCE6B]/25" }, gemini: { label: "Gemini", active: "bg-[#4285F4]/10 text-[#4285F4] border-[#4285F4]/25" } }[m];
+                {(["claude", "gpt", "gemini", "openhands", "goose"] as const).map(m => {
+                  const cfg = {
+                    claude: { label: "Claude", active: "bg-[#7C65CB]/10 text-[#7C65CB] border-[#7C65CB]/25" },
+                    gpt: { label: "GPT-4.1", active: "bg-[#0CCE6B]/10 text-[#059669] border-[#0CCE6B]/25" },
+                    gemini: { label: "Gemini", active: "bg-[#4285F4]/10 text-[#4285F4] border-[#4285F4]/25" },
+                    openhands: { label: "OpenHands", active: "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/25" },
+                    goose: { label: "Goose", active: "bg-[#F97316]/10 text-[#F97316] border-[#F97316]/25" },
+                  }[m];
                   return (
-                    <button key={m} type="button" onClick={() => setAiModel(m)} className={`text-[11px] px-2.5 py-1.5 rounded-md transition-all font-medium border ${aiModel === m ? cfg.active : "text-[#9CA3AF] border-transparent hover:bg-[var(--ide-surface)]"}`} data-testid={`button-model-${m}-mobile`}>
+                    <button key={m} type="button" onClick={() => { setAiModel(m); try { localStorage.setItem("ai-agent-provider", (m === "openhands" || m === "goose") ? m : "builtin"); } catch {} }} className={`text-[11px] px-2.5 py-1.5 rounded-md transition-all font-medium border ${aiModel === m ? cfg.active : "text-[#9CA3AF] border-transparent hover:bg-[var(--ide-surface)]"}`} data-testid={`button-model-${m}-mobile`}>
                       {cfg.label}
                     </button>
                   );
@@ -1664,7 +1672,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => setAiModel("claude")}
+                        onClick={() => { setAiModel("claude"); try { localStorage.setItem("ai-agent-provider", "builtin"); } catch {} }}
                         className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "claude" ? "bg-[#7C65CB]/15 text-[#A78BFA] border border-[#7C65CB]/30" : "text-[var(--ide-text-muted)] border border-transparent hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50"}`}
                         data-testid="button-model-claude"
                       >
@@ -1672,7 +1680,7 @@ export default function Dashboard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setAiModel("gpt")}
+                        onClick={() => { setAiModel("gpt"); try { localStorage.setItem("ai-agent-provider", "builtin"); } catch {} }}
                         className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "gpt" ? "bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30" : "text-[var(--ide-text-muted)] border border-transparent hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50"}`}
                         data-testid="button-model-gpt"
                       >
@@ -1680,11 +1688,28 @@ export default function Dashboard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setAiModel("gemini")}
+                        onClick={() => { setAiModel("gemini"); try { localStorage.setItem("ai-agent-provider", "builtin"); } catch {} }}
                         className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "gemini" ? "bg-[#4285F4]/15 text-[#4285F4] border border-[#4285F4]/30" : "text-[var(--ide-text-muted)] border border-transparent hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50"}`}
                         data-testid="button-model-gemini"
                       >
                         <Star className="w-3 h-3" /> Gemini
+                      </button>
+                      <div className="w-px h-4 bg-[var(--ide-border)] mx-0.5" />
+                      <button
+                        type="button"
+                        onClick={() => { setAiModel("openhands"); try { localStorage.setItem("ai-agent-provider", "openhands"); } catch {} }}
+                        className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "openhands" ? "bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30" : "text-[var(--ide-text-muted)] border border-transparent hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50"}`}
+                        data-testid="button-model-openhands"
+                      >
+                        <Globe className="w-3 h-3" /> OpenHands
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAiModel("goose"); try { localStorage.setItem("ai-agent-provider", "goose"); } catch {} }}
+                        className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "goose" ? "bg-[#F97316]/15 text-[#F97316] border border-[#F97316]/30" : "text-[var(--ide-text-muted)] border border-transparent hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50"}`}
+                        data-testid="button-model-goose"
+                      >
+                        <Terminal className="w-3 h-3" /> Goose
                       </button>
                     </div>
                     <Button

@@ -55,6 +55,12 @@ interface AIModelSelectorProps {
   onRAGToggle?: (enabled: boolean) => void;
 }
 
+const OpenHandsIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+  </svg>
+);
+
 const getProviderIcon = (provider: string) => {
   const icons: Record<string, React.ElementType> = {
     openai: SiOpenai,
@@ -62,6 +68,7 @@ const getProviderIcon = (provider: string) => {
     gemini: SiGoogle,
     xai: XAIIcon,
     moonshot: MoonshotIcon,
+    openhands: OpenHandsIcon,
     default: Cpu
   };
   return icons[provider] || icons.default;
@@ -73,7 +80,8 @@ const getProviderColor = (provider: string) => {
     anthropic: 'bg-orange-500',
     gemini: 'bg-blue-500',
     xai: 'bg-purple-500',
-    moonshot: 'bg-cyan-500',  // Kimi-K2 (Moonshot AI) - Cyan for cost savings theme
+    moonshot: 'bg-cyan-500',
+    openhands: 'bg-emerald-500',
     default: 'bg-gray-500'
   };
   return colors[provider] || colors.default;
@@ -131,18 +139,29 @@ export function AIModelSelector({
 
     const modelObj = availableModels.find((m: AIModel) => m.id === modelId);
     if (modelObj) {
-      const providerMap: Record<string, string> = {
-        openai: 'gpt',
-        anthropic: 'claude',
-        gemini: 'gemini',
-        google: 'gemini',
-        xai: 'gpt',
-        moonshot: 'gpt',
-      };
-      const aiPanelProvider = providerMap[modelObj.provider] || 'claude';
-      try {
-        localStorage.setItem('ai-preferred-model', aiPanelProvider);
-      } catch {}
+      if (modelObj.provider === 'openhands') {
+        try {
+          localStorage.setItem('ai-agent-provider', 'openhands');
+        } catch {}
+      } else if (modelObj.provider === 'goose') {
+        try {
+          localStorage.setItem('ai-agent-provider', 'goose');
+        } catch {}
+      } else {
+        const providerMap: Record<string, string> = {
+          openai: 'gpt',
+          anthropic: 'claude',
+          gemini: 'gemini',
+          google: 'gemini',
+          xai: 'gpt',
+          moonshot: 'gpt',
+        };
+        const aiPanelProvider = providerMap[modelObj.provider] || 'claude';
+        try {
+          localStorage.setItem('ai-preferred-model', aiPanelProvider);
+          localStorage.setItem('ai-agent-provider', 'builtin');
+        } catch {}
+      }
     }
   };
 
