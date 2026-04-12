@@ -95,13 +95,18 @@ export function ReplitDeploymentPanel({
   className,
   defaultTab = 'deploy'
 }: ReplitDeploymentPanelProps) {
-  const [view, setViewLocal] = useState<PanelView>('type-select');
+  const [view, setViewRaw] = useState<PanelView>(() => {
+    try {
+      const saved = sessionStorage.getItem(`deploy-view-${projectId}`);
+      if (saved && ['type-select', 'configure', 'deploying', 'overview'].includes(saved)) return saved as PanelView;
+    } catch {}
+    return 'type-select';
+  });
   const [deployType, setDeployType] = useState<DeploymentType>('autoscale');
   const [overviewTab, setOverviewTab] = useState<OverviewTab>('overview');
-  const [viewInitialized, setViewInitialized] = useState(false);
 
   const setView = useCallback((v: PanelView) => {
-    setViewLocal(v);
+    setViewRaw(v);
     try { sessionStorage.setItem(`deploy-view-${projectId}`, v); } catch {}
   }, [projectId]);
 
@@ -131,9 +136,22 @@ export function ReplitDeploymentPanel({
 
   const [publicDirectory, setPublicDirectory] = useState('dist');
 
-  const [isDeploying, setIsDeploying] = useState(false);
+  const [isDeploying, setIsDeployingRaw] = useState(() => {
+    try {
+      const ts = sessionStorage.getItem(`deploy-started-${projectId}`);
+      return ts ? (Date.now() - Number(ts)) < 120000 : false;
+    } catch { return false; }
+  });
   const [deployProgress, setDeployProgress] = useState(0);
   const [deployStage, setDeployStage] = useState('');
+
+  const setIsDeploying = useCallback((v: boolean) => {
+    setIsDeployingRaw(v);
+    try {
+      if (v) sessionStorage.setItem(`deploy-started-${projectId}`, String(Date.now()));
+      else sessionStorage.removeItem(`deploy-started-${projectId}`);
+    } catch {}
+  }, [projectId]);
   const [logs, setLogs] = useState<any[]>([]);
   const [logFilter, setLogFilter] = useState('all');
   const [isAutoScroll, setIsAutoScroll] = useState(true);
@@ -146,7 +164,7 @@ export function ReplitDeploymentPanel({
 
   const { data: latestDeployment, isLoading: isLoadingDeployment, refetch: refetchDeployment } = useQuery({
     queryKey: ['/api/projects', projectId, 'deployment', 'latest'],
-    refetchInterval: isDeploying ? 3000 : false,
+    refetchInterval: (isDeploying || view === 'deploying') ? 3000 : 30000,
     enabled: !!projectId,
   });
 
@@ -173,70 +191,82 @@ export function ReplitDeploymentPanel({
   const isActive = displayStatus === 'live';
   const isInProgress = displayStatus === 'publishing';
 
+  const syncedRef = useRef(false);
   useEffect(() => {
-    if (isLoadingDeployment || viewInitialized) return;
-    setViewInitialized(true);
-
-    let savedView: string | null = null;
-    try { savedView = sessionStorage.getItem(`deploy-view-${projectId}`); } catch {}
+    if (isLoadingDeployment) return;
+    if (syncedRef.current) return;
+    syncedRef.current = true;
 
     if (deployment) {
       const status = translateStatusToUI(deployment.status);
-      if (status === 'live' || status === 'failed') {
-        setViewLocal('overview');
-        setOverviewTab('overview');
-      } else if (status === 'publishing') {
-        setIsDeploying(true);
-        setViewLocal('deploying');
-      } else if (savedView === 'overview' || savedView === 'deploying') {
-        setViewLocal('overview');
-      } else if (savedView === 'configure') {
-        setViewLocal('configure');
-      } else {
-        setViewLocal('overview');
+      if (status === 'publishing') {
+        setIsDeployingRaw(true);
+        setViewRaw('deploying');
+        try { sessionStorage.setItem(`deploy-view-${projectId}`, 'deploying'); } catch {}
+      } else if (status === 'live' || status === 'failed') {
+        if (view === 'type-select' || view === 'deploying') {
+          setViewRaw('overview');
+          try { sessionStorage.setItem(`deploy-view-${projectId}`, 'overview'); } catch {}
+        }
+        setIsDeployingRaw(false);
+        try { sessionStorage.removeItem(`deploy-started-${projectId}`); } catch {}
       }
     } else {
-      if (savedView === 'configure') {
-        setViewLocal('configure');
-      } else {
-        setViewLocal('type-select');
+      if (view === 'overview' || view === 'deploying') {
+        setViewRaw('type-select');
+        try { sessionStorage.setItem(`deploy-view-${projectId}`, 'type-select'); } catch {}
       }
+      setIsDeployingRaw(false);
+      try { sessionStorage.removeItem(`deploy-started-${projectId}`); } catch {}
     }
-  }, [isLoadingDeployment, deployment, viewInitialized, projectId]);
+  }, [isLoadingDeployment]);
 
   useEffect(() => {
-    if (!viewInitialized) return;
     if (deployment && isActive && view === 'deploying') {
       setIsDeploying(false);
       setDeployProgress(100);
-      setView('overview');
-      setOverviewTab('overview');
+      setDeployStage('Complete!');
+      setTimeout(() => {
+        setView('overview');
+        setOverviewTab('overview');
+      }, 1000);
     }
-  }, [deployment?.status, viewInitialized]);
+  }, [deployment?.status]);
 
   useEffect(() => {
-    if (isDeploying) {
-      const stages = ['Provisioning...', 'Security scan...', 'Building...', 'Bundling...', 'Promoting...'];
-      let i = 0;
-      const interval = setInterval(() => {
-        i++;
-        const stageIdx = Math.min(Math.floor(i / 4), stages.length - 1);
-        setDeployStage(stages[stageIdx]);
-        setDeployProgress(Math.min(i * 5, 95));
-        if (i >= 20) {
-          clearInterval(interval);
-          setTimeout(() => {
-            setDeployProgress(100);
-            setDeployStage('Complete!');
-            setIsDeploying(false);
-            setView('overview');
-            setOverviewTab('overview');
-            refetchDeployment();
-          }, 2000);
-        }
-      }, 800);
-      return () => clearInterval(interval);
-    }
+    if (!isDeploying) return;
+    let startedAt: number;
+    try {
+      const ts = sessionStorage.getItem(`deploy-started-${projectId}`);
+      startedAt = ts ? Number(ts) : Date.now();
+    } catch { startedAt = Date.now(); }
+
+    const stages = ['Provisioning...', 'Security scan...', 'Building...', 'Bundling...', 'Promoting...'];
+    const totalDuration = 18000;
+
+    const tick = () => {
+      const elapsed = Date.now() - startedAt;
+      const pct = Math.min(Math.floor((elapsed / totalDuration) * 100), 95);
+      const stageIdx = Math.min(Math.floor(pct / 20), stages.length - 1);
+      setDeployProgress(pct);
+      setDeployStage(stages[stageIdx]);
+
+      if (pct >= 95) {
+        clearInterval(interval);
+        setTimeout(() => {
+          setDeployProgress(100);
+          setDeployStage('Complete!');
+          setIsDeploying(false);
+          setView('overview');
+          setOverviewTab('overview');
+          refetchDeployment();
+        }, 2000);
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 800);
+    return () => clearInterval(interval);
   }, [isDeploying]);
 
   const fetchLogsViaHTTP = useCallback(async (id: string) => {
