@@ -311,7 +311,7 @@ Respond ONLY with the JSON array, no other text.`;
       let responseText = "";
       try {
         if (proposeProvider === "anthropic") {
-          const proposeAnthropic = new Anthropic({ apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY, baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL });
+          const proposeAnthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY! });
           const result = await proposeAnthropic.messages.create({
             model: proposeModelId,
             max_tokens: 4096,
@@ -320,7 +320,7 @@ Respond ONLY with the JSON array, no other text.`;
           });
           responseText = result.content.map((b: any) => b.type === "text" ? b.text : "").join("");
         } else {
-          const proposeOpenai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+          const proposeOpenai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY! });
           const result = await proposeOpenai.chat.completions.create({
             model: proposeModelId,
             max_tokens: 4096,
@@ -335,7 +335,7 @@ Respond ONLY with the JSON array, no other text.`;
         // Fallback: try the other provider
         try {
           if (proposeProvider === "anthropic") {
-            const fallbackOpenai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+            const fallbackOpenai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY! });
             const result = await fallbackOpenai.chat.completions.create({
               model: "gpt-4o",
               max_tokens: 4096,
@@ -343,7 +343,7 @@ Respond ONLY with the JSON array, no other text.`;
             });
             responseText = result.choices[0]?.message?.content || "";
           } else {
-            const fallbackAnthropic = new Anthropic({ apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY, baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL });
+            const fallbackAnthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY! });
             const result = await fallbackAnthropic.messages.create({
               model: "claude-sonnet-4-6",
               max_tokens: 4096,

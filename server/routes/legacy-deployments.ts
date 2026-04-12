@@ -403,7 +403,7 @@ export async function registerDeploymentsRoutes(app: Express, ctx: any): Promise
   app.post("/api/deploy/schedule-to-cron", requireAuth, async (req: Request, res: Response) => {
     try {
       const { description } = z.object({ description: z.string().min(1).max(500) }).parse(req.body);
-      const anthropic = new Anthropic({ apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY, baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL });
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY! });
       const message = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 100,

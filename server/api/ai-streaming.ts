@@ -254,17 +254,7 @@ router.post('/agent/chat/stream', ensureAuthenticated, async (req, res) => {
     ? getFastModel(provider) 
     : (rawModel || modelId || getDefaultModel(provider));
   
-  if (provider === 'openai' && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
-    const MODELFARM_SUPPORTED = new Set([
-      'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
-      'gpt-4o', 'gpt-4o-mini',
-      'o4-mini', 'o3', 'o3-mini',
-    ]);
-    if (!MODELFARM_SUPPORTED.has(model)) {
-      logger.info(`[AI Stream] ModelFarm: model ${model} not in supported set → gpt-4.1`);
-      model = 'gpt-4.1';
-    }
-  }
+  
 
   // Log Fast Mode activation for debugging
   if (fastMode) {
@@ -922,11 +912,8 @@ async function streamOpenAI(res: any, messages: any[], options: any) {
     return;
   }
   
-  // ✅ MODELFARM FIX: Use Replit ModelFarm (free) when available, fall back to direct key
-  const modelfarmURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
   const openai = new OpenAI({
     apiKey,
-    ...(modelfarmURL ? { baseURL: modelfarmURL } : {})
   });
   const executor = new ToolExecutor(options.projectId || 'default', options.userId);
   
@@ -1535,7 +1522,7 @@ router.post('/agent/chat/stop', ensureAuthenticated, (req, res) => {
 router.get('/agent/models', ensureAuthenticated, (req, res) => {
   const { AI_MODELS } = require('../ai/models-catalog');
   const providerAvailability: Record<string, boolean> = {
-    openai: !!process.env.OPENAI_API_KEY || !!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    openai: !!process.env.OPENAI_API_KEY || !!process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
     anthropic: !!process.env.ANTHROPIC_API_KEY || !!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
     gemini: !!process.env.GEMINI_API_KEY || !!process.env.GOOGLE_AI_API_KEY || !!process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
     xai: !!process.env.XAI_API_KEY || !!process.env.AI_INTEGRATIONS_XAI_API_KEY,

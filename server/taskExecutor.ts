@@ -136,8 +136,7 @@ async function executeStepWithAI(
   // Try Anthropic first
   try {
     const anthropic = new Anthropic({
-      apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-      baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+      apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY!,
     });
     const result = await anthropic.messages.create({
       model: process.env.TASK_AI_MODEL || "claude-sonnet-4-6",
@@ -157,8 +156,7 @@ async function executeStepWithAI(
     // Fallback to OpenAI
     try {
       const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+        apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY!,
       });
       const result = await openai.chat.completions.create({
         model: process.env.TASK_AI_MODEL_OPENAI || "gpt-4o",

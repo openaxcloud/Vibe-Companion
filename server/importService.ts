@@ -687,7 +687,7 @@ Generate a complete React component file (FigmaComponent.tsx) with:
   try {
     if (provider === "anthropic") {
       const AnthropicSDK = (await import("@anthropic-ai/sdk")).default;
-      const anthropic = new AnthropicSDK({ apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY, baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL });
+      const anthropic = new AnthropicSDK({ apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY! });
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 4096,

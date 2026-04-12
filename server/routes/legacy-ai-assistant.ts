@@ -115,32 +115,22 @@ export async function registerAiAssistantRoutes(app: Express, ctx: RouteContext)
   } = ctx;
   const path = path_;
 
-  // --- AI ASSISTANT ---
+  // --- AI ASSISTANT (direct provider keys, no ModelFarm proxy) ---
   const anthropic = new Anthropic({
-    apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
-  });
-
-  const anthropicDirect = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY!,
   });
 
+  const anthropicDirect = anthropic;
+
   const openai = new OpenAI({
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY!,
   });
 
   const gemini = new GoogleGenAI({
-    apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY!,
-    httpOptions: {
-      apiVersion: "",
-      baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL!,
-    },
-  });
-
-  const geminiDirect = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY!,
   });
+
+  const geminiDirect = gemini;
 
   const openrouter = new OpenAI({
     apiKey: process.env.OPENROUTER_API_KEY || process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY || "",
