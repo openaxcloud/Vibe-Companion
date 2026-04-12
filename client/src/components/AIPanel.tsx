@@ -186,9 +186,9 @@ interface AgentToolsConfig {
 }
 
 const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string; icon: typeof Sparkles }> = {
-  claude: { name: "Claude Sonnet", badge: "Anthropic", color: "text-[#7C65CB] bg-[#7C65CB]/10", icon: Sparkles },
-  gpt: { name: "GPT-4o", badge: "OpenAI", color: "text-[#0CCE6B] bg-[#0CCE6B]/10", icon: Zap },
-  gemini: { name: "Gemini Flash", badge: "Google", color: "text-[#4285F4] bg-[#4285F4]/10", icon: Zap },
+  claude: { name: "Claude Sonnet 4", badge: "Anthropic", color: "text-[#7C65CB] bg-[#7C65CB]/10", icon: Sparkles },
+  gpt: { name: "GPT-4.1", badge: "OpenAI", color: "text-[#0CCE6B] bg-[#0CCE6B]/10", icon: Zap },
+  gemini: { name: "Gemini 2.5 Flash", badge: "Google", color: "text-[#4285F4] bg-[#4285F4]/10", icon: Zap },
   openrouter: { name: "OpenRouter", badge: "200+ Models", color: "text-[#E44D26] bg-[#E44D26]/10", icon: Globe },
   perplexity: { name: "Perplexity", badge: "Search AI", color: "text-[#20808D] bg-[#20808D]/10", icon: Search },
   mistral: { name: "Mistral", badge: "Mistral AI", color: "text-[#FF7000] bg-[#FF7000]/10", icon: Zap },
@@ -1812,6 +1812,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const isAgent = mode === "agent" && !!projectId;
       const isLite = isAgent && liteMode;
       const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
+      console.log("[AIPanel] sendMessageDirect →", endpoint, "model=", model, "mode=", mode, "projectId=", projectId);
 
       const outbound = allMessages.map((m) => ({
         role: m.role,
@@ -1850,6 +1851,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const csrfToken = getCsrfToken();
       if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
+      console.log("[AIPanel] Sending POST to", endpoint, "csrf=", csrfToken ? "present" : "MISSING", "msgs=", outbound.length);
       const res = await fetch(endpoint, {
         method: "POST",
         headers: fetchHeaders,
@@ -1858,8 +1860,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         signal: abortRef.current.signal,
       });
 
+      console.log("[AIPanel] Response status:", res.status);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
+        console.error("[AIPanel] Error response:", errData);
         throw new Error(errData.error || errData.message || `AI request failed (${res.status})`);
       }
 
@@ -4202,12 +4206,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
                     {([
-                      { key: "claude" as AIModel, name: "Claude Sonnet", badge: "Anthropic", color: "#7C65CB", icon: Sparkles },
-                      { key: "gpt" as AIModel, name: "GPT-4o", badge: "OpenAI", color: "#0CCE6B", icon: Zap },
-                      { key: "gemini" as AIModel, name: "Gemini Flash", badge: "Google", color: "#4285F4", icon: Zap },
+                      { key: "claude" as AIModel, name: "Claude Sonnet 4", badge: "Anthropic", color: "#7C65CB", icon: Sparkles },
+                      { key: "gpt" as AIModel, name: "GPT-4.1", badge: "OpenAI", color: "#0CCE6B", icon: Zap },
+                      { key: "gemini" as AIModel, name: "Gemini 2.5 Flash", badge: "Google", color: "#4285F4", icon: Zap },
                       { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe },
-                      { key: "perplexity" as AIModel, name: "Perplexity", badge: "Search AI", color: "#20808D", icon: Search },
-                      { key: "mistral" as AIModel, name: "Mistral", badge: "Mistral AI", color: "#FF7000", icon: Zap },
                     ]).map(m => {
                       const cred = getCredLabel(m.key);
                       const MdlIcon = m.icon;

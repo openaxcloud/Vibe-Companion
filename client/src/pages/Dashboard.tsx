@@ -820,7 +820,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between px-3 pb-3">
               <div className="flex items-center gap-1">
                 {(["claude", "gpt", "gemini"] as const).map(m => {
-                  const cfg = { claude: { label: "Claude", active: "bg-[#7C65CB]/10 text-[#7C65CB] border-[#7C65CB]/25" }, gpt: { label: "GPT-4o", active: "bg-[#0CCE6B]/10 text-[#059669] border-[#0CCE6B]/25" }, gemini: { label: "Gemini", active: "bg-[#4285F4]/10 text-[#4285F4] border-[#4285F4]/25" } }[m];
+                  const cfg = { claude: { label: "Claude", active: "bg-[#7C65CB]/10 text-[#7C65CB] border-[#7C65CB]/25" }, gpt: { label: "GPT-4.1", active: "bg-[#0CCE6B]/10 text-[#059669] border-[#0CCE6B]/25" }, gemini: { label: "Gemini", active: "bg-[#4285F4]/10 text-[#4285F4] border-[#4285F4]/25" } }[m];
                   return (
                     <button key={m} type="button" onClick={() => setAiModel(m)} className={`text-[11px] px-2.5 py-1.5 rounded-md transition-all font-medium border ${aiModel === m ? cfg.active : "text-[#9CA3AF] border-transparent hover:bg-[var(--ide-surface)]"}`} data-testid={`button-model-${m}-mobile`}>
                       {cfg.label}
@@ -1703,7 +1703,7 @@ export default function Dashboard() {
                         className={`flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-md transition-all font-medium ${aiModel === "gpt" ? "bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30" : "text-[var(--ide-text-muted)] border border-transparent hover:text-[var(--ide-text-secondary)] hover:bg-[var(--ide-surface)]/50"}`}
                         data-testid="button-model-gpt"
                       >
-                        <Zap className="w-3 h-3" /> GPT-4o
+                        <Zap className="w-3 h-3" /> GPT-4.1
                       </button>
                       <button
                         type="button"

@@ -2312,6 +2312,7 @@ Rules:
   };
 
   app.post("/api/ai/agent", requireAuth, aiLimiter, async (req: Request, res: Response) => {
+    log(`[Agent] POST /api/ai/agent - model=${req.body?.model}, projectId=${req.body?.projectId}, messages=${req.body?.messages?.length || 0}`, "agent");
     try {
       const { messages, projectId, model: requestedModel, optimize, agentMode: agentReqMode, webSearchEnabled } = req.body;
       if (!messages || !Array.isArray(messages) || !projectId) {

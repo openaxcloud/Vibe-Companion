@@ -6,7 +6,7 @@ import { Brain, Shield, BarChart3, Settings, ArrowRight, Sparkles } from "lucide
 
 export default function AIPlatform() {
   const features = [
-    { icon: Brain, title: "Multi-Model Support", description: "Access GPT-4o, Claude Sonnet 4, Gemini 2.5 Pro, and more from a single platform." },
+    { icon: Brain, title: "Multi-Model Support", description: "Access GPT-4.1, Claude Sonnet 4, Gemini 2.5 Pro, and more from a single platform." },
     { icon: Shield, title: "AI Governance", description: "Enterprise controls for AI usage, data privacy, and compliance requirements." },
     { icon: BarChart3, title: "Usage Analytics", description: "Track AI token consumption, costs, and team usage with real-time dashboards." },
     { icon: Settings, title: "Custom Configuration", description: "Fine-tune model parameters, set team quotas, and configure BYOK credentials." },

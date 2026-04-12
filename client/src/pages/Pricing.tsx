@@ -402,12 +402,14 @@ export default function Pricing() {
               </div>
               <div className="space-y-2" data-testid="pricing-models-table">
                 {[
-                  { name: "GPT-4o Mini", credits: "~1 credit/request", tier: "Economy" },
-                  { name: "Gemini Flash", credits: "~1 credit/request", tier: "Economy" },
-                  { name: "GPT-4o", credits: "~3-5 credits/request", tier: "Power" },
+                  { name: "GPT-4.1 Mini", credits: "~1 credit/request", tier: "Economy" },
+                  { name: "GPT-4.1 Nano", credits: "~0.5 credit/request", tier: "Economy" },
+                  { name: "Gemini 2.5 Flash", credits: "~1 credit/request", tier: "Economy" },
+                  { name: "GPT-4.1", credits: "~3-5 credits/request", tier: "Power" },
                   { name: "Claude Sonnet 4", credits: "~3-8 credits/request", tier: "Power" },
-                  { name: "Mistral Large", credits: "~2-4 credits/request", tier: "Power" },
-                  { name: "Perplexity Sonar Pro", credits: "~3-5 credits/request", tier: "Power" },
+                  { name: "Gemini 2.5 Pro", credits: "~3-5 credits/request", tier: "Power" },
+                  { name: "o3", credits: "~8-15 credits/request", tier: "Max" },
+                  { name: "Claude Opus 4", credits: "~10-20 credits/request", tier: "Max" },
                 ].map((m, i) => (
                   <div key={i} className="flex items-center justify-between py-2 border-b border-[var(--ide-border)]/40 last:border-0">
                     <div>

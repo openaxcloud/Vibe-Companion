@@ -377,15 +377,15 @@ export function AllModelsSelector() {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-[13px]">OpenAI: GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, o4-mini, o3, o3-mini, o1</span>
+              <span className="text-[13px]">OpenAI: GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, o4-mini, o3</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-[13px]">Anthropic: Claude Opus 4, Claude Sonnet 4, Claude 3.7 Sonnet, Claude 3.5 Sonnet/Haiku</span>
+              <span className="text-[13px]">Anthropic: Claude Sonnet 4, Claude Opus 4</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-[13px]">Google: Gemini 2.5 Pro/Flash, Gemini 2.0 Flash · xAI: Grok 3, Grok 3 Mini, Grok 3 Fast · Moonshot AI: moonshot-v1-8k/32k/128k</span>
+              <span className="text-[13px]">Google: Gemini 2.5 Pro, Gemini 2.5 Flash</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-green-500" />

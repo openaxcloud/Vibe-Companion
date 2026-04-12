@@ -259,7 +259,7 @@ function AiUsageSection() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {[
                   { name: "Anthropic (Claude)", rate: "~$3/M input, ~$15/M output" },
-                  { name: "OpenAI (GPT-4o)", rate: "~$2.50/M input, ~$10/M output" },
+                  { name: "OpenAI (GPT-4.1)", rate: "~$2/M input, ~$8/M output" },
                   { name: "Google (Gemini)", rate: "~$0.075/M input, ~$0.30/M output" },
                   { name: "OpenRouter", rate: "Varies by model" },
                 ].map(p => (

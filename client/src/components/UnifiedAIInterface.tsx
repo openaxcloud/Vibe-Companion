@@ -295,13 +295,14 @@ export function UnifiedAIInterface({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="gpt-4.1">GPT-4.1</SelectItem>
+                  <SelectItem value="gpt-4.1-mini">GPT-4.1 Mini</SelectItem>
                   <SelectItem value="gpt-4.1-nano">GPT-4.1 Nano</SelectItem>
-                  <SelectItem value="claude-sonnet-4-20250514">
-                    Claude Sonnet 4
-                  </SelectItem>
-                  <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                  <SelectItem value="o4-mini">o4-mini</SelectItem>
+                  <SelectItem value="o3">o3</SelectItem>
+                  <SelectItem value="claude-sonnet-4-20250514">Claude Sonnet 4</SelectItem>
+                  <SelectItem value="claude-opus-4-20250514">Claude Opus 4</SelectItem>
+                  <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
                   <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
-                  <SelectItem value="grok-3">Grok 3</SelectItem>
                 </SelectContent>
               </Select>
             )}

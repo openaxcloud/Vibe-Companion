@@ -84,44 +84,17 @@ function getProviderDisplayName(provider: string): string {
 }
 
 function getModelDisplayName(model: string): string {
-  // OpenAI — real models (ModelFarm-compatible first)
-  if (model === 'gpt-4o-mini') return 'GPT-4o Mini';
-  if (model === 'gpt-4o') return 'GPT-4o';
+  if (model.includes('gpt-4.1-nano')) return 'GPT-4.1 Nano';
+  if (model.includes('gpt-4.1-mini')) return 'GPT-4.1 Mini';
+  if (model.includes('gpt-4.1')) return 'GPT-4.1';
   if (model.includes('o4-mini')) return 'o4-mini';
-  if (model.includes('o3-mini')) return 'o3-mini';
   if (model.includes('o3')) return 'o3';
-  if (model.includes('o1-mini')) return 'o1-mini';
-  if (model.includes('o1')) return 'o1';
-  if (model.includes('gpt-4.1-nano')) return 'GPT-4.1 Nano';
-  if (model.includes('gpt-4.1-mini')) return 'GPT-4.1 Mini';
-  if (model.includes('gpt-4.1')) return 'GPT-4.1';
-  if (model.includes('gpt-4-turbo')) return 'GPT-4 Turbo';
-  if (model.includes('gpt-4.1')) return 'GPT-4.1';
-  if (model.includes('gpt-4.1-nano')) return 'GPT-4.1 Nano';
-  if (model.includes('gpt-4.1-mini')) return 'GPT-4.1 Mini';
-  if (model.includes('gpt-4.1')) return 'GPT-4.1';
-  // Anthropic — real models
   if (model.includes('claude-opus-4')) return 'Claude Opus 4';
   if (model.includes('claude-sonnet-4')) return 'Claude Sonnet 4';
-  if (model.includes('claude-3-7-sonnet')) return 'Claude 3.7 Sonnet';
-  if (model.includes('claude-opus')) return 'Claude Opus';
-  if (model.includes('claude-sonnet')) return 'Claude Sonnet';
-  if (model.includes('claude-haiku')) return 'Claude Haiku';
-  // Google Gemini — real models
+  if (model.includes('claude-opus')) return 'Claude Opus 4';
+  if (model.includes('claude-sonnet')) return 'Claude Sonnet 4';
   if (model.includes('gemini-2.5-pro')) return 'Gemini 2.5 Pro';
   if (model.includes('gemini-2.5-flash')) return 'Gemini 2.5 Flash';
-  if (model.includes('gemini-2.0-flash-lite')) return 'Gemini 2.0 Flash Lite';
-  if (model.includes('gemini-2.0-flash')) return 'Gemini 2.0 Flash';
-  if (model.includes('gemini-1.5-pro')) return 'Gemini 1.5 Pro';
-  if (model.includes('gemini-1.5-flash')) return 'Gemini 1.5 Flash';
-  // xAI Grok — real models
-  if (model.includes('grok-3-fast')) return 'Grok 3 Fast';
-  if (model.includes('grok-3-mini')) return 'Grok 3 Mini';
-  if (model.includes('grok-3')) return 'Grok 3';
-  // Moonshot AI — real models
-  if (model.includes('moonshot-v1-128k')) return 'Kimi 128K';
-  if (model.includes('moonshot-v1-32k')) return 'Kimi 32K';
-  if (model.includes('moonshot-v1-8k')) return 'Kimi 8K';
   if (model.includes('kimi-k2')) return 'Kimi K2';
   return model;
 }
