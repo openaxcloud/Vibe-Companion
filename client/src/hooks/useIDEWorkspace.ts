@@ -402,7 +402,7 @@ export function useIDEWorkspace(projectId: string) {
     if (hasOpenFileTab || selectedFileId) return;
 
     const PREFERRED_NAMES = ['main.py', 'index.js', 'main.js', 'index.ts', 'main.ts', 'index.html', 'main.rb', 'main.go', 'Main.java', 'main.c', 'main.cpp', 'main.rs', 'main.lua', 'main.php'];
-    const preferred = files.find(f => PREFERRED_NAMES.includes(f.name) && !f.isDirectory);
+    const preferred = files.find(f => PREFERRED_NAMES.includes(f.filename || f.name) && !f.isDirectory);
     const firstFile = preferred || files.find(f => !f.isDirectory);
     if (!firstFile) return;
 
@@ -411,7 +411,7 @@ export function useIDEWorkspace(projectId: string) {
     const tabId = `file:${firstFile.id}`;
     setTabs(prev => {
       if (!prev.find(t => t.id === tabId)) {
-        return [...prev, { id: tabId, label: firstFile.name, closable: true }];
+        return [...prev, { id: tabId, label: firstFile.filename || firstFile.name || String(firstFile.id), closable: true }];
       }
       return prev;
     });

@@ -1044,12 +1044,10 @@ export function useIDEWorkspace(projectId: string) {
   }, []);
 
   const selectedFileId = useMemo(() => {
-    if (!activeFileId) return null;
-    const num = parseInt(activeFileId, 10);
-    return isNaN(num) ? null : num;
+    return activeFileId || null;
   }, [activeFileId]);
 
-  const setSelectedFileId = useCallback((id: number | null) => {
+  const setSelectedFileId = useCallback((id: string | number | null) => {
     setActiveFileId(id !== null ? String(id) : null);
   }, []);
 

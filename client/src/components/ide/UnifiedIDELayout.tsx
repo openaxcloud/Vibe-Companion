@@ -1193,11 +1193,16 @@ function UnifiedIDELayout({
 
     // File editor
     if (currentTab.id.startsWith('file:')) {
+      const editorFileId = activeFileId || (selectedFileId ? String(selectedFileId) : null);
       return (
         <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
           <ReplitMonacoEditor
             projectId={projectId}
-            fileId={selectedFileId}
+            fileId={editorFileId}
+            fileContents={fileContents || {}}
+            onCodeChange={handleCodeChange || (() => {})}
+            onCursorChange={handleCursorChange}
+            filename={activeFileName || undefined}
           />
         </Suspense>
       );
