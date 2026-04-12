@@ -80,14 +80,14 @@ export async function registerPublishShareRoutes(app: Express, ctx: any): Promis
 
       const existingDeployments = await storage.getProjectDeployments(projectId);
       const activeDeployment = existingDeployments.find(
-        (d: any) => d.environment === "production" && (d.status === "active" || d.status === "deployed")
+        (d: any) => d.status === "active" || d.status === "deployed" || d.status === "live"
       );
 
       if (activeDeployment) {
         return res.json({
           success: true,
           deployment: {
-            id: activeDeployment.deploymentId || activeDeployment.id,
+            id: activeDeployment.id,
             projectId,
             status: activeDeployment.status,
             url: activeDeployment.url || `https://${project.publishedSlug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.e-code.ai`,
@@ -103,6 +103,7 @@ export async function registerPublishShareRoutes(app: Express, ctx: any): Promis
       const deploymentId = await deploymentManager.createDeployment({
         id: `pub-${projectId}-${Date.now()}`,
         projectId,
+        userId,
         type: deployType,
         environment: "production",
         sslEnabled: true,

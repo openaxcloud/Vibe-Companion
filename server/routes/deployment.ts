@@ -220,11 +220,10 @@ router.post('/projects/:projectId/deploy', async (req, res) => {
       validateScalingLimits(config.scaling.maxInstances);
     }
 
-    // Create deployment using real deploymentManager service
-    // CRITICAL: Keep projectId as string - projects use UUIDs, not integers
     const deploymentId = await deploymentManager.createDeployment({
       id: `dep-${projectId}-${Date.now()}`,
-      projectId: projectId, // Keep as string for UUID support
+      projectId: projectId,
+      userId: userId,
       ...config
     });
 
@@ -254,29 +253,39 @@ router.get('/deployments/:deploymentId', async (req, res) => {
   try {
     const { deploymentId } = req.params;
     
-    // Get deployment from database
-    const deployments = await storage.listDeployments();
-    const deployment = deployments.find(d => d.deploymentId === deploymentId);
-
+    const deployment = await deploymentManager.getDeployment(deploymentId);
     if (!deployment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Deployment not found'
+      const dbDep = await storage.getDeployment(deploymentId);
+      if (!dbDep) {
+        return res.status(404).json({ success: false, message: 'Deployment not found' });
+      }
+      return res.json({
+        success: true,
+        deployment: {
+          id: dbDep.id,
+          projectId: dbDep.projectId,
+          status: dbDep.status || 'pending',
+          url: dbDep.url || '',
+          deploymentType: dbDep.deploymentType,
+          buildLog: dbDep.buildLog ? [dbDep.buildLog] : [],
+          deploymentLog: [],
+          createdAt: dbDep.createdAt || new Date(),
+          lastDeployedAt: dbDep.finishedAt
+        }
       });
     }
 
-    // Return deployment status
     res.json({
       success: true,
       deployment: {
-        id: deployment.deploymentId || deploymentId,
+        id: deployment.id,
         projectId: deployment.projectId,
         status: deployment.status || 'pending',
-        url: deployment.url || `https://project-${deployment.projectId}.replit.app`,
-        buildLog: [],
-        deploymentLog: [],
+        url: deployment.url || deployment.customUrl || '',
+        buildLog: deployment.buildLog || [],
+        deploymentLog: deployment.deploymentLog || [],
         createdAt: deployment.createdAt || new Date(),
-        lastDeployedAt: deployment.updatedAt
+        lastDeployedAt: deployment.lastDeployedAt
       }
     });
   } catch (error) {
@@ -288,16 +297,28 @@ router.get('/deployments/:deploymentId', async (req, res) => {
   }
 });
 
-// List project deployments
 router.get('/projects/:projectId/deployments', async (req, res) => {
   try {
-    const projectId = req.params.projectId; // Keep as string
-    const deployments = await deploymentManager.listDeployments(projectId);
+    const projectId = req.params.projectId;
 
-    res.json({
-      success: true,
-      deployments
-    });
+    const inMemory = await deploymentManager.listDeployments(projectId);
+
+    if (inMemory.length > 0) {
+      return res.json({ success: true, deployments: inMemory });
+    }
+
+    const dbDeployments = await storage.getProjectDeployments(projectId);
+    const mapped = dbDeployments.map((d: any) => ({
+      id: d.id,
+      projectId: d.projectId,
+      status: d.status,
+      url: d.url,
+      deploymentType: d.deploymentType,
+      createdAt: d.createdAt,
+      finishedAt: d.finishedAt,
+    }));
+
+    res.json({ success: true, deployments: mapped });
   } catch (error) {
     console.error('List deployments error:', error);
     res.status(500).json({
@@ -683,9 +704,7 @@ router.post('/projects/:projectId/publish', ensureAuthenticated, async (req: Req
       });
     }
 
-    // Check ownership (projects use integer IDs)
-    const numericUserId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
-    if (project.ownerId !== numericUserId) {
+    if (project.userId !== userId && (project as any).ownerId !== userId) {
       return res.status(403).json({
         success: false,
         error: 'FORBIDDEN',
@@ -696,10 +715,9 @@ router.post('/projects/:projectId/publish', ensureAuthenticated, async (req: Req
     // Parse and validate publish configuration
     const publishConfig = publishConfigSchema.parse(req.body);
 
-    // Check for existing active production deployment
     const existingDeployments = await storage.getProjectDeployments(projectId);
     const activeProductionDeployment = existingDeployments.find(
-      d => d.environment === 'production' && d.status === 'active'
+      (d: any) => d.status === 'active' || d.status === 'deployed' || d.status === 'live'
     );
 
     if (activeProductionDeployment) {
@@ -708,7 +726,7 @@ router.post('/projects/:projectId/publish', ensureAuthenticated, async (req: Req
         error: 'ALREADY_PUBLISHED',
         message: 'Project is already published. Use /republish to update.',
         deployment: {
-          id: activeProductionDeployment.deploymentId,
+          id: activeProductionDeployment.id,
           url: activeProductionDeployment.url,
           status: activeProductionDeployment.status,
           publishedAt: activeProductionDeployment.createdAt
@@ -723,6 +741,7 @@ router.post('/projects/:projectId/publish', ensureAuthenticated, async (req: Req
     const deploymentId = await deploymentManager.createDeployment({
       id: `pub-${projectId}-${Date.now()}`,
       projectId: projectId,
+      userId: userId,
       type: deployType,
       environment: 'production',
       sslEnabled: true,
@@ -733,14 +752,6 @@ router.post('/projects/:projectId/publish', ensureAuthenticated, async (req: Req
       environmentVars: publishConfig.environmentVars || {},
       machineConfig: publishConfig.machineConfig,
       maxMachines: maxMachines,
-      cronExpression: publishConfig.cronExpression,
-      scheduleDescription: publishConfig.scheduleDescription,
-      jobTimeout: publishConfig.jobTimeout,
-      publicDirectory: publishConfig.publicDirectory,
-      appType: publishConfig.appType || 'web_server',
-      portMapping: publishConfig.portMapping,
-      isPrivate: publishConfig.isPrivate,
-      deploymentSecrets: publishConfig.deploymentSecrets,
       scaling: {
         minInstances: deployType === 'autoscale' ? 1 : 0,
         maxInstances: maxMachines,
@@ -801,9 +812,7 @@ router.post('/projects/:projectId/republish', ensureAuthenticated, async (req: R
       });
     }
 
-    // Check ownership
-    const numericUserId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
-    if (project.ownerId !== numericUserId) {
+    if (project.userId !== userId && (project as any).ownerId !== userId) {
       return res.status(403).json({
         success: false,
         error: 'FORBIDDEN',
@@ -814,10 +823,9 @@ router.post('/projects/:projectId/republish', ensureAuthenticated, async (req: R
     // Parse republish configuration
     const republishConfig = republishConfigSchema.parse(req.body);
 
-    // Find existing production deployment
     const existingDeployments = await storage.getProjectDeployments(projectId);
     const activeProductionDeployment = existingDeployments.find(
-      d => d.environment === 'production' && (d.status === 'active' || d.status === 'failed')
+      (d: any) => d.status === 'active' || d.status === 'deployed' || d.status === 'live' || d.status === 'failed'
     );
 
     if (!activeProductionDeployment) {
@@ -840,11 +848,11 @@ router.post('/projects/:projectId/republish', ensureAuthenticated, async (req: R
     };
     validateScalingLimits(scalingConfig.maxInstances);
 
-    // Create new deployment with updated code
     const newDeploymentId = await deploymentManager.createDeployment({
       id: `repub-${projectId}-${Date.now()}`,
       projectId: projectId,
-      type: (activeProductionDeployment.type as any) || 'autoscale',
+      userId: userId,
+      type: (activeProductionDeployment.deploymentType as any) || 'autoscale',
       environment: 'production',
       sslEnabled: true,
       regions: previousConfig.regions || ['us-east-1'],
@@ -860,7 +868,7 @@ router.post('/projects/:projectId/republish', ensureAuthenticated, async (req: R
     res.json({
       success: true,
       message: republishConfig.message || 'Project republished successfully',
-      previousDeploymentId: activeProductionDeployment.deploymentId,
+      previousDeploymentId: activeProductionDeployment.id,
       deployment: {
         id: newDeploymentId,
         projectId: projectId,
@@ -908,47 +916,25 @@ router.get('/projects/:projectId/publish/status', ensureAuthenticated, async (re
       });
     }
 
-    // Get all production deployments for the project
-    const deployments = await storage.getProjectDeployments(projectId);
-    const productionDeployments = deployments.filter(d => d.environment === 'production');
+    const allDeployments = await storage.getProjectDeployments(projectId);
     
-    // Find active or in-progress production deployment
-    const activeDeployment = productionDeployments.find(d => d.status === 'active');
-    const inProgressDeployment = productionDeployments.find(d => 
+    const activeDeployment = allDeployments.find((d: any) => d.status === 'active' || d.status === 'live' || d.status === 'deployed');
+    const inProgressDeployment = allDeployments.find((d: any) => 
       d.status === 'pending' || d.status === 'building' || d.status === 'deploying'
     );
-    const failedDeployment = productionDeployments.find(d => d.status === 'failed');
-    
-    // Get latest deployment (regardless of status)
-    const latestDeployment = productionDeployments.sort((a, b) => {
-      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return dateB - dateA;
-    })[0];
+    const failedDeployment = allDeployments.find((d: any) => d.status === 'failed');
+    const latestDeployment = allDeployments[0];
 
-    // Get live status from deployment manager if available
-    let liveStatus = null;
-    if (latestDeployment?.deploymentId) {
-      liveStatus = await deploymentManager.getDeployment(latestDeployment.deploymentId);
-    }
-
-    // Determine the current deployment to use for status
     const currentDeployment = inProgressDeployment || activeDeployment || failedDeployment || latestDeployment;
+    const internalStatus = (currentDeployment?.status || 'stopped') as DeploymentStatusType;
     
-    // Get internal status
-    const internalStatus = (liveStatus?.status || currentDeployment?.status || 'stopped') as DeploymentStatusType;
-    
-    // Get project's last update time as lastCodeChange indicator
     const lastCodeChange = project.updatedAt || project.createdAt;
-    const deployedAt = currentDeployment?.updatedAt || currentDeployment?.createdAt || liveStatus?.lastDeployedAt;
-    
-    // Translate to UI-friendly status
+    const deployedAt = currentDeployment?.finishedAt || currentDeployment?.createdAt;
     const uiStatus = translateStatusToUI(internalStatus, lastCodeChange, deployedAt);
 
-    // Prepare response in format expected by ReplitPublishButton
     res.json({
       status: uiStatus,
-      url: activeDeployment?.url || liveStatus?.url || null,
+      url: activeDeployment?.url || null,
       deployedAt: deployedAt ? new Date(deployedAt).toISOString() : null,
       lastCodeChange: lastCodeChange ? new Date(lastCodeChange).toISOString() : null,
       errorMessage: internalStatus === 'failed' ? 'Deployment failed. Check logs for details.' : null,
@@ -956,26 +942,24 @@ router.get('/projects/:projectId/publish/status', ensureAuthenticated, async (re
       publish: {
         isPublished: !!activeDeployment,
         url: activeDeployment?.url || null,
-        customDomain: activeDeployment?.customDomain || null,
+        customDomain: null,
         lastDeployedAt: deployedAt || null,
         publishedAt: activeDeployment?.createdAt || null,
         deployment: currentDeployment ? {
-          id: currentDeployment.deploymentId,
+          id: currentDeployment.id,
           status: internalStatus,
           uiStatus: uiStatus,
-          type: currentDeployment.type,
-          environment: currentDeployment.environment,
+          type: currentDeployment.deploymentType,
           createdAt: currentDeployment.createdAt,
-          updatedAt: currentDeployment.updatedAt
         } : null,
         latestDeployment: latestDeployment ? {
-          id: latestDeployment.deploymentId,
+          id: latestDeployment.id,
           status: latestDeployment.status,
           uiStatus: translateStatusToUI(latestDeployment.status as DeploymentStatusType),
-          type: latestDeployment.type,
+          type: latestDeployment.deploymentType,
           createdAt: latestDeployment.createdAt
         } : null,
-        totalDeployments: productionDeployments.length
+        totalDeployments: allDeployments.length
       }
     });
 
@@ -1024,35 +1008,24 @@ router.get('/projects/:projectId/deployment/latest', ensureAuthenticated, async 
 
     const latestDeployment = sortedDeployments[0];
     
-    // Try to get real-time status from deploymentManager
-    const liveStatus = await deploymentManager.getDeployment(latestDeployment.deploymentId);
-    
-    // Get internal status and translate to UI status
-    const internalStatus = (liveStatus?.status || latestDeployment.status || 'stopped') as DeploymentStatusType;
+    const internalStatus = (latestDeployment.status || 'stopped') as DeploymentStatusType;
     const lastCodeChange = project.updatedAt || project.createdAt;
-    const deployedAt = latestDeployment.updatedAt || latestDeployment.createdAt || liveStatus?.lastDeployedAt;
+    const deployedAt = latestDeployment.finishedAt || latestDeployment.createdAt;
     const uiStatus = translateStatusToUI(internalStatus, lastCodeChange, deployedAt);
 
     res.json({
       success: true,
       deployment: {
         id: latestDeployment.id,
-        deploymentId: latestDeployment.deploymentId,
         projectId: latestDeployment.projectId,
-        type: latestDeployment.type,
-        environment: latestDeployment.environment,
+        type: latestDeployment.deploymentType,
         status: internalStatus,
         uiStatus: uiStatus,
-        url: liveStatus?.url || latestDeployment.url,
-        customDomain: latestDeployment.customDomain,
-        buildLogs: latestDeployment.buildLogs,
-        deploymentLogs: latestDeployment.deploymentLogs,
-        metadata: latestDeployment.metadata,
+        url: latestDeployment.url,
+        buildLog: latestDeployment.buildLog,
         createdAt: latestDeployment.createdAt,
-        updatedAt: latestDeployment.updatedAt,
         deployedAt: deployedAt,
         lastCodeChange: lastCodeChange,
-        metrics: liveStatus?.metrics || null
       }
     });
 
@@ -1075,9 +1048,7 @@ router.get('/deployments/:deploymentId/logs', ensureAuthenticated, async (req: R
     // Try to get deployment from deploymentManager (real-time)
     const liveDeployment = await deploymentManager.getDeployment(deploymentId);
 
-    // Also try to get from database
-    const deployments = await storage.listDeployments();
-    const dbDeployment = deployments.find(d => d.deploymentId === deploymentId);
+    const dbDeployment = await storage.getDeployment(deploymentId);
 
     if (!liveDeployment && !dbDeployment) {
       return res.status(404).json({
@@ -1213,7 +1184,7 @@ router.get('/projects/:projectId/deployments/analytics', ensureAuthenticated, as
     const latencySamples: number[] = [];
 
     for (const deployment of activeDeployments) {
-      const liveStatus = await deploymentManager.getDeployment(deployment.deploymentId);
+      const liveStatus = await deploymentManager.getDeployment(deployment.id);
       if (liveStatus?.metrics) {
         totalRequests += liveStatus.metrics.requests || 0;
         totalErrors += liveStatus.metrics.errors || 0;
@@ -1390,9 +1361,7 @@ router.post('/projects/:projectId/domains', ensureAuthenticated, async (req: Req
       });
     }
 
-    // Check ownership
-    const numericUserId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
-    if (project.ownerId !== numericUserId) {
+    if (project.userId !== userId && (project as any).ownerId !== userId) {
       return res.status(403).json({
         success: false,
         error: 'FORBIDDEN',
@@ -1423,7 +1392,7 @@ router.post('/projects/:projectId/domains', ensureAuthenticated, async (req: Req
       domain: {
         customDomain,
         url: activeDeployment.url,
-        deploymentId: activeDeployment.deploymentId
+        deploymentId: activeDeployment.id
       }
     });
 

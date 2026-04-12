@@ -75,11 +75,12 @@ export const DeploymentPanel: React.FC<DeploymentPanelProps> = ({ projectId }) =
     staleTime: 10000, // Consider data fresh for 10 seconds
   });
 
-  // Get the latest deployment from the response
-  const deployment = deploymentResponse?.deployment || 
-    (deploymentResponse?.deployments && deploymentResponse.deployments.length > 0 
-      ? deploymentResponse.deployments[0] 
-      : undefined);
+  const deployment = Array.isArray(deploymentResponse)
+    ? deploymentResponse[0]
+    : (deploymentResponse?.deployment || 
+      (deploymentResponse?.deployments && deploymentResponse.deployments.length > 0 
+        ? deploymentResponse.deployments[0] 
+        : undefined));
 
   const handleRedeploy = async () => {
     try {

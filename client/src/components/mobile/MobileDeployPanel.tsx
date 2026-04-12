@@ -82,9 +82,9 @@ export function MobileDeployPanel({ projectId, className }: MobileDeployPanelPro
   const { data: deploymentData, isLoading } = useQuery<DeploymentResponse>({
     queryKey: ['/api/projects', projectId, 'deployments'],
     queryFn: async () => {
-      const response = await apiRequest<{ deployments: Deployment[] }>('GET', `/api/projects/${projectId}/deployments`);
-      // Get the latest deployment
-      const latestDeployment = response.deployments?.[0];
+      const response = await apiRequest<any>('GET', `/api/projects/${projectId}/deployments`);
+      const deployments = Array.isArray(response) ? response : (response.deployments || []);
+      const latestDeployment = deployments[0];
       return latestDeployment ? { success: true, deployment: latestDeployment } : { success: false, deployment: {} as Deployment };
     },
     refetchInterval: (query) => {

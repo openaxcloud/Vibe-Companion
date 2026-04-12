@@ -179,7 +179,7 @@ export class DeploymentManager {
       const project = await storage.getProject(projectIdForLookup);
       if (project) {
         await billingService.trackResourceUsage(
-          project.ownerId,
+          (project as any).ownerId || project.userId,
           `deployment.${config.type}`,
           1,
           { deploymentId: dbDeployment.id, projectId: config.projectId }
@@ -400,12 +400,12 @@ export class DeploymentManager {
       this.broadcastDeployLog(deploymentId, errorLog);
       this.broadcastError(deploymentId, errorLog);
       
-      // Update database with failure
-      const numericDeploymentId = parseInt(deploymentId, 10);
-      if (!isNaN(numericDeploymentId)) {
-        await storage.updateDeploymentStatus(numericDeploymentId, {
-          status: 'failed'
-        });
+      try {
+        if (deployment.dbId) {
+          await storage.updateDeployment(deployment.dbId, { status: 'failed' });
+        }
+      } catch (dbErr) {
+        console.error('[DEPLOY] Failed to update DB on failure:', dbErr);
       }
     }
   }
