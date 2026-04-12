@@ -571,8 +571,8 @@ export class AIProviderManager {
         model: modelId,
         messages: cachedMessages as any,
         system: cachedSystem as any,
-        max_tokens: options?.max_tokens || 4000,
-        temperature: options?.temperature || 0.7,
+        max_tokens: options?.max_tokens || 16384,
+        temperature: options?.temperature || 0.4,
         stream: true,
       });
       
@@ -651,7 +651,7 @@ export class AIProviderManager {
     }
     
     // Use correct token parameter based on model family (cap at 16384 for API compatibility)
-    const safeMaxTokens = Math.min(options?.max_tokens || 4000, 16384);
+    const safeMaxTokens = Math.min(options?.max_tokens || 16384, 16384);
     if (isNewGenModel) {
       completionParams.max_completion_tokens = safeMaxTokens;
     } else {
@@ -726,7 +726,7 @@ export class AIProviderManager {
     // ✅ KIMI REQUIREMENT 4: max_tokens >= 16000 for thinking models
     const maxTokens = isThinkingModel 
       ? Math.max(options?.max_tokens || 16384, 16384)
-      : (options?.max_tokens || 4000);
+      : (options?.max_tokens || 16384);
     
     // ✅ PROMPT CACHING: Cache system prompt for Moonshot
     const systemPrompt = options?.system || messages.find(m => m.role === 'system')?.content;

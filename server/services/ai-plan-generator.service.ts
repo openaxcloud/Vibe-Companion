@@ -403,18 +403,32 @@ export class AIPlanGeneratorService {
       // File content will be generated in Phase 2 by the orchestrator
       
       // Condensed system prompt for providers with size limits (like Gemini)
-      const systemPromptCondensed = `You are a software architect. Create a JSON execution plan for building software projects. Respond ONLY with valid JSON using this format: {"summary":"","technologies":[],"estimatedTime":"","tasks":[{"id":"","title":"","description":"","type":"file_create|file_edit|command|install_package|config","estimatedTime":"","dependencies":[],"priority":"high|medium|low","files":[{"path":"","outline":"brief description of file purpose","language":""}],"packages":[],"commands":[]}],"riskAssessment":{"level":"low|medium|high","factors":[]}}. Requirements: Production-ready structure, include all config files, specify exact package versions, order by dependencies. IMPORTANT: Use 'outline' not 'content' for files. 🚫 FORBIDDEN: NEVER use scaffolding commands like "npm create", "npx create-*", "npm init", or template generators - ALWAYS create files directly instead.`;
+      const systemPromptCondensed = `You are a senior software architect building premium, production-ready apps. Create a JSON execution plan. Respond ONLY with valid JSON: {"summary":"","technologies":[],"estimatedTime":"","tasks":[{"id":"","title":"","description":"","type":"file_create|file_edit|command|install_package|config","estimatedTime":"","dependencies":[],"priority":"high|medium|low","files":[{"path":"","outline":"brief description of file purpose","language":""}],"packages":[],"commands":[]}],"riskAssessment":{"level":"low|medium|high","factors":[]}}. CRITICAL REQUIREMENTS: 1) Generate COMPLETE apps — at minimum 8-15 files including HTML, CSS, JS, config, data, assets. 2) Use Tailwind CSS, Inter font, modern gradient UI with glassmorphism, dark mode support. 3) Include proper responsive design, animations, and premium aesthetics. 4) Every HTML file MUST include Tailwind CDN and Inter font. 5) Generate ALL pages, components, and modules — never create skeleton apps. 6) Use 'outline' not 'content' for files. 🚫 FORBIDDEN: NEVER use scaffolding commands like "npm create", "npx create-*", "npm init" - create files directly.`;
       
       // Full system prompt for providers without size limits
-      const systemPromptFull = `You are an expert software architect and project planner. Your task is to create a detailed, executable plan for building software projects.
+      const systemPromptFull = `You are a world-class software architect and UI designer. You build premium, modern, fully-featured applications that look and feel like top-tier SaaS products.
 
-Given a user's goal, create a comprehensive execution plan with the following:
+Given a user's goal, create a COMPREHENSIVE execution plan that results in a COMPLETE, STUNNING application:
 
-1. **Analysis**: Understand the requirements thoroughly
-2. **Technology Stack**: Recommend the best technologies
-3. **Task Breakdown**: Break down the project into specific, actionable tasks
-4. **Dependencies**: Identify task dependencies
-5. **Risk Assessment**: Evaluate potential risks and challenges
+1. **Analysis**: Understand the requirements thoroughly — think about ALL features a real user would need
+2. **Technology Stack**: Use modern tools — Tailwind CSS, Inter font, modern JS frameworks
+3. **Task Breakdown**: Break down into actionable tasks — MINIMUM 8-15 files for any app
+4. **UI/UX Excellence**: Every page MUST have premium design — gradients, glassmorphism, animations, dark mode
+5. **Completeness**: Generate ALL pages, components, utilities, data files, and configs
+
+**DESIGN STANDARDS (MANDATORY)**:
+- Tailwind CSS via CDN with Inter font family
+- Color palette: Primary #667eea, Secondary #764ba2, Dark #0f172a, Light #f8fafc, Accent #06b6d4
+- Gradient hero sections: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+- Cards: rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-200
+- Buttons: bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-xl font-semibold hover:scale-105
+- Glassmorphism: bg-white/10 backdrop-blur-xl border border-white/20
+- Dark mode support with class="dark" strategy
+- Mobile-first responsive design (sm: md: lg: breakpoints)
+- Animations: fadeIn keyframes, stagger children, smooth hover transitions
+- Footer: bg-slate-900 text-white with proper navigation
+- Semantic HTML, ARIA labels, proper heading hierarchy
+- The result MUST look like a premium product, NOT a basic tutorial app
 
 **CRITICAL**: Respond ONLY with valid JSON in this exact format.
 ⚠️ IMPORTANT: Use DOUBLE QUOTES for all strings, NOT backticks or template literals!
@@ -473,13 +487,17 @@ Given a user's goal, create a comprehensive execution plan with the following:
 
       const userPrompt = `Create a detailed execution plan for: ${goal}
 
-Remember:
-1. List ALL necessary files with their paths and PURPOSE (2-3 sentence outline)
-2. Include ALL config files (package.json, tsconfig.json, etc.)
-3. Specify exact package names with versions
-4. Order tasks by dependencies
-5. Use 'outline' field (NOT 'content') for files
-6. Respond with ONLY valid JSON`;
+CRITICAL REQUIREMENTS:
+1. Generate a COMPLETE, FEATURE-RICH application — not a skeleton or starter template
+2. Include ALL pages, components, utilities, styles, data files, and configs (minimum 8-15 files)
+3. Every HTML file MUST use Tailwind CSS CDN and Inter font for premium design
+4. Include ALL config files (package.json, tsconfig.json, etc.)
+5. Specify exact package names with versions
+6. Order tasks by dependencies
+7. Use 'outline' field (NOT 'content') for files — 2-3 sentences describing what the file should contain
+8. Each outline MUST specify the visual design: colors, gradients, animations, layout
+9. The final app should look like it was built by a professional design team
+10. Respond with ONLY valid JSON`;
 
       // ✅ PRODUCTION FIX: Multi-provider fallback chain with JSON parsing retry
       // Try providers in order: User's preferred model → Default fallback chain

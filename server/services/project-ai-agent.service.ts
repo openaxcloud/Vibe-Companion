@@ -80,14 +80,14 @@ export class ProjectAIAgentService {
       const fileList = files.map(f => f.path).join('\n');
 
       // Build system prompt with file context if provided
-      let systemPrompt = `You are an AI coding assistant helping to build a ${project.language} project named "${project.name}".
+      let systemPrompt = `You are a world-class full-stack developer and UI designer helping to build a ${project.language} project named "${project.name}".
 
 Current project files:
 ${fileList || 'No files yet'}
 
 When the user asks you to build something:
-1. Analyze their request
-2. Create the necessary files with complete, working code
+1. Analyze their request thoroughly — think about ALL features a real user would need
+2. Create ALL necessary files with complete, polished, working code (minimum 8-15 files for any app)
 3. Respond with JSON actions to create/edit files
 4. Use this exact JSON format:
 
@@ -106,7 +106,17 @@ For explanations, use:
   "content": "your explanation"
 }
 
-Always generate complete, production-ready code. No placeholders or TODOs.`;
+MANDATORY DESIGN STANDARDS:
+- Always use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
+- Always use Inter font: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+- Premium color palette: Primary #667eea, Secondary #764ba2, Accent #06b6d4
+- Gradient hero sections, glassmorphism cards, smooth hover animations
+- Dark mode support, mobile-first responsive design
+- Semantic HTML, ARIA labels, proper heading hierarchy
+- The result MUST look like a premium SaaS product — not a basic tutorial page
+- Include proper footer, navigation, and all sections users would expect
+
+Always generate COMPLETE, production-ready code. No placeholders or TODOs.`;
 
       // IMPORTANT: Merge file/code context into system prompt to preserve context
       if (context?.file && context?.code) {
@@ -172,8 +182,8 @@ Always generate complete, production-ready code. No placeholders or TODOs.`;
         })),
         {
           system: systemPrompt,
-          max_tokens: 4000,
-          temperature: 0.7,
+          max_tokens: 16384,
+          temperature: 0.4,
         }
       );
 
@@ -268,7 +278,7 @@ Always generate complete, production-ready code. No placeholders or TODOs.`;
       const fileList = files.map(f => f.path).join('\n');
 
       // Build system prompt for build mode
-      const systemPrompt = `You are an AI coding assistant building a ${project.language} project named "${project.name}".
+      const systemPrompt = `You are a world-class full-stack developer and UI designer building a ${project.language} project named "${project.name}".
 
 Current project files:
 ${fileList || 'No files yet'}
@@ -286,7 +296,16 @@ Generate ALL necessary files with complete, working code. Respond with JSON acti
   }
 }
 
-Generate EVERY file needed for a complete, working application. No placeholders or TODOs.`;
+CRITICAL REQUIREMENTS:
+1. Generate a COMPLETE, FEATURE-RICH application — minimum 8-15 files
+2. Every HTML file MUST include Tailwind CSS CDN and Inter font
+3. Use premium design: gradients (#667eea → #764ba2), glassmorphism, rounded-2xl cards, shadow-xl
+4. Include dark mode support, animations (fadeIn), smooth transitions
+5. Mobile-first responsive design with proper breakpoints
+6. Include ALL necessary files: HTML pages, CSS, JS modules, config, data files
+7. NO placeholders, NO TODOs — every file must be complete and production-ready
+8. The final result must look like a premium SaaS product, not a basic tutorial app
+9. Include a proper footer, navigation, and all sections a real user would expect`;
 
       // Use specified model or intelligently fallback to first available model
       let selectedModel = modelId;
@@ -306,8 +325,8 @@ Generate EVERY file needed for a complete, working application. No placeholders 
           { role: 'user', content: prompt }
         ],
         {
-          max_tokens: 8000,
-          temperature: 0.7,
+          max_tokens: 16384,
+          temperature: 0.4,
         }
       );
 

@@ -262,7 +262,7 @@ Current File Structure:
     context: string, 
     instruction: string
   ): Promise<CodeModification[]> {
-    const systemPrompt = `You are an expert code generator. Given a project context and user instruction, generate the necessary code modifications.
+    const systemPrompt = `You are a world-class code generator and UI designer. Given a project context and user instruction, generate stunning, complete, production-ready code.
 
 Return your response as a JSON array of modifications with this structure:
 [
@@ -274,13 +274,15 @@ Return your response as a JSON array of modifications with this structure:
 ]
 
 Important rules:
-1. For 'create' actions, provide the complete file content
+1. For 'create' actions, provide the COMPLETE file content — no placeholders or TODOs
 2. For 'modify' actions, provide the complete updated file content
 3. For 'delete' actions, newContent should be null
-4. Ensure all code is syntactically correct
+4. Ensure all code is syntactically correct and production-ready
 5. Follow the project's existing code style and conventions
 6. Include necessary imports and exports
-7. Add helpful comments for complex logic
+7. Generate a MINIMUM of 8-15 files for any application
+8. The UI must look premium: gradients, glassmorphism, animations, dark mode
+9. Always use Tailwind CSS CDN and Inter font for HTML files
 
 ${DESIGN_SYSTEM_PROMPT}`;
 
@@ -302,8 +304,8 @@ ${context}`;
           model: 'claude-sonnet-4-20250514',
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
-          max_tokens: 4096,
-          temperature: 0.2
+          max_tokens: 16384,
+          temperature: 0.3
         });
 
         const content = response.content[0];
@@ -324,8 +326,8 @@ ${context}`;
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          max_tokens: 4096,
-          temperature: 0.2,
+          max_tokens: 16384,
+          temperature: 0.3,
           response_format: { type: "json_object" }
         });
 

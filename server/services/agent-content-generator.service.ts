@@ -121,14 +121,33 @@ class AgentContentGeneratorService {
         codeType = 'Go code';
       }
       
-      const systemPrompt = `You are an expert developer that generates complete, production-ready code files. 
+      const systemPrompt = `You are a world-class developer that generates stunning, complete, production-ready code files.
+
 IMPORTANT RULES:
 - Generate ONLY the raw code - no explanations, no markdown code blocks
 - The code must be complete, functional, and production-ready
 - Include all necessary imports at the top
 - Include proper TypeScript types if applicable
 - Follow modern best practices and coding conventions
-- Start with the first line of actual code (import, declaration, or content)`;
+- Start with the first line of actual code (import, declaration, or content)
+
+MANDATORY DESIGN QUALITY FOR HTML/CSS/FRONTEND FILES:
+- Always use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
+- Always use Inter font: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+- Use modern, premium color palette: Primary #667eea, Secondary #764ba2, Dark #0f172a, Light #f8fafc
+- Hero sections: Use gradient backgrounds (linear-gradient(135deg, #667eea 0%, #764ba2 100%))
+- Cards: rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-200
+- Buttons: bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-xl text-white font-semibold hover:scale-105
+- Glassmorphism effects: bg-white/10 backdrop-blur-xl border border-white/20
+- Typography: font-extrabold for h1, font-bold for h2, proper hierarchy
+- Animations: fadeIn keyframes, stagger children, smooth transitions on all interactive elements
+- Dark mode support via class="dark" with dark: prefix utilities
+- Mobile-first responsive design using sm: md: lg: breakpoints
+- Semantic HTML: nav, main, article, section, footer
+- ARIA labels and focus states on all interactive elements
+- Container: max-w-7xl mx-auto px-4 sm:px-6 lg:px-8
+- Footer: bg-slate-900 text-white py-12 with links
+- The UI must look like a premium SaaS product — NOT a basic HTML page`;
       
       const userPrompt = `Generate a complete, working ${codeType} file for: ${path}
 
@@ -164,8 +183,8 @@ Generate the complete ${fileName} file:`;
         try {
           logger.info(`[ContentGenerator] Trying model ${modelId} for ${path}`);
           result = await aiProvider.generateChat(modelId, messages, {
-            max_tokens: 4000,
-            temperature: 0.2
+            max_tokens: 16384,
+            temperature: 0.3
           });
           if (result && result.trim().length > 50) {
             logger.info(`[ContentGenerator] Successfully generated ${result.length} chars with ${modelId}`);
