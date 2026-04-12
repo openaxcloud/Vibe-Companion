@@ -39,7 +39,7 @@ function getHotReloadScript(projectId: string): string {
               console.log('[Hot-Reload] Connected to preview server');
               reconnectAttempts = 0;
               // Subscribe to this project's updates
-              ws.send(JSON.stringify({ type: 'subscribe', projectId: parseInt(projectId) }));
+              ws.send(JSON.stringify({ type: 'subscribe', projectId: projectId }));
             };
             
             ws.onmessage = function(event) {

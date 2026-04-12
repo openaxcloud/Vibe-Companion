@@ -18,6 +18,7 @@ import { executionPool } from "../executionPool";
 import { getOrCreateTerminal, createTerminalSession, resizeTerminal, listTerminalSessions, destroyTerminalSession, setSessionSelected, updateLastCommand, updateLastActivity, materializeProjectFiles as materializeTerminalFiles, getProjectWorkspaceDir, invalidateProjectWorkspace, syncFileToWorkspace, deleteFileFromWorkspace, renameFileInWorkspace, listWorkspaceFiles, destroyProjectTerminals } from "../terminal";
 import { createDebugSession, connectToInspector, handleDebugCommand, getDebugSession, cleanupSession, getInspectPort } from "../debugger";
 import { log } from "../index";
+import { previewEvents } from "../preview/preview-websocket";
 import { sendPasswordResetEmail, sendVerificationEmail, sendTeamInviteEmail, isEmailConfigured } from "../email";
 import { buildAndDeploy, buildAndDeployMultiArtifact, createDeploymentRouter, rollbackDeployment, listDeploymentVersions, teardownDeployment, performHealthCheck, getProcessLogs, getProcessStatus, stopManagedProcess, restartManagedProcess, shutdownAllProcesses, cleanupProjectProcesses, setProcessLogCallback } from "../deploymentEngine";
 import { getProcessInfo } from "../processManager";
@@ -1895,11 +1896,13 @@ Rules:
                 const file = await storage.updateFileContent(existingFile.id, imageDataUri);
                 res.write(`data: ${JSON.stringify({ type: "file_updated", file: { ...file, isImage: true }, imageData: imageDataUri })}\n\n`);
                 broadcastToProject(projectId, { type: "file_updated", filename: safeName });
+                previewEvents.emit('preview:file-change', { projectId: parseInt(String(projectId), 10), filePath: safeName, changeType: 'update' });
               } else {
                 const file = await storage.createFile(projectId, { filename: safeName, content: imageDataUri });
                 existingFiles.push(file);
                 res.write(`data: ${JSON.stringify({ type: "file_created", file: { ...file, isImage: true }, imageData: imageDataUri })}\n\n`);
                 broadcastToProject(projectId, { type: "file_created", filename: safeName });
+                previewEvents.emit('preview:file-change', { projectId: parseInt(String(projectId), 10), filePath: safeName, changeType: 'create' });
               }
               if (modifiedFiles) modifiedFiles.add(safeName);
             }
@@ -1923,11 +1926,13 @@ Rules:
             const file = await storage.updateFileContent(existingFile.id, imageUrl);
             res.write(`data: ${JSON.stringify({ type: "file_updated", file: { ...file, isImage: true }, imageData: imageUrl })}\n\n`);
             broadcastToProject(projectId, { type: "file_updated", filename: safeName });
+            previewEvents.emit('preview:file-change', { projectId: parseInt(String(projectId), 10), filePath: safeName, changeType: 'update' });
           } else {
             const file = await storage.createFile(projectId, { filename: safeName, content: imageUrl });
             existingFiles.push(file);
             res.write(`data: ${JSON.stringify({ type: "file_created", file: { ...file, isImage: true }, imageData: imageUrl })}\n\n`);
             broadcastToProject(projectId, { type: "file_created", filename: safeName });
+            previewEvents.emit('preview:file-change', { projectId: parseInt(String(projectId), 10), filePath: safeName, changeType: 'create' });
           }
           if (modifiedFiles) modifiedFiles.add(safeName);
         }
@@ -2065,11 +2070,13 @@ Rules:
           const file = await storage.updateFileContent(existingFile.id, dataUri);
           res.write(`data: ${JSON.stringify({ type: "file_updated", file: { ...file, isImage: true }, imageData: dataUri })}\n\n`);
           broadcastToProject(projectId, { type: "file_updated", filename: safeName });
+          previewEvents.emit('preview:file-change', { projectId: parseInt(String(projectId), 10), filePath: safeName, changeType: 'update' });
         } else {
           const file = await storage.createFile(projectId, { filename: safeName, content: dataUri });
           existingFiles.push(file);
           res.write(`data: ${JSON.stringify({ type: "file_created", file: { ...file, isImage: true }, imageData: dataUri })}\n\n`);
           broadcastToProject(projectId, { type: "file_created", filename: safeName });
+          previewEvents.emit('preview:file-change', { projectId: parseInt(String(projectId), 10), filePath: safeName, changeType: 'create' });
         }
         if (modifiedFiles) modifiedFiles.add(safeName);
         return `Image generated and saved as ${safeName}`;
@@ -2112,6 +2119,7 @@ Rules:
           res.write(`data: ${JSON.stringify({ type: "file_updated", file: { ...file, isImage: true }, imageData: dataUri })}\n\n`);
           if (modifiedFiles) modifiedFiles.add(safeName);
           broadcastToProject(projectId, { type: "file_updated", filename: safeName });
+          previewEvents.emit('preview:file-change', { projectId: parseInt(String(projectId), 10), filePath: safeName, changeType: 'update' });
           return `Image "${safeName}" edited successfully`;
         } finally {
           try { fs.unlinkSync(tmpPath); } catch {}
@@ -2284,11 +2292,13 @@ Rules:
           const file = await storage.updateFileContent(existingFile.id, safeContent);
           syncFileToWorkspace(projectId, safeName, safeContent);
           res.write(`data: ${JSON.stringify({ type: "file_updated", file })}\n\n`);
+          previewEvents.emit('preview:file-change', { projectId: parseInt(String(projectId), 10), filePath: safeName, changeType: 'update' });
         } else {
           const file = await storage.createFile(projectId, { filename: safeName, content: safeContent });
           syncFileToWorkspace(projectId, safeName, safeContent);
           existingFiles.push(file as { id: string; filename: string; content: string });
           res.write(`data: ${JSON.stringify({ type: "file_created", file })}\n\n`);
+          previewEvents.emit('preview:file-change', { projectId: parseInt(String(projectId), 10), filePath: safeName, changeType: 'create' });
         }
         if (modifiedFiles) modifiedFiles.add(safeName);
         if (onToolComplete) await onToolComplete();

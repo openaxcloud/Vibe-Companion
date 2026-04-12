@@ -5,6 +5,7 @@ import { aiSecurityService, type ValidatedAction } from './ai-security.service';
 import { aiApprovalQueue } from './ai-approval-queue.service';
 import { aiProviderManager, type AIModel } from '../ai/ai-provider-manager';
 import { createLogger } from '../utils/logger';
+import { previewEvents } from '../preview/preview-websocket';
 
 const logger = createLogger('project-ai-agent-service');
 
@@ -390,6 +391,8 @@ CRITICAL REQUIREMENTS:
         parentId: null,
         isDirectory: false,
       });
+      
+      previewEvents.emit('preview:file-change', { projectId: numericProjectId, filePath: filePath, changeType: 'create' });
       
       return { 
         success: true, 

@@ -40,7 +40,7 @@ class PreviewWebSocketService {
       markSocketAsHandled(request, socket);
 
       const cookies = parseCookie(request.headers.cookie || '');
-      const sessionId = cookies['ecode.sid'];
+      const sessionId = cookies['ecode.sid'] || cookies['connect.sid'];
       
       if (!sessionId) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
@@ -330,15 +330,15 @@ class PreviewWebSocketService {
     this.broadcastToProject(projectId, message);
   }
 
-  private async verifyProjectAccess(userId: number, projectId: number): Promise<boolean> {
+  private async verifyProjectAccess(userId: number | string, projectId: number | string): Promise<boolean> {
     try {
-      const project = await storage.getProject(projectId);
+      const project = await storage.getProject(String(projectId));
       if (!project) {
         return false;
       }
 
-      // Check if user is owner
-      if (project.ownerId === userId) {
+      // Check if user is owner (schema uses userId, some legacy uses ownerId)
+      if ((project as any).userId === userId || (project as any).ownerId === userId || String((project as any).userId) === String(userId) || String((project as any).ownerId) === String(userId)) {
         return true;
       }
 
