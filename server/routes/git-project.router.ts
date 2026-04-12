@@ -339,15 +339,21 @@ router.post('/:projectId/branch', ensureAuthenticated, async (req: Request, res:
 // POST /:projectId/checkout
 router.post('/:projectId/checkout', ensureAuthenticated, async (req: Request, res: Response) => {
   const { projectId } = req.params;
-  const { branch } = req.body;
-  if (!branch) {
-    return res.status(400).json({ error: 'Branch name is required' });
+  const { branch, branchName, commitId } = req.body;
+  const target = branch || branchName || commitId;
+  if (!target) {
+    return res.status(400).json({ error: 'Branch name or commit ID is required' });
   }
   try {
     const projectDir = await getProjectDir(projectId);
     await ensureGitInitialized(projectDir);
-    await execa('git', ['checkout', branch], { cwd: projectDir });
-    res.json({ success: true, message: `Switched to branch '${branch}'` });
+    if (commitId) {
+      await execa('git', ['checkout', commitId], { cwd: projectDir });
+      res.json({ success: true, message: `Checked out commit '${commitId.substring(0, 7)}'` });
+    } else {
+      await execa('git', ['checkout', target], { cwd: projectDir });
+      res.json({ success: true, message: `Switched to branch '${target}'` });
+    }
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

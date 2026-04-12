@@ -141,28 +141,42 @@ export function MobileGitPanel({ projectId, className }: MobileGitPanelProps) {
   const [showChanges, setShowChanges] = useState(true);
 
   const { data: status, refetch: refetchStatus, isLoading, isError, error } = useQuery<GitStatus>({
-    queryKey: [`/api/projects/${projectId}/git/diff`],
-    queryFn: () => apiRequest(`/api/projects/${projectId}/git/diff`, 'GET'),
-    retry: 1, // Only retry once to avoid long loading states
-    staleTime: 30000, // 30 seconds
+    queryKey: [`git-status`, projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/git/${projectId}/status`, { credentials: 'include' });
+      return res.json();
+    },
+    retry: 1,
+    staleTime: 30000,
   });
 
-  // Remotes endpoint is not available in backend - use empty data
-  const remotesData = { remotes: [] };
+  const { data: remotesData } = useQuery<{ remotes: any[] }>({
+    queryKey: [`git-remotes`, projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/git/${projectId}/remotes`, { credentials: 'include' });
+      return res.json();
+    },
+  });
 
-  const { data: commitsData, isLoading: isLoadingCommits } = useQuery<{ commits: GitCommitInfo[] }>({
-    queryKey: [`/api/projects/${projectId}/git/commits`],
-    queryFn: () => apiRequest(`/api/projects/${projectId}/git/commits`, 'GET'),
+  const { data: commitsRaw, isLoading: isLoadingCommits } = useQuery<any[]>({
+    queryKey: [`git-commits`, projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/git/${projectId}/commits`, { credentials: 'include' });
+      return res.json();
+    },
     enabled: !!status,
   });
-  const commits = commitsData?.commits;
+  const commits = commitsRaw?.map((c: any) => ({ id: c.hash, message: c.message, author: c.author, date: c.date, hash: c.hash, shortHash: c.shortHash }));
 
-  const { data: branchesData } = useQuery<{ branches: GitBranchInfo[] }>({
-    queryKey: [`/api/projects/${projectId}/git/branches`],
-    queryFn: () => apiRequest(`/api/projects/${projectId}/git/branches`, 'GET'),
+  const { data: branchesRaw } = useQuery<any[]>({
+    queryKey: [`git-branches`, projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/git/${projectId}/branches`, { credentials: 'include' });
+      return res.json();
+    },
     enabled: !!status,
   });
-  const branches = branchesData?.branches || [];
+  const branches = branchesRaw || [];
 
   const { data: githubStatus, isLoading: isLoadingGitHub, refetch: refetchGitHubStatus } = useQuery<GitHubStatus>({
     queryKey: [`/api/github/user`],
@@ -176,11 +190,20 @@ export function MobileGitPanel({ projectId, className }: MobileGitPanelProps) {
   const originRemote = remotesData?.remotes?.find(r => r.name === 'origin' && r.type === 'fetch');
   const repoName = originRemote?.url?.split('/').slice(-2).join('/').replace('.git', '') || '';
 
+  const invalidateGit = () => {
+    queryClient.invalidateQueries({ queryKey: [`git-status`, projectId] });
+    queryClient.invalidateQueries({ queryKey: [`git-commits`, projectId] });
+    queryClient.invalidateQueries({ queryKey: [`git-branches`, projectId] });
+    queryClient.invalidateQueries({ queryKey: [`git-remotes`, projectId] });
+  };
+
   const pullMutation = useMutation({
-    mutationFn: async () => apiRequest(`/api/projects/${projectId}/git/pull`, 'POST', {}),
+    mutationFn: async () => {
+      const res = await fetch(`/api/git/${projectId}/pull`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      return res.json();
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/git/diff`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/git/commits`] });
+      invalidateGit();
       toast({ description: 'Changes pulled successfully' });
     },
     onError: (error: any) => {
@@ -189,10 +212,12 @@ export function MobileGitPanel({ projectId, className }: MobileGitPanelProps) {
   });
 
   const pushMutation = useMutation({
-    mutationFn: async () => apiRequest(`/api/projects/${projectId}/git/push`, 'POST', {}),
+    mutationFn: async () => {
+      const res = await fetch(`/api/git/${projectId}/push`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      return res.json();
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/git/diff`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/git/commits`] });
+      invalidateGit();
       toast({ description: 'Changes pushed successfully' });
     },
     onError: (error: any) => {
@@ -200,23 +225,13 @@ export function MobileGitPanel({ projectId, className }: MobileGitPanelProps) {
     },
   });
 
-  // Fetch endpoint is not available in backend - commented out
-  // const fetchMutation = useMutation({
-  //   mutationFn: async () => apiRequest(`/api/projects/${projectId}/git/fetch`, 'POST', {}),
-  //   onSuccess: () => {
-  //     queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/git/diff`] });
-  //     toast({ description: 'Fetched latest from remote' });
-  //   },
-  //   onError: (error: any) => {
-  //     toast({ description: error.message || 'Failed to fetch', variant: 'destructive' });
-  //   },
-  // });
-
   const commitMutation = useMutation({
-    mutationFn: async (message: string) => apiRequest(`/api/projects/${projectId}/git/commits`, 'POST', { message }),
+    mutationFn: async (message: string) => {
+      const res = await fetch(`/api/git/${projectId}/commit`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) });
+      return res.json();
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/git/diff`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/git/commits`] });
+      invalidateGit();
       setCommitMessage('');
       toast({ description: 'Changes committed successfully' });
     },
@@ -226,10 +241,12 @@ export function MobileGitPanel({ projectId, className }: MobileGitPanelProps) {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: async (branch: string) => apiRequest(`/api/projects/${projectId}/git/checkout`, 'POST', { branch }),
+    mutationFn: async (branch: string) => {
+      const res = await fetch(`/api/git/${projectId}/checkout`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ branch }) });
+      return res.json();
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/git/diff`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/git/branches`] });
+      invalidateGit();
       setShowBranchDropdown(false);
       toast({ description: 'Switched branch successfully' });
     },
@@ -238,19 +255,20 @@ export function MobileGitPanel({ projectId, className }: MobileGitPanelProps) {
     },
   });
 
-  // Remote management endpoint is not available in backend - this mutation is disabled
-  // const connectRemoteMutation = useMutation({
-  //   mutationFn: async (url: string) => apiRequest(`/api/projects/${projectId}/git/remotes`, 'POST', { url, name: 'origin' }),
-  //   onSuccess: () => {
-  //     queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/git/remotes`] });
-  //     setRemoteUrl('');
-  //     toast({ description: 'Remote connected successfully' });
-  //   },
-  //   onError: (error: any) => {
-  //     toast({ description: error.message || 'Failed to connect remote', variant: 'destructive' });
-  //   },
-  // });
-  const connectRemoteMutation = { mutate: () => toast({ description: 'Remote management not available', variant: 'destructive' }), isPending: false };
+  const connectRemoteMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const res = await fetch(`/api/git/${projectId}/remotes`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, name: 'origin' }) });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`git-remotes`, projectId] });
+      setRemoteUrl('');
+      toast({ description: 'Remote connected successfully' });
+    },
+    onError: (error: any) => {
+      toast({ description: error.message || 'Failed to connect remote', variant: 'destructive' });
+    },
+  });
 
   // GitHub disconnect/connect endpoints are not available in backend - these are disabled
   // const disconnectGitHubMutation = useMutation({

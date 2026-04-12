@@ -239,11 +239,12 @@ export function useIDEWorkspace(projectId: string) {
   });
 
   const gitDiffQuery = useQuery<{ branch: string; changes: any[]; hasCommits: boolean }>({
-    queryKey: ['/api/projects', projectId, 'git/diff', currentBranch],
+    queryKey: ['git-status', projectId, currentBranch],
     queryFn: async () => {
-      const res = await fetch(`/api/projects/${projectId}/git/diff?branch=${currentBranch}`, { credentials: 'include' });
+      const res = await fetch(`/api/git/${projectId}/status`, { credentials: 'include' });
       if (!res.ok) return { branch: currentBranch, changes: [], hasCommits: false };
-      return res.json();
+      const data = await res.json();
+      return { branch: data.branch || currentBranch, changes: data.changes || [], hasCommits: (data.changes?.length > 0) };
     },
     enabled: !!projectId,
     staleTime: 5000,
