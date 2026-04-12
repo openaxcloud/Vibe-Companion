@@ -65,11 +65,80 @@ export async function registerPublishShareRoutes(app: Express, ctx: any): Promis
 
   // --- PUBLISH / SHARE ---
   app.post("/api/projects/:id/publish", requireAuth, async (req: Request, res: Response) => {
-    const project = await storage.publishProject(req.params.id, req.session.userId!);
-    if (!project) {
-      return res.status(404).json({ message: "Project not found or not owned" });
+    try {
+      const projectId = req.params.id;
+      const userId = req.session.userId!;
+
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== userId) {
+        return res.status(404).json({ message: "Project not found or not owned" });
+      }
+
+      await storage.publishProject(projectId, userId);
+
+      const { deploymentManager } = await import("../services/deployment-manager.js");
+
+      const existingDeployments = await storage.getProjectDeployments(projectId);
+      const activeDeployment = existingDeployments.find(
+        (d: any) => d.environment === "production" && (d.status === "active" || d.status === "deployed")
+      );
+
+      if (activeDeployment) {
+        return res.json({
+          success: true,
+          deployment: {
+            id: activeDeployment.deploymentId || activeDeployment.id,
+            projectId,
+            status: activeDeployment.status,
+            url: activeDeployment.url || `https://${project.publishedSlug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.e-code.ai`,
+            environment: "production",
+            publishedAt: activeDeployment.createdAt,
+          },
+        });
+      }
+
+      const deployType = req.body.deploymentType || "autoscale";
+      const maxMachines = req.body.maxMachines || 3;
+
+      const deploymentId = await deploymentManager.createDeployment({
+        id: `pub-${projectId}-${Date.now()}`,
+        projectId,
+        type: deployType,
+        environment: "production",
+        sslEnabled: true,
+        regions: [req.body.region || "us-east-1"],
+        customDomain: req.body.customDomain,
+        buildCommand: req.body.buildCommand,
+        startCommand: req.body.runCommand,
+        environmentVars: req.body.environmentVars || {},
+        machineConfig: req.body.machineConfig,
+        maxMachines,
+        scaling: {
+          minInstances: deployType === "autoscale" ? 1 : 0,
+          maxInstances: maxMachines,
+          targetCPU: 70,
+          targetMemory: 80,
+        },
+      });
+
+      const deployment = await deploymentManager.getDeployment(deploymentId);
+      const slug = project.publishedSlug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + projectId.slice(0, 8);
+
+      return res.status(201).json({
+        success: true,
+        deployment: {
+          id: deploymentId,
+          projectId,
+          status: deployment?.status || "pending",
+          url: deployment?.url || `https://${slug}.e-code.ai`,
+          environment: "production",
+          publishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      console.error("[PUBLISH] Error:", error);
+      return res.status(500).json({ message: error.message || "Failed to publish project" });
     }
-    return res.json(project);
   });
 
   app.get("/api/shared/:id", async (req: Request, res: Response) => {

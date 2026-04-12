@@ -9,13 +9,16 @@ import { sslRenewalService } from './ssl-renewal.service';
 
 export interface DeploymentConfig {
   id: string;
-  projectId: string | number; // Support both UUID strings and numeric IDs
+  projectId: string | number;
+  userId?: string;
   type: 'static' | 'autoscale' | 'reserved-vm' | 'scheduled' | 'serverless';
   domain?: string;
   customDomain?: string;
   sslEnabled: boolean;
   environment: 'development' | 'staging' | 'production';
   regions: string[];
+  maxMachines?: number;
+  machineConfig?: any;
   scaling?: {
     minInstances: number;
     maxInstances: number;
@@ -45,7 +48,8 @@ export interface DeploymentConfig {
 
 export interface DeploymentStatus {
   id: string;
-  projectId: string | number; // CRITICAL: Must store projectId for filtering
+  dbId?: string;
+  projectId: string | number;
   status: 'pending' | 'building' | 'deploying' | 'active' | 'failed' | 'stopped';
   url?: string;
   customUrl?: string;
@@ -149,46 +153,40 @@ export class DeploymentManager {
       await this.setupSSLCertificate(deploymentId, config.customDomain || `${config.projectId}-${deploymentId.slice(0, 8)}.e-code.ai`);
     }
 
-    // Create deployment record in database
-    // Projects use serial integer IDs, but API may receive them as strings
-    const numericProjectId = typeof config.projectId === 'string' 
-      ? parseInt(config.projectId, 10) 
-      : config.projectId;
+    const stringProjectId = String(config.projectId);
     
-    if (isNaN(numericProjectId)) {
-      throw new Error(`Invalid project ID: ${config.projectId}. Project IDs must be numeric.`);
+    let userId = config.userId;
+    if (!userId) {
+      const project = await storage.getProject(stringProjectId);
+      userId = project?.userId || 'system';
     }
-    
+
     const dbDeployment = await storage.createDeployment({
-      projectId: numericProjectId,
-      type: config.type,
-      deploymentId: deploymentId,
-      environment: config.environment,
-      status: 'pending',
-      url: deployment.url || deployment.customUrl || '',
-      customDomain: config.customDomain,
-      metadata: {
-        regions: config.regions,
-        scaling: config.scaling,
-        scheduling: config.scheduling,
-        resources: config.resources,
-        environmentVars: config.environmentVars
-      }
+      projectId: stringProjectId,
+      userId,
+      deploymentType: config.type,
+      buildCommand: config.buildCommand || null,
+      runCommand: config.startCommand || null,
+      machineConfig: config.machineConfig || null,
+      maxMachines: config.maxMachines || config.scaling?.maxInstances || 1,
+      deploymentSecrets: config.environmentVars || {},
     });
 
-    // Create type-specific deployment configuration
-    await this.createTypeSpecificConfig(dbDeployment.id, config);
+    deployment.dbId = dbDeployment.id;
 
-    // Track deployment usage for billing
-    const projectIdForLookup = typeof config.projectId === 'number' ? String(config.projectId) : config.projectId;
-    const project = await storage.getProject(projectIdForLookup);
-    if (project) {
-      await billingService.trackResourceUsage(
-        project.ownerId,
-        `deployment.${config.type}`,
-        1,
-        { deploymentId: dbDeployment.id, projectId: config.projectId }
-      );
+    try {
+      const projectIdForLookup = typeof config.projectId === 'number' ? String(config.projectId) : config.projectId;
+      const project = await storage.getProject(projectIdForLookup);
+      if (project) {
+        await billingService.trackResourceUsage(
+          project.ownerId,
+          `deployment.${config.type}`,
+          1,
+          { deploymentId: dbDeployment.id, projectId: config.projectId }
+        );
+      }
+    } catch (e) {
+      console.warn('[DEPLOY] Billing tracking skipped:', e);
     }
 
     this.deployments.set(deploymentId, deployment);
@@ -338,47 +336,32 @@ export class DeploymentManager {
       
       clearTimeout(deploymentTimeout);
       
-      // Update database FIRST before marking as active in memory
       let dbUpdateSuccess = false;
       
       try {
-        // Get the numeric deployment ID from the database
-        const dbDeployment = await storage.getDeploymentByExternalId(deploymentId);
-        
-        if (!dbDeployment) {
-          throw new Error(`Database record not found for deployment ${deploymentId}`);
+        const dbId = deployment.dbId;
+        if (dbId) {
+          await storage.updateDeployment(dbId, {
+            status: 'active',
+            finishedAt: new Date(),
+            url: deployment.url || deployment.customUrl || '',
+          });
+          dbUpdateSuccess = true;
         }
-        
-        await storage.updateDeploymentStatus(dbDeployment.id, {
-          status: 'active',
-          lastDeployedAt: new Date()
-        });
-        
-        dbUpdateSuccess = true;
-        
       } catch (dbError) {
-        console.error(`Failed to update deployment status in database:`, dbError);
-        
-        // Retry once with delay
+        console.error(`[DEPLOY] DB update failed for ${deploymentId}:`, dbError);
         try {
           await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          const dbDeployment = await storage.getDeploymentByExternalId(deploymentId);
-          
-          if (!dbDeployment) {
-            throw new Error(`Database record still not found for deployment ${deploymentId}`);
+          if (deployment.dbId) {
+            await storage.updateDeployment(deployment.dbId, {
+              status: 'active',
+              finishedAt: new Date(),
+              url: deployment.url || deployment.customUrl || '',
+            });
+            dbUpdateSuccess = true;
           }
-          
-          await storage.updateDeploymentStatus(dbDeployment.id, {
-            status: 'active',
-            lastDeployedAt: new Date()
-          });
-          
-          dbUpdateSuccess = true;
-          
         } catch (retryError) {
-          console.error(`❌ Database update retry also failed for ${deploymentId}:`, retryError);
-          // Log the failure but continue - the deployment is technically successful
+          console.error(`[DEPLOY] DB retry failed for ${deploymentId}:`, retryError);
           const dbWarningLog = '⚠️ Warning: Database status update failed, but deployment is active';
           deployment.deploymentLog.push(dbWarningLog);
           this.broadcastDeployLog(deploymentId, dbWarningLog);
