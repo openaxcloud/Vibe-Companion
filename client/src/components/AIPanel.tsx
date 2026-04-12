@@ -815,6 +815,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } catch {}
     return "builtin";
   });
+  const [providerSessionId, setProviderSessionId] = useState<string | null>(null);
   const [model, setModel] = useState<AIModel>(() => {
     try {
       const saved = localStorage.getItem("ai-preferred-model");
@@ -1790,6 +1791,111 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
   }, [isAudioStreaming, readAloudMsgId, selectedVoice, initAudioPlayback, stopAudioPlayback]);
 
+  const sendViaExternalProvider = useCallback(async (
+    provider: "openhands" | "goose",
+    content: string,
+    assistantId: string,
+  ): Promise<boolean> => {
+    const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    const csrfToken = getCsrfToken();
+    if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
+
+    const body = {
+      provider,
+      message: content,
+      sessionId: providerSessionId,
+      projectId,
+    };
+
+    console.log(`[AIPanel] Sending to external provider: ${provider}, session=${providerSessionId}`);
+
+    const res = await fetch("/api/agent-providers/message", {
+      method: "POST",
+      headers: fetchHeaders,
+      credentials: "include",
+      body: JSON.stringify(body),
+      signal: abortRef.current?.signal,
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `${provider} request failed (${res.status})`);
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("No stream from provider");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+
+          if (data.type === "session") {
+            const newSessionId = data.conversationId || data.sessionId;
+            if (newSessionId) setProviderSessionId(newSessionId);
+          } else if (data.type === "action") {
+            let actionText = "";
+            if (data.action === "run") {
+              actionText = `\n> Running command: \`${data.args?.command || "..."}\`\n`;
+            } else if (data.action === "write") {
+              actionText = `\n> Writing file: \`${data.args?.path || "..."}\`\n`;
+            } else if (data.action === "read") {
+              actionText = `\n> Reading file: \`${data.args?.path || "..."}\`\n`;
+            } else if (data.action === "browse") {
+              actionText = `\n> Browsing: \`${data.args?.url || "..."}\`\n`;
+            } else if (data.action === "message") {
+              actionText = data.message || data.args?.content || "";
+            } else if (data.action) {
+              actionText = `\n> [${data.action}] ${data.message || ""}\n`;
+            }
+            if (actionText) {
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + actionText } : m)
+              );
+            }
+          } else if (data.type === "observation") {
+            const obsText = data.message || data.observation || "";
+            if (obsText) {
+              const truncated = obsText.length > 2000 ? obsText.slice(0, 2000) + "\n...(truncated)" : obsText;
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + "\n```\n" + truncated + "\n```\n" } : m)
+              );
+            }
+          } else if (data.type === "text" || data.type === "content") {
+            const text = data.content || data.text || data.message || "";
+            if (text) {
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + text } : m)
+              );
+            }
+          } else if (data.type === "error") {
+            setMessages((prev) =>
+              prev.map((m) => m.id === assistantId ? { ...m, content: m.content + `\n\n⚠️ ${data.message}` } : m)
+            );
+          } else if (data.type === "done") {
+          } else if (data.message || data.content) {
+            const fallback = data.message || data.content || "";
+            setMessages((prev) =>
+              prev.map((m) => m.id === assistantId ? { ...m, content: m.content + fallback } : m)
+            );
+          }
+        } catch {}
+      }
+    }
+
+    return true;
+  }, [providerSessionId, projectId]);
+
   const sendMessageDirect = useCallback(async (content: string, currentAttachments: Attachment[] = []) => {
     let fullContent = content;
 
@@ -1836,11 +1942,31 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     persistMessage("user", userMsg.content);
 
     const assistantId = (Date.now() + 1).toString();
-    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model }]);
+    const providerLabel = agentProvider === "openhands" ? "OpenHands" : agentProvider === "goose" ? "Goose" : undefined;
+    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model, ...(providerLabel ? { providerLabel } : {}) }]);
 
     abortRef.current = new AbortController();
 
     try {
+      if (agentProvider !== "builtin") {
+        console.log(`[AIPanel] Routing to external provider: ${agentProvider}`);
+        await sendViaExternalProvider(agentProvider, fullContent, assistantId);
+
+        const extractedContent = await new Promise<string>((resolve) => {
+          setMessages((prev) => {
+            const assistantMsg = prev.find((m) => m.id === assistantId);
+            resolve(assistantMsg?.content || "");
+            return prev;
+          });
+        });
+
+        if (extractedContent) {
+          persistMessage("assistant", extractedContent, model);
+        }
+
+        return true;
+      }
+
       const isAgent = mode === "agent" && !!projectId;
       const isLite = isAgent && liteMode;
       const endpoint = isLite ? "/api/ai/lite" : isAgent ? "/api/ai/agent" : "/api/ai/chat";
@@ -1937,7 +2063,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       abortRef.current = null;
       onAgentComplete?.();
     }
-  }, [messages, model, openrouterModel, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete, audioOutputEnabled, readAloud]);
+  }, [messages, model, openrouterModel, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete, audioOutputEnabled, readAloud, agentProvider, sendViaExternalProvider]);
 
   const processQueue = useCallback(async () => {
     if (processingQueueRef.current || pausedRef.current) return;
@@ -4279,17 +4405,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-56 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
-                    <DropdownMenuItem className="gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setAgentProvider("builtin"); try { localStorage.setItem("ai-agent-provider", "builtin"); } catch {} }} data-testid="provider-builtin">
+                    <DropdownMenuItem className="gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setAgentProvider("builtin"); setProviderSessionId(null); try { localStorage.setItem("ai-agent-provider", "builtin"); } catch {} }} data-testid="provider-builtin">
                       <Zap className="w-4 h-4 text-blue-400" />
                       <div className="flex flex-col flex-1"><span className="font-medium">E-Code AI</span><span className="text-[10px] text-[var(--ide-text-muted)]">Built-in GPT-4 / Claude agent</span></div>
                       {agentProvider === "builtin" && <Check className="w-3.5 h-3.5 text-[#0CCE6B]" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setAgentProvider("openhands"); try { localStorage.setItem("ai-agent-provider", "openhands"); } catch {} }} data-testid="provider-openhands">
+                    <DropdownMenuItem className="gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setAgentProvider("openhands"); setProviderSessionId(null); try { localStorage.setItem("ai-agent-provider", "openhands"); } catch {} }} data-testid="provider-openhands">
                       <Globe className="w-4 h-4 text-green-400" />
                       <div className="flex flex-col flex-1"><span className="font-medium">OpenHands</span><span className="text-[10px] text-[var(--ide-text-muted)]">Autonomous AI engineer (MIT, 70k+)</span></div>
                       {agentProvider === "openhands" && <Check className="w-3.5 h-3.5 text-[#0CCE6B]" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setAgentProvider("goose"); try { localStorage.setItem("ai-agent-provider", "goose"); } catch {} }} data-testid="provider-goose">
+                    <DropdownMenuItem className="gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setAgentProvider("goose"); setProviderSessionId(null); try { localStorage.setItem("ai-agent-provider", "goose"); } catch {} }} data-testid="provider-goose">
                       <Server className="w-4 h-4 text-orange-400" />
                       <div className="flex flex-col flex-1"><span className="font-medium">Goose</span><span className="text-[10px] text-[var(--ide-text-muted)]">Block / Linux Foundation (Apache 2.0)</span></div>
                       {agentProvider === "goose" && <Check className="w-3.5 h-3.5 text-[#0CCE6B]" />}
