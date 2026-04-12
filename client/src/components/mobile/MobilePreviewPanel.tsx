@@ -1,10 +1,17 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Globe, RefreshCw, ExternalLink } from "lucide-react";
 
 interface MobilePreviewPanelProps {
   projectId: string;
+}
+
+function computeFilesSignature(files: any[]): string {
+  return files
+    .map((f: any) => `${f.id || ''}:${f.filename || ''}:${f.updatedAt || f.content?.length || 0}`)
+    .sort()
+    .join('|');
 }
 
 export function MobilePreviewPanel({ projectId }: MobilePreviewPanelProps) {
@@ -15,6 +22,28 @@ export function MobilePreviewPanel({ projectId }: MobilePreviewPanelProps) {
     queryKey: ["/api/projects", projectId],
     queryFn: () => apiRequest("GET", `/api/projects/${projectId}`).then(r => r.json()),
   });
+
+  const { data: filesData } = useQuery<any[]>({
+    queryKey: ["/api/projects", projectId, "files"],
+    queryFn: () => apiRequest("GET", `/api/projects/${projectId}/files`).then((r: any) => Array.isArray(r) ? r : (r.json ? r.json() : [])),
+    refetchInterval: 3000,
+    enabled: !!projectId,
+  });
+
+  const prevSignatureRef = useRef<string | null>(null);
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!filesData || !Array.isArray(filesData)) return;
+    const sig = computeFilesSignature(filesData);
+    if (prevSignatureRef.current !== null && sig !== prevSignatureRef.current) {
+      setLoaded(false);
+      setRefreshKey(k => k + 1);
+    }
+    if (!mountedRef.current && filesData.length === 0) {
+      mountedRef.current = true;
+    }
+    prevSignatureRef.current = sig;
+  }, [filesData]);
 
   const previewUrl = `/api/preview/projects/${projectId}/preview/`;
 
