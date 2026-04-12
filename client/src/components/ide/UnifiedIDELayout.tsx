@@ -1075,12 +1075,14 @@ function UnifiedIDELayout({
         return (
           <Suspense fallback={<EditorSkeleton />}>
             <div className="relative h-full">
-              <EnhancedMobileCodeEditor
+              <ReplitMonacoEditor
                 projectId={projectId}
-                fileId={selectedFileId}
-                className="h-full"
+                fileId={activeFileId || (selectedFileId ? String(selectedFileId) : null)}
+                fileContents={fileContents || {}}
+                onCodeChange={handleCodeChange || (() => {})}
+                onCursorChange={handleCursorChange}
+                filename={activeFileName || undefined}
               />
-              {/* Floating code actions overlay for mobile editor */}
               <MobileCodeActions editor={null} className="absolute bottom-4 right-4 z-20" />
             </div>
           </Suspense>
