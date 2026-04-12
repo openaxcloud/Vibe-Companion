@@ -128,6 +128,22 @@ export function AIModelSelector({
     setSelectedModel(modelId);
     savePreferredModelMutation.mutate(modelId);
     onModelChange?.(modelId);
+
+    const modelObj = availableModels.find((m: AIModel) => m.id === modelId);
+    if (modelObj) {
+      const providerMap: Record<string, string> = {
+        openai: 'gpt',
+        anthropic: 'claude',
+        gemini: 'gemini',
+        google: 'gemini',
+        xai: 'gpt',
+        moonshot: 'gpt',
+      };
+      const aiPanelProvider = providerMap[modelObj.provider] || 'claude';
+      try {
+        localStorage.setItem('ai-preferred-model', aiPanelProvider);
+      } catch {}
+    }
   };
 
   const currentModel = selectedModel || preferredData?.preferredModel || null;

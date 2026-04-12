@@ -868,6 +868,31 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const audioAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    fetch("/api/models/preferred", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.preferredModel) {
+          const mid = data.preferredModel as string;
+          const providerMap: Record<string, AIModel> = {
+            gpt: "gpt", "gpt-4.1": "gpt", "gpt-4.1-mini": "gpt", "gpt-4.1-nano": "gpt",
+            "o4-mini": "gpt", "o3": "gpt",
+            claude: "claude", "claude-sonnet-4": "claude", "claude-opus-4": "claude",
+            gemini: "gemini", "gemini-2.5-pro": "gemini", "gemini-2.5-flash": "gemini",
+          };
+          const mapped = providerMap[mid] || (
+            mid.startsWith("gpt") || mid.startsWith("o3") || mid.startsWith("o4") ? "gpt" :
+            mid.startsWith("claude") ? "claude" :
+            mid.startsWith("gemini") ? "gemini" : null
+          );
+          if (mapped) {
+            setModel(mapped);
+            try { localStorage.setItem("ai-preferred-model", mapped); } catch {}
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
     fetch("/api/user/usage", { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
