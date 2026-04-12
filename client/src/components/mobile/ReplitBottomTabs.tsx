@@ -110,12 +110,12 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-[60]"
+      className="shrink-0 relative z-[60]"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       data-testid="mobile-bottom-navigation"
     >
       <div
-        className="absolute inset-x-3 bottom-2 rounded-[var(--mobile-nav-radius)]"
+        className="absolute inset-x-3 bottom-0 top-0 rounded-[var(--mobile-nav-radius)]"
         style={{
           background: 'var(--mobile-nav-gradient)',
           boxShadow: 'var(--mobile-nav-shadow), var(--mobile-nav-inner-shadow)',

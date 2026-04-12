@@ -97,8 +97,7 @@ export function MobileFAB({
     <LazyMotionDiv
       className={cn(
         'fixed z-40',
-        // Position: bottom-right with safe area padding, above 64px bottom tab bar
-        'bottom-20 right-4',
+        'bottom-28 right-4',
         className
       )}
       initial={{ scale: 0, opacity: 0 }}

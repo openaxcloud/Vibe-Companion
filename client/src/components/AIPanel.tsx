@@ -3694,9 +3694,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         </div>
       )}
 
-      <div ref={scrollRef} className={`flex-1 overflow-y-auto p-4 space-y-4 ${topMode === "plan" ? "hidden" : ""}`}>
+      <div ref={scrollRef} className={`flex-1 overflow-y-auto p-4 flex flex-col ${topMode === "plan" ? "hidden" : ""}`}>
+        {activeMessages.length > 0 && <div className="flex-1 min-h-0" />}
+        <div className={activeMessages.length === 0 ? "flex-1 flex flex-col" : "space-y-4"}>
         {activeMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-6 animate-[fade-in_0.4s_ease-out]">
+          <div className="flex flex-col items-center justify-center flex-1 text-center px-6 animate-[fade-in_0.4s_ease-out]">
             <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-5 ring-1 shadow-lg ${
               topMode === "plan"
                 ? "bg-gradient-to-br from-[#F59E0B]/25 to-[#F59E0B]/5 ring-[#F59E0B]/20 shadow-[#F59E0B]/10"
@@ -3844,6 +3846,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             </div>
           );
         })}
+        </div>
       </div>
 
       {!hideInput && <div className="p-2.5 border-t border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
