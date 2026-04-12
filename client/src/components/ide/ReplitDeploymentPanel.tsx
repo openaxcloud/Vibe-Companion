@@ -95,6 +95,29 @@ export function ReplitDeploymentPanel({
   className,
   defaultTab = 'deploy'
 }: ReplitDeploymentPanelProps) {
+  const configKey = `deploy-config-${projectId}`;
+  const DEPLOY_TYPES: DeploymentType[] = ['autoscale', 'static', 'reserved-vm', 'scheduled'];
+  const OVERVIEW_TABS: OverviewTab[] = ['overview', 'logs', 'analytics', 'resources', 'domains', 'manage'];
+  const loadConfig = () => {
+    try {
+      const raw = sessionStorage.getItem(configKey);
+      if (raw) {
+        const cfg = JSON.parse(raw);
+        if (cfg.deployType && !DEPLOY_TYPES.includes(cfg.deployType)) cfg.deployType = 'autoscale';
+        if (cfg.overviewTab && !OVERVIEW_TABS.includes(cfg.overviewTab)) cfg.overviewTab = 'overview';
+        if (cfg.timeoutUnit && !['minutes', 'hours'].includes(cfg.timeoutUnit)) cfg.timeoutUnit = 'minutes';
+        if (cfg.appType && !['web_server', 'background_worker'].includes(cfg.appType)) cfg.appType = 'web_server';
+        if (cfg.vcpuIndex != null) cfg.vcpuIndex = Math.max(0, Math.min(cfg.vcpuIndex, 8));
+        if (cfg.ramIndex != null) cfg.ramIndex = Math.max(0, Math.min(cfg.ramIndex, 8));
+        if (cfg.maxMachines != null) cfg.maxMachines = Math.max(1, Math.min(cfg.maxMachines, 10));
+        if (cfg.portMapping != null) cfg.portMapping = Math.max(1, Math.min(cfg.portMapping, 65535));
+        return cfg;
+      }
+    } catch {}
+    return null;
+  };
+  const savedCfg = useRef(loadConfig());
+
   const [view, setViewRaw] = useState<PanelView>(() => {
     try {
       const saved = sessionStorage.getItem(`deploy-view-${projectId}`);
@@ -102,39 +125,72 @@ export function ReplitDeploymentPanel({
     } catch {}
     return 'type-select';
   });
-  const [deployType, setDeployType] = useState<DeploymentType>('autoscale');
-  const [overviewTab, setOverviewTab] = useState<OverviewTab>('overview');
+  const [deployType, setDeployTypeRaw] = useState<DeploymentType>(savedCfg.current?.deployType || 'autoscale');
+  const [overviewTab, setOverviewTabRaw] = useState<OverviewTab>(savedCfg.current?.overviewTab || 'overview');
+
+  const persistConfig = useCallback((updates: Record<string, any>) => {
+    try {
+      const cur = JSON.parse(sessionStorage.getItem(configKey) || '{}');
+      sessionStorage.setItem(configKey, JSON.stringify({ ...cur, ...updates }));
+    } catch {}
+  }, [configKey]);
+
+  const setOverviewTab = useCallback((v: OverviewTab) => { setOverviewTabRaw(v); persistConfig({ overviewTab: v }); }, [persistConfig]);
 
   const setView = useCallback((v: PanelView) => {
     setViewRaw(v);
     try { sessionStorage.setItem(`deploy-view-${projectId}`, v); } catch {}
   }, [projectId]);
 
-  const [vcpuIndex, setVcpuIndex] = useState(4);
-  const [ramIndex, setRamIndex] = useState(3);
-  const [maxMachines, setMaxMachines] = useState(3);
+  const setDeployType = useCallback((v: DeploymentType) => {
+    setDeployTypeRaw(v);
+    persistConfig({ deployType: v });
+  }, [persistConfig]);
+
+  const [vcpuIndex, setVcpuIndexRaw] = useState(savedCfg.current?.vcpuIndex ?? 4);
+  const [ramIndex, setRamIndexRaw] = useState(savedCfg.current?.ramIndex ?? 3);
+  const [maxMachines, setMaxMachinesRaw] = useState(savedCfg.current?.maxMachines ?? 3);
   const [editingPower, setEditingPower] = useState(false);
 
-  const [machineConfigId, setMachineConfigId] = useState('small');
-  const [primaryDomain, setPrimaryDomain] = useState('');
-  const [isPrivate, setIsPrivate] = useState(false);
-  const [buildCommand, setBuildCommand] = useState('');
-  const [runCommand, setRunCommand] = useState('');
-  const [appType, setAppType] = useState<'web_server' | 'background_worker'>('web_server');
-  const [portMapping, setPortMapping] = useState(3000);
-  const [secrets, setSecrets] = useState<DeploymentSecret[]>([]);
+  const setVcpuIndex = useCallback((v: number) => { setVcpuIndexRaw(v); persistConfig({ vcpuIndex: v }); }, [persistConfig]);
+  const setRamIndex = useCallback((v: number) => { setRamIndexRaw(v); persistConfig({ ramIndex: v }); }, [persistConfig]);
+  const setMaxMachines = useCallback((v: number) => { setMaxMachinesRaw(v); persistConfig({ maxMachines: v }); }, [persistConfig]);
+
+  const [machineConfigId, setMachineConfigIdRaw] = useState(savedCfg.current?.machineConfigId || 'small');
+  const [primaryDomain, setPrimaryDomainRaw] = useState(savedCfg.current?.primaryDomain || '');
+  const [isPrivate, setIsPrivateRaw] = useState(savedCfg.current?.isPrivate ?? false);
+  const [buildCommand, setBuildCommandRaw] = useState(savedCfg.current?.buildCommand || '');
+  const [runCommand, setRunCommandRaw] = useState(savedCfg.current?.runCommand || '');
+  const [appType, setAppTypeRaw] = useState<'web_server' | 'background_worker'>(savedCfg.current?.appType || 'web_server');
+  const [portMapping, setPortMappingRaw] = useState(savedCfg.current?.portMapping ?? 3000);
+  const [secrets, setSecrets] = useState<DeploymentSecret[]>(savedCfg.current?.secrets || []);
   const [showAddSecret, setShowAddSecret] = useState(false);
   const [newSecretKey, setNewSecretKey] = useState('');
   const [newSecretValue, setNewSecretValue] = useState('');
   const [secretVisibility, setSecretVisibility] = useState<Record<string, boolean>>({});
 
-  const [cronExpression, setCronExpression] = useState('0 * * * *');
-  const [scheduleDescription, setScheduleDescription] = useState('Every hour');
-  const [jobTimeout, setJobTimeout] = useState(2);
-  const [timeoutUnit, setTimeoutUnit] = useState<'minutes' | 'hours'>('minutes');
-  const [timezone, setTimezone] = useState('EST');
+  const setMachineConfigId = useCallback((v: string) => { setMachineConfigIdRaw(v); persistConfig({ machineConfigId: v }); }, [persistConfig]);
+  const setPrimaryDomain = useCallback((v: string) => { setPrimaryDomainRaw(v); persistConfig({ primaryDomain: v }); }, [persistConfig]);
+  const setIsPrivate = useCallback((v: boolean) => { setIsPrivateRaw(v); persistConfig({ isPrivate: v }); }, [persistConfig]);
+  const setBuildCommand = useCallback((v: string) => { setBuildCommandRaw(v); persistConfig({ buildCommand: v }); }, [persistConfig]);
+  const setRunCommand = useCallback((v: string) => { setRunCommandRaw(v); persistConfig({ runCommand: v }); }, [persistConfig]);
+  const setAppType = useCallback((v: 'web_server' | 'background_worker') => { setAppTypeRaw(v); persistConfig({ appType: v }); }, [persistConfig]);
+  const setPortMapping = useCallback((v: number) => { setPortMappingRaw(v); persistConfig({ portMapping: v }); }, [persistConfig]);
 
-  const [publicDirectory, setPublicDirectory] = useState('dist');
+  const [cronExpression, setCronExpressionRaw] = useState(savedCfg.current?.cronExpression || '0 * * * *');
+  const [scheduleDescription, setScheduleDescriptionRaw] = useState(savedCfg.current?.scheduleDescription || 'Every hour');
+  const [jobTimeout, setJobTimeoutRaw] = useState(savedCfg.current?.jobTimeout ?? 2);
+  const [timeoutUnit, setTimeoutUnitRaw] = useState<'minutes' | 'hours'>(savedCfg.current?.timeoutUnit || 'minutes');
+  const [timezone, setTimezoneRaw] = useState(savedCfg.current?.timezone || 'EST');
+
+  const setCronExpression = useCallback((v: string) => { setCronExpressionRaw(v); persistConfig({ cronExpression: v }); }, [persistConfig]);
+  const setScheduleDescription = useCallback((v: string) => { setScheduleDescriptionRaw(v); persistConfig({ scheduleDescription: v }); }, [persistConfig]);
+  const setJobTimeout = useCallback((v: number) => { setJobTimeoutRaw(v); persistConfig({ jobTimeout: v }); }, [persistConfig]);
+  const setTimeoutUnit = useCallback((v: 'minutes' | 'hours') => { setTimeoutUnitRaw(v); persistConfig({ timeoutUnit: v }); }, [persistConfig]);
+  const setTimezone = useCallback((v: string) => { setTimezoneRaw(v); persistConfig({ timezone: v }); }, [persistConfig]);
+
+  const [publicDirectory, setPublicDirectoryRaw] = useState(savedCfg.current?.publicDirectory || 'dist');
+  const setPublicDirectory = useCallback((v: string) => { setPublicDirectoryRaw(v); persistConfig({ publicDirectory: v }); }, [persistConfig]);
 
   const [isDeploying, setIsDeployingRaw] = useState(() => {
     try {
@@ -142,8 +198,13 @@ export function ReplitDeploymentPanel({
       return ts ? (Date.now() - Number(ts)) < 120000 : false;
     } catch { return false; }
   });
-  const [deployProgress, setDeployProgress] = useState(0);
-  const [deployStage, setDeployStage] = useState('');
+  const [deployProgress, setDeployProgressRaw] = useState(() => {
+    if (savedCfg.current?.deployProgress != null) return savedCfg.current.deployProgress;
+    return 0;
+  });
+  const [deployStage, setDeployStageRaw] = useState(savedCfg.current?.deployStage || '');
+  const setDeployProgress = useCallback((v: number) => { setDeployProgressRaw(v); persistConfig({ deployProgress: v }); }, [persistConfig]);
+  const setDeployStage = useCallback((v: string) => { setDeployStageRaw(v); persistConfig({ deployStage: v }); }, [persistConfig]);
 
   const setIsDeploying = useCallback((v: boolean) => {
     setIsDeployingRaw(v);
@@ -157,7 +218,8 @@ export function ReplitDeploymentPanel({
   const [isAutoScroll, setIsAutoScroll] = useState(true);
   const [wsConnected, setWsConnected] = useState(false);
   const [timePeriod, setTimePeriod] = useState('24h');
-  const [customDomain, setCustomDomain] = useState('');
+  const [customDomain, setCustomDomainRaw] = useState(savedCfg.current?.customDomain || '');
+  const setCustomDomain = useCallback((v: string) => { setCustomDomainRaw(v); persistConfig({ customDomain: v }); }, [persistConfig]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
