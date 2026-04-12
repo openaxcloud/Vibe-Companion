@@ -115,6 +115,8 @@ MANDATORY DESIGN STANDARDS:
 - Semantic HTML, ARIA labels, proper heading hierarchy
 - The result MUST look like a premium SaaS product — not a basic tutorial page
 - Include proper footer, navigation, and all sections users would expect
+- ALWAYS use real images from Unsplash (https://images.unsplash.com/photo-{ID}?w=800&h=600&fit=crop) or Picsum (https://picsum.photos/800/600?random=N) — NEVER use emoji or placeholder text as images
+- For avatars use https://i.pravatar.cc/150?img=N
 
 Always generate COMPLETE, production-ready code. No placeholders or TODOs.`;
 
@@ -305,7 +307,8 @@ CRITICAL REQUIREMENTS:
 6. Include ALL necessary files: HTML pages, CSS, JS modules, config, data files
 7. NO placeholders, NO TODOs — every file must be complete and production-ready
 8. The final result must look like a premium SaaS product, not a basic tutorial app
-9. Include a proper footer, navigation, and all sections a real user would expect`;
+9. Include a proper footer, navigation, and all sections a real user would expect
+10. ALWAYS use real images from Unsplash (https://images.unsplash.com/photo-{ID}?w=800&h=600&fit=crop) or Picsum (https://picsum.photos/800/600?random=N) — NEVER use emoji or placeholder text as images`;
 
       // Use specified model or intelligently fallback to first available model
       let selectedModel = modelId;

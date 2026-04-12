@@ -65,6 +65,20 @@ export const DESIGN_SYSTEM_PROMPT = `
 - Always include a footer with: bg-slate-900 text-white py-12
 - Footer content: copyright, navigation links, social links
 
+### Images (MANDATORY)
+- NEVER use placeholder text or emoji as images
+- ALWAYS use real images from Unsplash for visual content:
+  - General: https://images.unsplash.com/photo-{ID}?w=800&h=600&fit=crop
+  - Food: https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop (salad), https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&h=600&fit=crop (pizza), https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&h=600&fit=crop (pancakes)
+  - Tech: https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&h=600&fit=crop (circuit), https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=800&h=600&fit=crop (code)
+  - Nature: https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&h=600&fit=crop (landscape), https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&h=600&fit=crop (forest)
+  - People: https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop (team), https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=400&h=400&fit=crop (portrait)
+  - Business: https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&h=600&fit=crop (building), https://images.unsplash.com/photo-1553877522-43269d4ea984?w=800&h=600&fit=crop (meeting)
+- Or use Picsum for random placeholder images: https://picsum.photos/800/600?random=1 (change random=N for different images)
+- For avatars use: https://i.pravatar.cc/150?img=1 (change img=N for different faces)
+- For icons/logos use SVG inline or Heroicons/Lucide via CDN
+- Images MUST have proper alt text, object-fit: cover, rounded corners, and lazy loading
+
 ### Accessibility
 - Semantic HTML: nav, main, article, section, footer
 - Proper heading hierarchy: h1 > h2 > h3

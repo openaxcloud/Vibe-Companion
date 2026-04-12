@@ -208,55 +208,6 @@ export async function registerAiAssistantRoutes(app: Express, ctx: RouteContext)
   const geminiDefault = process.env.GEMINI_API_KEY ? geminiDirect : gemini;
 
   async function resolveProviderClients(projectId: string | undefined, provider: string, userId?: string): Promise<{ anthropicClient: Anthropic; openaiClient: OpenAI; geminiClient: GoogleGenAI; credMode: string; byokNoKey?: boolean }> {
-    if (projectId && userId) {
-      const project = await storage.getProject(projectId);
-      if (!project || project.userId !== userId) {
-        return { anthropicClient: anthropic, openaiClient: openai, geminiClient: geminiDefault, credMode: "managed" };
-      }
-    }
-    if (projectId) {
-      const cfg = await storage.getAiCredentialConfig(projectId, provider);
-      if (cfg?.mode === "byok") {
-        let apiKey: string | null = null;
-        if (cfg.apiKey) {
-          apiKey = decrypt(cfg.apiKey);
-        } else {
-          const secretKey = BYOK_SECRET_KEYS[provider];
-          if (secretKey) {
-            const envVars = await storage.getProjectEnvVars(projectId);
-            const ev = envVars.find(e => e.key === secretKey);
-            if (ev?.encryptedValue) {
-              apiKey = decrypt(ev.encryptedValue);
-            }
-          }
-        }
-        if (apiKey) {
-          if (provider === "anthropic") {
-            return { anthropicClient: new Anthropic({ apiKey }), openaiClient: openai, geminiClient: geminiDefault, credMode: "byok" };
-          }
-          if (provider === "openai" || provider === "openrouter") {
-            const baseURL = provider === "openrouter" ? "https://openrouter.ai/api/v1" : undefined;
-            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) }), geminiClient: geminiDefault, credMode: "byok" };
-          }
-          if (provider === "google") {
-            return { anthropicClient: anthropic, openaiClient: openai, geminiClient: new GoogleGenAI({ apiKey }), credMode: "byok" };
-          }
-          if (provider === "perplexity") {
-            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.perplexity.ai" }), geminiClient: geminiDefault, credMode: "byok" };
-          }
-          if (provider === "mistral") {
-            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.mistral.ai/v1" }), geminiClient: geminiDefault, credMode: "byok" };
-          }
-          if (provider === "moonshot") {
-            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.moonshot.ai/v1" }), geminiClient: geminiDefault, credMode: "byok" };
-          }
-          if (provider === "xai") {
-            return { anthropicClient: anthropic, openaiClient: new OpenAI({ apiKey, baseURL: "https://api.x.ai/v1" }), geminiClient: geminiDefault, credMode: "byok" };
-          }
-        }
-        return { anthropicClient: anthropic, openaiClient: openai, geminiClient: geminiDefault, credMode: "byok", byokNoKey: true };
-      }
-    }
     return { anthropicClient: anthropic, openaiClient: openai, geminiClient: geminiDefault, credMode: "managed" };
   }
 

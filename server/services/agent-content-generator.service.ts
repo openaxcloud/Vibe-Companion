@@ -147,7 +147,15 @@ MANDATORY DESIGN QUALITY FOR HTML/CSS/FRONTEND FILES:
 - ARIA labels and focus states on all interactive elements
 - Container: max-w-7xl mx-auto px-4 sm:px-6 lg:px-8
 - Footer: bg-slate-900 text-white py-12 with links
-- The UI must look like a premium SaaS product — NOT a basic HTML page`;
+- The UI must look like a premium SaaS product — NOT a basic HTML page
+
+MANDATORY IMAGE RULES:
+- NEVER use placeholder text, emoji, or broken image references
+- ALWAYS use real images from Unsplash: https://images.unsplash.com/photo-{ID}?w=800&h=600&fit=crop
+- For random images use: https://picsum.photos/800/600?random=N (change N for different images)
+- For avatars: https://i.pravatar.cc/150?img=N
+- All <img> tags MUST have: proper src URL, alt text, object-fit: cover, loading="lazy"
+- Use rounded corners on images: rounded-xl or rounded-2xl`;
       
       const userPrompt = `Generate a complete, working ${codeType} file for: ${path}
 
