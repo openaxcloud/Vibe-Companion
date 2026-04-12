@@ -407,7 +407,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
     const defaultPort = isMobile ? 8081 : 3000;
     const port = Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : defaultPort;
     const isLocalMode = !process.env.RUNNER_BASE_URL || (process.env.RUNNER_MODE || "local") === "local";
-    const url = isLocalMode ? `/api/preview/${project.id}/` : runnerClient.previewUrl(workspace.id, port);
+    const url = isLocalMode ? `/api/preview/projects/${project.id}/preview/` : runnerClient.previewUrl(workspace.id, port);
     const appDomain = process.env.APP_DOMAIN;
     const devUrl = appDomain ? `${req.protocol}://${project.id}.dev.${appDomain}` : null;
     let expoGoUrl: string | null = null;

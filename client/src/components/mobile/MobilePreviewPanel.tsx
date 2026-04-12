@@ -16,22 +16,7 @@ export function MobilePreviewPanel({ projectId }: MobilePreviewPanelProps) {
     queryFn: () => apiRequest("GET", `/api/projects/${projectId}`).then(r => r.json()),
   });
 
-  const { data: devUrlData } = useQuery<any>({
-    queryKey: ["/api/projects", projectId, "dev-url"],
-    queryFn: async () => {
-      try {
-        const res = await apiRequest("GET", `/api/projects/${projectId}/dev-url`);
-        return res.json();
-      } catch {
-        return null;
-      }
-    },
-    refetchInterval: 5000,
-  });
-
-  const previewUrl = devUrlData?.fullDevUrl || devUrlData?.url || (project?.isPublished && project?.publishedSlug
-    ? `/deployed/${project.publishedSlug}/`
-    : null);
+  const previewUrl = `/api/preview/projects/${projectId}/preview/`;
 
   const refresh = useCallback(() => {
     setLoaded(false);

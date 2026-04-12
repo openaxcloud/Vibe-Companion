@@ -5003,7 +5003,8 @@ Based on the search results above, provide a comprehensive answer to the user's 
      * GET /api/preview/:projectId/*path
      * Reverse proxy to the local dev server.
      */
-    app.get("/api/preview/:projectId", requireAuth, async (req: Request, res: Response) => {
+    app.get("/api/preview/:projectId", requireAuth, async (req: Request, res: Response, next) => {
+      if (req.params.projectId === 'projects') return next();
       const project = await storage.getProject(req.params.projectId);
       if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
@@ -5011,7 +5012,8 @@ Based on the search results above, provide a comprehensive answer to the user's 
       await proxyToLocalDevServer(project.id, req, res, "/");
     });
 
-    app.all("/api/preview/:projectId/{*path}", requireAuth, async (req: Request, res: Response) => {
+    app.all("/api/preview/:projectId/{*path}", requireAuth, async (req: Request, res: Response, next) => {
+      if (req.params.projectId === 'projects') return next();
       const project = await storage.getProject(req.params.projectId);
       if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });

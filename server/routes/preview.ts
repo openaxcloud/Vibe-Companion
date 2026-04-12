@@ -1,7 +1,19 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { storage } from '../storage';
-import { ensureAuthenticated } from '../middleware/auth';
 import { previewEvents } from '../preview/preview-websocket';
+
+const fname = (f: any): string => f.filename || f.name || '';
+
+const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  const userId = (req as any).session?.userId || (req as any).user?.id;
+  if (!userId) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+  if (!(req as any).user) {
+    (req as any).user = { id: userId };
+  }
+  next();
+};
 
 // Hot-reload script to inject into HTML files
 // This connects to the preview WebSocket and reloads when file changes are detected
@@ -234,21 +246,18 @@ function injectPreviewScripts(content: string, projectId: string): string {
 
 // Middleware to ensure user has access to project
 const ensureProjectAccess = async (req: any, res: any, next: any) => {
-  const userId = req.user?.id;
+  const userId = req.user?.id || req.session?.userId;
 
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
   }
   const projectIdParam = req.params.projectId || req.params.id;
   
-  // Validate projectId is a positive integer
-  const projectIdNum = parseInt(projectIdParam, 10);
-  if (isNaN(projectIdNum) || projectIdNum <= 0) {
+  if (!projectIdParam || typeof projectIdParam !== 'string' || projectIdParam.length === 0) {
     return res.status(400).json({ message: "Invalid project ID" });
   }
   
-  // Store validated projectId for downstream use (as string for storage API)
-  const projectId = String(projectIdNum);
+  const projectId = projectIdParam;
   req.validatedProjectId = projectId;
   
   const project = await storage.getProject(projectId);
@@ -256,7 +265,7 @@ const ensureProjectAccess = async (req: any, res: any, next: any) => {
     return res.status(404).json({ message: "Project not found" });
   }
   
-  if (project.ownerId === userId) {
+  if (project.userId === userId || project.ownerId === userId) {
     return next();
   }
   
@@ -276,7 +285,7 @@ const router = Router();
 
 // Get preview URL - matches frontend query endpoint
 // Note: Router is mounted at /api/preview, so this becomes /api/preview/url
-router.get('/url', ensureAuthenticated, async (req, res) => {
+router.get('/url', requireAuth, async (req, res) => {
   try {
     // Extract projectId from query params (TanStack Query may pass it here)
     const projectIdParam = req.query.projectId || req.query.id;
@@ -314,10 +323,10 @@ router.get('/url', ensureAuthenticated, async (req, res) => {
     }
     
     // Check if project has runnable files
-    const files = await storage.getFilesByProject(projectId);
-    const hasHtmlFile = files.some(f => f.name.endsWith('.html') && !f.isDirectory);
-    const hasPackageJson = files.some(f => f.name === 'package.json' && !f.isDirectory);
-    const hasPythonFiles = files.some(f => f.name.endsWith('.py') && !f.isDirectory);
+    const files = await storage.getFiles(projectId);
+    const hasHtmlFile = files.some(f => fname(f).endsWith('.html') && !f.isDirectory);
+    const hasPackageJson = files.some(f => fname(f) === 'package.json' && !f.isDirectory);
+    const hasPythonFiles = files.some(f => fname(f).endsWith('.py') && !f.isDirectory);
     
     if (!hasHtmlFile && !hasPackageJson && !hasPythonFiles) {
       // No runnable files, return null URL
@@ -391,19 +400,14 @@ router.get('/url', ensureAuthenticated, async (req, res) => {
   }
 });
 
-// Redirect non-trailing-slash to trailing-slash for preview root
-router.get('/projects/:id/preview', (req, res) => {
-  res.redirect(301, `/api/preview/projects/${req.params.id}/preview/`);
-});
-
 // Helper to find a file by path in the files array
 function findFileByPath(files: any[], requestedPath: string): any | null {
   const normalizedPath = requestedPath.startsWith('/') ? requestedPath.slice(1) : requestedPath;
   
   return files.find(f => {
     if (f.isDirectory) return false;
-    const filePath = f.path?.startsWith('/') ? f.path.slice(1) : f.path;
-    return filePath === normalizedPath || f.name === normalizedPath;
+    const filePath = (f.filename || f.path || '').startsWith('/') ? (f.filename || f.path || '').slice(1) : (f.filename || f.path || '');
+    return filePath === normalizedPath || f.name === normalizedPath || f.filename === normalizedPath;
   }) || null;
 }
 
@@ -414,8 +418,8 @@ function findIndexInDirectory(files: any[], dirPath: string): any | null {
   
   return files.find(f => {
     if (f.isDirectory) return false;
-    const filePath = f.path?.startsWith('/') ? f.path.slice(1) : f.path;
-    return filePath === indexPath;
+    const filePath = (f.filename || f.path || '').startsWith('/') ? (f.filename || f.path || '').slice(1) : (f.filename || f.path || '');
+    return filePath === indexPath || f.filename === indexPath;
   }) || null;
 }
 
@@ -429,7 +433,7 @@ function setCacheHeaders(res: any): void {
 // Live preview for HTML/CSS/JS projects - root path (serves index.html)
 // Supports ?file=path/to/file.html query param for specific file selection
 // Note: This route handles /api/preview/projects/:id/preview/
-router.get('/projects/:id/preview/', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
+router.get('/projects/:id/preview/', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
     const projectId = req.params.id;
     
@@ -437,7 +441,7 @@ router.get('/projects/:id/preview/', ensureAuthenticated, ensureProjectAccess, a
     setCacheHeaders(res);
     
     // Get all project files
-    const files = await storage.getFilesByProject(projectId);
+    const files = await storage.getFiles(projectId);
     
     // Check for ?file= query parameter for specific file selection
     const fileParam = req.query.file as string | undefined;
@@ -489,7 +493,7 @@ router.get('/projects/:id/preview/', ensureAuthenticated, ensureProjectAccess, a
 
 // Get preview status and health
 // Note: This route handles /api/preview/projects/:id/preview/status
-router.get('/projects/:id/preview/status', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
+router.get('/projects/:id/preview/status', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
     const projectId = req.params.id;
     
@@ -524,7 +528,7 @@ router.get('/projects/:id/preview/status', ensureAuthenticated, ensureProjectAcc
 // Note: This route handles /api/preview/projects/:id/preview/start
 // If a port is supplied, proxy to an already-running runtime.
 // If no port is supplied, auto-detect the framework from DB files and spawn the server.
-router.post('/projects/:id/preview/start', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
+router.post('/projects/:id/preview/start', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
     const projectId = req.params.id;
     const { runId, port } = req.body;
@@ -559,7 +563,7 @@ router.post('/projects/:id/preview/start', ensureAuthenticated, ensureProjectAcc
 
 // Stop preview server
 // Note: This route handles /api/preview/projects/:id/preview/stop
-router.post('/projects/:id/preview/stop', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
+router.post('/projects/:id/preview/stop', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
     const projectId = req.params.id;
     
@@ -575,7 +579,7 @@ router.post('/projects/:id/preview/stop', ensureAuthenticated, ensureProjectAcce
 
 // Switch preview port
 // Note: This route handles /api/preview/projects/:id/preview/switch-port
-router.post('/projects/:id/preview/switch-port', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
+router.post('/projects/:id/preview/switch-port', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
     const projectId = req.params.id;
     const { port } = req.body;
@@ -609,7 +613,7 @@ router.post('/projects/:id/preview/switch-port', ensureAuthenticated, ensureProj
 // - Directory paths: /api/preview/projects/:id/preview/public/ (serves public/index.html)
 // - Nested index.html: /api/preview/projects/:id/preview/public/index.html
 // Note: This route handles /api/preview/projects/:id/preview/:filepath
-router.get('/projects/:id/preview/{*filepath}', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
+router.get('/projects/:id/preview/{*filepath}', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
     const projectId = req.params.id;
     let filepath = req.params.filepath || 'index.html';
@@ -618,7 +622,7 @@ router.get('/projects/:id/preview/{*filepath}', ensureAuthenticated, ensureProje
     setCacheHeaders(res);
     
     // Get all project files
-    const files = await storage.getFilesByProject(projectId);
+    const files = await storage.getFiles(projectId);
     
     // Normalize the filepath
     const normalizedPath = filepath.startsWith('/') ? filepath.slice(1) : filepath;
@@ -711,7 +715,7 @@ router.get('/projects/:id/preview/{*filepath}', ensureAuthenticated, ensureProje
 
 // Get preview URL for a project with port support
 // Note: This route handles /api/preview/projects/:id/preview-url
-router.get('/projects/:id/preview-url', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
+router.get('/projects/:id/preview-url', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
     const projectId = req.params.id;
     const { port } = req.query;
@@ -722,10 +726,10 @@ router.get('/projects/:id/preview-url', ensureAuthenticated, ensureProjectAccess
     }
     
     // Check if it's an HTML project or has runnable code
-    const files = await storage.getFilesByProject(projectId);
-    const hasHtmlFile = files.some(f => f.name.endsWith('.html') && !f.isDirectory);
-    const hasPackageJson = files.some(f => f.name === 'package.json' && !f.isDirectory);
-    const hasPythonFiles = files.some(f => f.name.endsWith('.py') && !f.isDirectory);
+    const files = await storage.getFiles(projectId);
+    const hasHtmlFile = files.some(f => fname(f).endsWith('.html') && !f.isDirectory);
+    const hasPackageJson = files.some(f => fname(f) === 'package.json' && !f.isDirectory);
+    const hasPythonFiles = files.some(f => fname(f).endsWith('.py') && !f.isDirectory);
     
     if (!hasHtmlFile && !hasPackageJson && !hasPythonFiles) {
       return res.status(400).json({ error: 'No runnable files found in project' });
