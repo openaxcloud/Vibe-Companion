@@ -225,6 +225,10 @@ function UnifiedProjectRoute() {
   const isUUID = UUID_RE.test(rawId);
   const [resolvedId, setResolvedId] = useState<string | null>(isUUID ? rawId : null);
   const [noProjects, setNoProjects] = useState(false);
+  const [bootstrapToken] = useState<string | null>(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('bootstrap');
+  });
 
   useEffect(() => {
     if (isUUID) { setResolvedId(rawId); return; }
@@ -251,7 +255,7 @@ function UnifiedProjectRoute() {
   if (!resolvedId) {
     return <div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
   }
-  return <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>}><UnifiedIDELayout projectId={resolvedId} /></Suspense>;
+  return <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>}><UnifiedIDELayout projectId={resolvedId} bootstrapToken={bootstrapToken} /></Suspense>;
 }
 
 function App() {

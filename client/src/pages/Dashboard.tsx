@@ -491,70 +491,33 @@ export default function Dashboard() {
       setGenerationError(null);
       setGenerationStep(0);
 
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      const csrfToken = (await import("@/lib/queryClient")).getCsrfToken();
-      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
-
-      const res = await fetch("/api/projects/generate", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ prompt, model, outputType: outputType || selectedCategory }),
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        let msg = "Generation failed";
-        try { const j = JSON.parse(errText); msg = j.message || j.error || msg; } catch { msg = errText || msg; }
-        throw new Error(msg);
-      }
-
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response stream available");
-      const decoder = new TextDecoder();
-      let result: any = null;
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const parsed = JSON.parse(line.slice(6));
-            if (parsed.event === "error") {
-              throw new Error(parsed.message || "Generation failed");
-            }
-            if (parsed.event === "progress") {
-              const stepMap: Record<string, number> = {
-                generating_code: 2,
-                creating_project: 3,
-                saving_files: 3,
-                starting_workspace: 4,
-              };
-              if (parsed.step && stepMap[parsed.step] !== undefined) {
-                setGenerationStep(stepMap[parsed.step]);
-              }
-            }
-            if (parsed.event === "done") {
-              result = parsed;
-            }
-          } catch (e: any) {
-            if (e.message && !e.message.includes("JSON")) throw e;
-          }
+      const langMap: Record<string, string> = { web: 'typescript', mobile: 'typescript', slides: 'slides', animation: 'javascript', design: 'typescript', '3d-game': 'javascript', document: 'typescript', spreadsheet: 'typescript', automation: 'typescript', data: 'typescript' };
+      const response = await apiRequest('POST', '/api/workspace/bootstrap', {
+        prompt,
+        buildMode: 'full-app',
+        options: {
+          language: langMap[outputType || selectedCategory] || 'typescript',
+          framework: 'react',
+          autoStart: true,
+          visibility: 'private',
         }
-      }
-      if (!result?.project) throw new Error("Project generation did not complete. Please try again.");
-      return result;
+      });
+      return response;
     },
-    onSuccess: (data: { project: Project }) => {
+    onSuccess: (data: any, variables) => {
       setGenerationStep(0);
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      const promptText = aiPrompt.trim();
       setAiPrompt("");
-      setLocation(`/project/${data.project.id}`);
+      if (data.projectId) {
+        sessionStorage.setItem(`agent-prompt-${data.projectId}`, promptText);
+        if (variables.model) {
+          try { localStorage.setItem("ai-preferred-model", variables.model); } catch {}
+        }
+        window.location.href = `/ide/${data.projectId}?bootstrap=${data.bootstrapToken || '1'}`;
+      } else {
+        setGenerationError("Project creation failed. Please try again.");
+      }
     },
     onError: (err: any) => {
       setGenerationStep(0);
@@ -795,7 +758,7 @@ export default function Dashboard() {
 
   const mobileHomeContent = (
     <div className="flex-1 overflow-y-auto bg-[var(--ide-bg)]">
-      <div className="max-w-[680px] mx-auto px-4">
+      <div className="max-w-[680px] mx-auto px-4 pb-20">
         <div className="pt-8 pb-4 text-center relative">
           <h1 className="relative text-[28px] font-bold text-[var(--ide-text)] mb-2 tracking-tight leading-tight" data-testid="text-mobile-hero">What will you create?</h1>
           <p className="relative text-[12px] text-[var(--ide-text-secondary)] max-w-xs mx-auto leading-relaxed">Describe your idea and AI will build it</p>
@@ -944,7 +907,7 @@ export default function Dashboard() {
   const mobileProjectsContent = (
     <div
       ref={projectListRef}
-      className="flex-1 overflow-y-auto bg-[var(--ide-panel)]"
+      className="flex-1 overflow-y-auto bg-[var(--ide-panel)] pb-20"
       onTouchStart={handlePullStart}
       onTouchMove={handlePullMove}
       onTouchEnd={handlePullEnd}
