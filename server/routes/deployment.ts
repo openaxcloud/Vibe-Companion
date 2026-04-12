@@ -59,6 +59,20 @@ const publishConfigSchema = z.object({
   buildCommand: z.string().optional(),
   runCommand: z.string().optional(),
   environmentVars: z.record(z.string()).optional(),
+  deploymentType: z.enum(['autoscale', 'static', 'reserved-vm', 'scheduled']).default('autoscale'),
+  machineConfig: z.object({
+    cpu: z.number().optional(),
+    ram: z.number().optional(),
+  }).optional(),
+  maxMachines: z.number().min(1).max(10).optional(),
+  cronExpression: z.string().optional(),
+  scheduleDescription: z.string().optional(),
+  jobTimeout: z.number().min(1).max(3600).optional(),
+  publicDirectory: z.string().optional(),
+  appType: z.enum(['web_server', 'background_worker']).optional(),
+  portMapping: z.number().optional(),
+  isPrivate: z.boolean().optional(),
+  deploymentSecrets: z.record(z.string()).optional(),
 });
 
 const republishConfigSchema = z.object({
@@ -702,14 +716,14 @@ router.post('/projects/:projectId/publish', ensureAuthenticated, async (req: Req
       });
     }
 
-    // Validate autoscaling limits for publish
-    validateScalingLimits(10); // Default max instances for publish
+    const deployType = publishConfig.deploymentType || 'autoscale';
+    const maxMachines = publishConfig.maxMachines || 3;
+    validateScalingLimits(maxMachines);
 
-    // Create production deployment
     const deploymentId = await deploymentManager.createDeployment({
       id: `pub-${projectId}-${Date.now()}`,
       projectId: projectId,
-      type: 'autoscale',
+      type: deployType,
       environment: 'production',
       sslEnabled: true,
       regions: ['us-east-1'],
@@ -717,9 +731,19 @@ router.post('/projects/:projectId/publish', ensureAuthenticated, async (req: Req
       buildCommand: publishConfig.buildCommand,
       startCommand: publishConfig.runCommand,
       environmentVars: publishConfig.environmentVars || {},
+      machineConfig: publishConfig.machineConfig,
+      maxMachines: maxMachines,
+      cronExpression: publishConfig.cronExpression,
+      scheduleDescription: publishConfig.scheduleDescription,
+      jobTimeout: publishConfig.jobTimeout,
+      publicDirectory: publishConfig.publicDirectory,
+      appType: publishConfig.appType || 'web_server',
+      portMapping: publishConfig.portMapping,
+      isPrivate: publishConfig.isPrivate,
+      deploymentSecrets: publishConfig.deploymentSecrets,
       scaling: {
-        minInstances: 1,
-        maxInstances: SCALING_LIMITS.maxInstances,
+        minInstances: deployType === 'autoscale' ? 1 : 0,
+        maxInstances: maxMachines,
         targetCPU: 70,
         targetMemory: 80
       }
