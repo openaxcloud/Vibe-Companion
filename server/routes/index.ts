@@ -247,7 +247,7 @@ export class MainRouter {
       safeImport("ai-health", () => import("./ai-health")),
       safeImport("rag", () => import("./rag.router")),
       safeImport("memory-bank", () => import("./memory-bank.router")),
-      safeImport("unified-checkpoints", () => import("./unified-checkpoints.router")),
+      safeImport("checkpoints", () => import("./checkpoints.router")),
       safeImport("code-generation", () => import("./code-generation.router")),
       safeImport("code-review", () => import("./code-review.router")),
       safeImport("feature-flags", () => import("./feature-flags.router")),

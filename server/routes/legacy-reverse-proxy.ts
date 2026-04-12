@@ -302,7 +302,8 @@ export async function registerReverseProxyRoutes(app: Express, ctx: any): Promis
       const { stateSnapshot, ...rest } = cp;
       const snap = stateSnapshot as CheckpointStateSnapshot;
       return res.json({ ...rest, fileCount: snap?.files?.length || 0, packageCount: snap?.packages?.length || 0 });
-    } catch {
+    } catch (err: any) {
+      console.error('[legacy-checkpoints] create error:', err?.message, err?.stack?.slice(0, 500));
       return res.status(500).json({ message: "Failed to create checkpoint" });
     }
   });

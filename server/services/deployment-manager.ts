@@ -308,7 +308,17 @@ export class DeploymentManager {
         }
       }, 300000); // 5 minutes timeout
 
-      // Status: pending -> building
+      try {
+        const { createCheckpoint } = await import('../checkpointService.js');
+        const projectIdStr = String(config.projectId);
+        const userIdStr = String(config.userId || 'system');
+        await createCheckpoint(projectIdStr, userIdStr, 'deployment', `Before deployment ${deploymentId.slice(0, 8)}`);
+        deployment.buildLog.push('📸 Pre-deploy checkpoint created');
+        this.broadcastBuildLog(deploymentId, '📸 Pre-deploy checkpoint created');
+      } catch (e) {
+        console.warn('[deploy] Auto-checkpoint skipped:', e);
+      }
+
       const buildingLog = '🔨 Starting build process...';
       deployment.status = 'building';
       deployment.buildLog.push(buildingLog);

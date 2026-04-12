@@ -146,9 +146,17 @@ function computeCheckpointCost(sizeBytes: number): number {
 }
 
 function generateCommitHash(projectId: string, desc: string): string {
-  // Generate a deterministic SHA-1-like short hash for the checkpoint commit reference
-  const crypto = require("crypto") as typeof import("crypto");
-  return crypto.createHash("sha1").update(`${projectId}-${Date.now()}-${desc}`).digest("hex").slice(0, 7);
+  const chars = "0123456789abcdef";
+  const seed = `${projectId}-${Date.now()}-${desc}`;
+  let hash = "";
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
+  }
+  for (let i = 0; i < 7; i++) {
+    hash += chars[Math.abs((h >> (i * 4)) & 0xf)];
+  }
+  return hash;
 }
 
 export async function createCheckpoint(
