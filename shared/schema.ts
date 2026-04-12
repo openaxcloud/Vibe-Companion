@@ -714,7 +714,7 @@ export type AutonomousTier = "economy" | "power";
 export const TOP_AGENT_MODE_CONFIG = {
   lite: { label: "Lite", description: "Fast, focused single-file edits", cost: 1, color: "#F5A623", maxTokens: 4096 },
   autonomous: { label: "Autonomous", description: "Full agent capabilities", cost: 1, color: "#7C65CB", maxTokens: 16384 },
-  max: { label: "Max", description: "Extended context, multi-step planning", cost: 6, color: "#0079F2", maxTokens: 32768 },
+  max: { label: "Max", description: "Extended context, multi-step planning", cost: 6, color: "#0079F2", maxTokens: 16384 },
 } as const;
 
 export const AUTONOMOUS_TIER_CONFIG = {

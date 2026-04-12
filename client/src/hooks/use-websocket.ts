@@ -84,7 +84,7 @@ export function useProjectWebSocket(projectId: string | undefined) {
       setConnectionQuality("good");
       wsFailures.current = 0;
       if (reconnectAttempt.current > 0) {
-        showToast({ title: "Reconnected", description: "Connection restored", duration: 2000 });
+        console.log("[ws] Connection restored after reconnect");
       }
       reconnectAttempt.current = 0;
       if (pingTimer.current) clearInterval(pingTimer.current);

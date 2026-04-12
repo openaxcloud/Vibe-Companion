@@ -616,9 +616,12 @@ router.post('/projects/:id/preview/switch-port', requireAuth, ensureProjectAcces
 router.get('/projects/:id/preview/{*filepath}', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
     const projectId = req.params.id;
-    let filepath = req.params.filepath || 'index.html';
+    const rawFilepath = req.params.filepath;
+    let filepath: string = typeof rawFilepath === 'string' ? rawFilepath
+      : Array.isArray(rawFilepath) ? rawFilepath.join('/')
+      : String(rawFilepath || 'index.html');
+    if (!filepath) filepath = 'index.html';
     
-    // Add cache-control headers to prevent stale content for ALL responses
     setCacheHeaders(res);
     
     // Get all project files

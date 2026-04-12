@@ -118,5 +118,13 @@ export function sanitizeAIFileContent(content: string): string {
   if (content.length > maxFileSize) {
     content = content.slice(0, maxFileSize);
   }
+  if (!content.includes('\n') && content.includes('\\n')) {
+    content = content
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\r/g, '\r')
+      .replace(/\\'/g, "'")
+      .replace(/\\"/g, '"');
+  }
   return content;
 }

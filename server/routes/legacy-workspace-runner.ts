@@ -65,6 +65,10 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   // --- WORKSPACE / RUNNER ---
   app.get("/api/runner/status", requireAuth, async (_req: Request, res: Response) => {
+    const runnerMode = process.env.RUNNER_MODE || "local";
+    if (runnerMode === "local") {
+      return res.json({ online: true, baseUrl: `http://localhost:${process.env.PORT || 5000}`, localMode: true });
+    }
     const online = await runnerClient.ping();
     return res.json({ online, baseUrl: runnerClient.getBaseUrl() });
   });
@@ -73,6 +77,17 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
     const project = await storage.getProject(req.params.projectId);
     if (!project || project.userId !== req.session.userId) {
       return res.status(404).json({ message: "Project not found" });
+    }
+
+    const runnerMode = process.env.RUNNER_MODE || "local";
+    if (runnerMode === "local") {
+      return res.json({
+        workspaceId: `local-${project.id}`,
+        runnerUrl: `http://localhost:${process.env.PORT || 5000}`,
+        token: null,
+        online: true,
+        localMode: true,
+      });
     }
 
     const online = await runnerClient.ping();

@@ -1,0 +1,1 @@
+import React from 'react';\n\nconst MessageList: React.FC = () => {\n  return (\n    <div className='overflow-y-auto'>\n      <div className='p-2'>Message 1</div>\n      <div className='p-2'>Message 2</div>\n      <div className='p-2'>Message 3</div>\n    </div>\n  );\n};\n\nexport default MessageList;

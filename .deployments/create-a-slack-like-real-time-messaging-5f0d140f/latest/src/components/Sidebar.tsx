@@ -1,0 +1,1 @@
+import React from 'react';\n\nconst Sidebar: React.FC = () => {\n  return (\n    <aside className='bg-gray-700 p-4'>\n      <h2 className='text-white'>Channels</h2>\n    </aside>\n  );\n};\n\nexport default Sidebar;

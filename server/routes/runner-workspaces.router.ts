@@ -29,6 +29,10 @@ const router = Router();
 // Returns { online: boolean, baseUrl: string|null } — never throws.
 // NOTE: No auth required for health check (Fortune 500 requirement)
 router.get('/status', async (_req, res) => {
+  const runnerMode = process.env.RUNNER_MODE || 'local';
+  if (runnerMode === 'local') {
+    return res.json({ online: true, baseUrl: `http://localhost:${process.env.PORT || 5000}`, localMode: true });
+  }
   const health = await runner.pingRunner();
   res.json(health);
 });

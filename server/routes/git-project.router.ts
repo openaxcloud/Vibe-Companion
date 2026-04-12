@@ -518,4 +518,166 @@ router.post('/:projectId/backup/restore', ensureAuthenticated, async (req: Reque
   }
 });
 
+// GET /repositories/:projectId — GitPanel frontend expects this shape
+router.get('/repositories/:projectId', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await syncProjectFiles(projectId, projectDir);
+    await ensureGitInitialized(projectDir);
+
+    const [branchRes, statusRes, remoteRes] = await Promise.all([
+      execa('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: projectDir }).catch(() => ({ stdout: 'main' })),
+      execa('git', ['status', '--porcelain'], { cwd: projectDir }).catch(() => ({ stdout: '' })),
+      execa('git', ['remote'], { cwd: projectDir }).catch(() => ({ stdout: '' })),
+    ]);
+
+    const branch = (branchRes.stdout || 'main').trim();
+    const { staged, unstaged, untracked } = parseStatusOutput(statusRes.stdout || '');
+    const remotes = remoteRes.stdout.split('\n').filter(Boolean);
+
+    res.json({
+      isRepo: true,
+      branch,
+      changes: {
+        staged: staged.map((f: string) => ({ path: f, status: 'staged' })),
+        unstaged: unstaged.map((f: string) => ({ path: f, status: 'modified' })),
+        untracked,
+      },
+      remotes,
+    });
+  } catch (error: any) {
+    logger.error(`[git-project] repositories error for ${projectId}:`, error);
+    res.json({ isRepo: false, branch: 'main', changes: { staged: [], unstaged: [], untracked: [] }, remotes: [] });
+  }
+});
+
+// POST /projects/:projectId/init
+router.post('/projects/:projectId/init', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await syncProjectFiles(projectId, projectDir);
+    await ensureGitInitialized(projectDir);
+
+    const allFiles = await execa('git', ['ls-files', '--others', '--exclude-standard'], { cwd: projectDir }).catch(() => ({ stdout: '' }));
+    const files = allFiles.stdout.split('\n').filter(Boolean);
+    if (files.length > 0) {
+      await execa('git', ['add', '.'], { cwd: projectDir });
+      await execa('git', ['commit', '-m', 'Initial commit'], { cwd: projectDir }).catch(() => ({}));
+    }
+
+    res.json({ success: true, message: 'Repository initialized' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /projects/:projectId/history
+router.get('/projects/:projectId/history', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await ensureGitInitialized(projectDir);
+
+    const { stdout } = await execa('git', ['log', '--format=%H|%h|%s|%an|%aI', '-50'], { cwd: projectDir }).catch(() => ({ stdout: '' }));
+    const commits = stdout.split('\n').filter(Boolean).map((line: string) => {
+      const [hash, shortHash, message, author, date] = line.split('|');
+      return { hash, shortHash, message, author, date };
+    });
+
+    res.json(commits);
+  } catch (error: any) {
+    res.json([]);
+  }
+});
+
+// POST /projects/:projectId/stage
+router.post('/projects/:projectId/stage', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const { files } = req.body;
+  try {
+    const projectDir = await getProjectDir(projectId);
+    if (files && Array.isArray(files) && files.length > 0) {
+      await execa('git', ['add', ...files], { cwd: projectDir });
+    } else {
+      await execa('git', ['add', '.'], { cwd: projectDir });
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /projects/:projectId/commit
+router.post('/projects/:projectId/commit', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const { message } = req.body;
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await execa('git', ['commit', '-m', message || 'Update'], { cwd: projectDir });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /projects/:projectId/remote
+router.post('/projects/:projectId/remote', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const { url } = req.body;
+  try {
+    const projectDir = await getProjectDir(projectId);
+    const existingRemotes = await execa('git', ['remote'], { cwd: projectDir }).catch(() => ({ stdout: '' }));
+    if (existingRemotes.stdout.includes('origin')) {
+      await execa('git', ['remote', 'set-url', 'origin', url], { cwd: projectDir });
+    } else {
+      await execa('git', ['remote', 'add', 'origin', url], { cwd: projectDir });
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /projects/:projectId/push
+router.post('/projects/:projectId/push', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await execa('git', ['push', '-u', 'origin', 'HEAD'], { cwd: projectDir });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /projects/:projectId/pull
+router.post('/projects/:projectId/pull', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await execa('git', ['pull', '--rebase'], { cwd: projectDir });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /projects/:projectId/clone
+router.post('/projects/:projectId/clone', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const { url } = req.body;
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await execa('git', ['clone', url, '.'], { cwd: projectDir }).catch(async () => {
+      await execa('git', ['remote', 'add', 'origin', url], { cwd: projectDir }).catch(() => ({}));
+      await execa('git', ['pull', 'origin', 'main'], { cwd: projectDir }).catch(() => ({}));
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

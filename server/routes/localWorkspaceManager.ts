@@ -7,7 +7,7 @@ interface LocalWorkspace {
   projectId: string;
   process: ChildProcess | null;
   port: number | null;
-  status: "starting" | "running" | "stopped" | "error";
+  status: "starting" | "running" | "stopped" | "error" | "installing";
   logs: string[];
   lastActivity: number;
 }
@@ -26,7 +26,7 @@ export function getLocalWorkspacePort(projectId: string): number | null {
 
 export function getLocalWorkspaceStatus(projectId: string): string {
   const ws = workspaces.get(projectId);
-  return ws?.status ?? "stopped";
+  return ws?.status ?? "none";
 }
 
 export function touchLocalWorkspace(projectId: string): void {
@@ -62,7 +62,7 @@ function findFreePort(): number {
 export async function startLocalWorkspace(
   projectId: string,
   getFiles?: () => Promise<any[]>,
-  options?: { command?: string }
+  options?: { command?: string; language?: string; envVars?: Record<string, string> }
 ): Promise<LocalWorkspace> {
   const existing = workspaces.get(projectId);
   if (existing && existing.status === "running" && existing.process) {
@@ -90,26 +90,71 @@ export async function startLocalWorkspace(
 
     if (getFiles) {
       const files = await getFiles();
+      if (!files || files.length === 0) {
+        ws.status = "error";
+        ws.logs.push("No files found in project. Create some files first.");
+        return ws;
+      }
       for (const f of files) {
-        const filePath = path.join(wsDir, f.filename);
+        const fname = f.filename || f.name || "";
+        if (!fname) continue;
+        const filePath = path.join(wsDir, fname);
         const dir = path.dirname(filePath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(filePath, f.content || "");
       }
     }
 
-    let cmd = options?.command || "npm start";
-    if (fs.existsSync(path.join(wsDir, "package.json"))) {
-      const pkg = JSON.parse(fs.readFileSync(path.join(wsDir, "package.json"), "utf-8"));
-      if (pkg.scripts?.dev) cmd = "npm run dev";
-      else if (pkg.scripts?.start) cmd = "npm start";
-    } else if (fs.existsSync(path.join(wsDir, "main.py"))) {
-      cmd = "python3 main.py";
+    let cmd = options?.command || "";
+
+    if (!cmd) {
+      if (fs.existsSync(path.join(wsDir, "package.json"))) {
+        try {
+          const pkg = JSON.parse(fs.readFileSync(path.join(wsDir, "package.json"), "utf-8"));
+          if (pkg.scripts?.dev) cmd = "npm run dev";
+          else if (pkg.scripts?.start) cmd = "npm start";
+          else cmd = "npm start";
+        } catch {
+          cmd = "npm start";
+        }
+      } else if (fs.existsSync(path.join(wsDir, "index.html"))) {
+        cmd = `npx serve -s -l ${port} .`;
+      } else if (fs.existsSync(path.join(wsDir, "main.py")) || fs.existsSync(path.join(wsDir, "app.py"))) {
+        const pyFile = fs.existsSync(path.join(wsDir, "app.py")) ? "app.py" : "main.py";
+        cmd = `python3 ${pyFile}`;
+      } else if (fs.existsSync(path.join(wsDir, "index.ts")) || fs.existsSync(path.join(wsDir, "index.js"))) {
+        const entryFile = fs.existsSync(path.join(wsDir, "index.ts")) ? "index.ts" : "index.js";
+        cmd = entryFile.endsWith(".ts") ? `npx tsx ${entryFile}` : `node ${entryFile}`;
+      } else if (fs.existsSync(path.join(wsDir, "main.ts")) || fs.existsSync(path.join(wsDir, "main.js"))) {
+        const entryFile = fs.existsSync(path.join(wsDir, "main.ts")) ? "main.ts" : "main.js";
+        cmd = entryFile.endsWith(".ts") ? `npx tsx ${entryFile}` : `node ${entryFile}`;
+      } else {
+        ws.status = "error";
+        ws.logs.push("No recognizable entry point found (package.json, index.html, main.py, index.ts, etc.).");
+        return ws;
+      }
     }
+
+    const installNeeded = fs.existsSync(path.join(wsDir, "package.json")) && !fs.existsSync(path.join(wsDir, "node_modules"));
+    if (installNeeded) {
+      ws.status = "installing";
+      ws.logs.push("[workspace] Installing dependencies...");
+      const install = spawn("sh", ["-c", "npm install --legacy-peer-deps 2>&1"], { cwd: wsDir, env: { ...process.env } });
+      await new Promise<void>((resolve) => {
+        install.stdout?.on("data", (d: Buffer) => { ws.logs.push(d.toString()); if (ws.logs.length > MAX_LOGS) ws.logs.shift(); });
+        install.stderr?.on("data", (d: Buffer) => { ws.logs.push(d.toString()); if (ws.logs.length > MAX_LOGS) ws.logs.shift(); });
+        install.on("exit", () => resolve());
+      });
+    }
+
+    ws.logs.push(`[workspace] Starting: ${cmd}`);
+
+    const envOverrides: Record<string, string> = { PORT: String(port), HOST: "0.0.0.0" };
+    if (options?.envVars) Object.assign(envOverrides, options.envVars);
 
     const child = spawn("sh", ["-c", cmd], {
       cwd: wsDir,
-      env: { ...process.env, PORT: String(port) },
+      env: { ...process.env, ...envOverrides },
       stdio: ["pipe", "pipe", "pipe"],
     });
 
@@ -119,6 +164,9 @@ export async function startLocalWorkspace(
       const line = data.toString();
       ws.logs.push(line);
       if (ws.logs.length > MAX_LOGS) ws.logs.shift();
+      if (ws.status === "starting" && (line.includes("listening") || line.includes("started") || line.includes("ready") || line.includes("http://") || line.includes("port"))) {
+        ws.status = "running";
+      }
     });
 
     child.stderr?.on("data", (data: Buffer) => {
@@ -127,12 +175,15 @@ export async function startLocalWorkspace(
       if (ws.logs.length > MAX_LOGS) ws.logs.shift();
     });
 
-    child.on("exit", () => {
+    child.on("exit", (code) => {
       ws.status = "stopped";
       ws.process = null;
+      ws.logs.push(`[workspace] Process exited with code ${code}`);
     });
 
-    ws.status = "running";
+    setTimeout(() => {
+      if (ws.status === "starting") ws.status = "running";
+    }, 5000);
   } catch (err: any) {
     ws.status = "error";
     ws.logs.push(`Error: ${err.message}`);

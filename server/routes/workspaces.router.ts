@@ -37,8 +37,14 @@ router.get('/:projectId', async (req: Request, res: Response) => {
   const projectId = req.params.projectId;
   if (!projectId) return res.status(400).json({ error: 'Invalid projectId' });
 
-  if (!runner.isRunnerConfigured()) {
-    return res.json({ online: false, reason: 'Runner service not configured' });
+  const runnerMode = process.env.RUNNER_MODE || "local";
+  if (runnerMode === "local" || !runner.isRunnerConfigured()) {
+    return res.json({
+      online: true,
+      workspaceId: `local-${projectId}`,
+      runnerUrl: `http://localhost:${process.env.PORT || 5000}`,
+      localMode: true,
+    });
   }
 
   try {
@@ -78,10 +84,14 @@ router.post('/:projectId', async (req: Request, res: Response) => {
   const projectId = req.params.projectId;
   if (!projectId) return res.status(400).json({ error: 'Invalid projectId' });
 
-  if (!runner.isRunnerConfigured()) {
+  const runnerMode = process.env.RUNNER_MODE || "local";
+
+  if (runnerMode === "local" || !runner.isRunnerConfigured()) {
     return res.json({
-      online: false,
-      reason: 'Runner service not configured (RUNNER_BASE_URL / RUNNER_JWT_SECRET missing)',
+      online: true,
+      workspaceId: `local-${projectId}`,
+      runnerUrl: `http://localhost:${process.env.PORT || 5000}`,
+      localMode: true,
     });
   }
 

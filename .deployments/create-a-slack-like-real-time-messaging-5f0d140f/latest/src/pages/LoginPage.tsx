@@ -1,0 +1,1 @@
+import React from 'react';\n\nconst LoginPage: React.FC = () => {\n  return (\n    <div className='p-6 bg-gradient-to-b from-gray-900 to-gray-800 min-h-screen'>\n      <h1 className='text-4xl text-white'>Login</h1>\n    </div>\n  );\n};\n\nexport default LoginPage;

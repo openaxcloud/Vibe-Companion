@@ -52,6 +52,19 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 
 
+async function getIntegrationEnvVars(projectId: string): Promise<Record<string, string>> {
+  const integrations = await storage.getProjectIntegrations(projectId);
+  const envVars: Record<string, string> = {};
+  for (const pi of integrations) {
+    if ((pi.status === "connected" || pi.status === "unverified") && pi.config) {
+      for (const [k, v] of Object.entries(pi.config)) {
+        if (v) envVars[k] = v;
+      }
+    }
+  }
+  return envVars;
+}
+
 export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> {
   const {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,

@@ -1527,7 +1527,7 @@ Rules:
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const turboMaxTokens = resolved.maxTokens;
+      const turboMaxTokens = Math.min(resolved.maxTokens, 16384);
 
       let chatInputTokens = 0;
       let chatOutputTokens = 0;
@@ -2566,28 +2566,101 @@ When the user asks to generate an AI image (illustrations, art, hero images, con
 When the user asks you to research a topic, find information, or answer questions requiring up-to-date knowledge, use the tavily_search tool. It provides AI-powered web search with answer synthesis and source attribution.
 
 Always write complete, working code. Never use placeholders or TODOs.
+NEVER create a single minimal file. Build the FULL application with ALL features the user asked for.
+
+## ARCHITECTURE (CRITICAL — follow for ALL web projects):
+You MUST build a COMPLETE, PRODUCTION-READY application — not a demo or prototype.
+- Create a proper multi-file project structure:
+  • package.json with ALL necessary dependencies
+  • index.html as the entry point with proper meta tags
+  • Multiple JS/TS files for different concerns (app logic, components, state, utilities, API)
+  • Separate CSS file or Tailwind config if needed
+- For ANY non-trivial app, create a React app using Vite:
+  1. package.json with: react, react-dom, vite, @vitejs/plugin-react, tailwindcss, postcss, autoprefixer, lucide-react
+  2. vite.config.js (or .ts) with React plugin and server host 0.0.0.0
+  3. tailwind.config.js and postcss.config.js
+  4. index.html with root div and script module
+  5. src/main.jsx (or .tsx) mounting App
+  6. src/App.jsx with router/layout
+  7. src/index.css with Tailwind directives (@tailwind base/components/utilities)
+  8. src/components/ with reusable UI components
+  9. src/pages/ or src/views/ for different screens
+- For simpler static apps (landing pages, simple tools), use a single index.html with Tailwind CDN
+- ALWAYS run 'npm install' after creating package.json, then 'npm run dev' to start the server
 
 ## Command Execution & Error Recovery
 You have access to execute_command to run shell commands in the project workspace.
-- After creating project files, ALWAYS run 'npm install' (or 'pip install -r requirements.txt' for Python) to install dependencies.
-- After installing dependencies, run 'npm run dev' (or the appropriate start command) to start the dev server so the preview updates.
+- After creating project files, ALWAYS run 'npm install --legacy-peer-deps' to install dependencies.
+- After installing dependencies, run 'npm run dev' to start the dev server so the preview updates.
 - If a command fails, read the error output carefully. Use read_terminal_output to inspect the last command's output if needed.
 - Fix the underlying issue (wrong package name, missing file, syntax error, etc.) and retry. You may retry up to 3 times before asking the user for help.
 - After starting the dev server, the preview panel will automatically update.
 
-DESIGN QUALITY (CRITICAL — follow these for ALL web projects):
-- Use Tailwind CSS via CDN (<script src="https://cdn.tailwindcss.com"></script>) for ALL styling in HTML files
-- Every UI must look PROFESSIONAL and MODERN — like a top-tier SaaS product, not a student project
-- Use dark mode by default (bg-slate-900, bg-gray-900) with rich gradients (bg-gradient-to-br)
-- Add proper shadows (shadow-lg, shadow-xl), rounded corners (rounded-xl), and spacing
-- Include hover states (hover:scale-105, hover:bg-opacity-80) and smooth transitions (transition-all duration-200)
-- Use modern typography hierarchy (text-4xl bold titles, text-lg body, text-sm captions)
-- Make everything responsive (sm:, md:, lg: prefixes)
-- Use Lucide icons via CDN (<script src="https://unpkg.com/lucide@latest"></script>) for all icons
-- Include beautiful empty states, loading indicators, and micro-interactions
-- Use glassmorphism (bg-white/10 backdrop-blur) and subtle gradients for cards
-- NEVER output plain unstyled HTML — every element must be styled
-- Include a polished header/nav and footer${projectTypeContext}${ecodeGuidelines}${webSearchEnabled ? `
+## DESIGN QUALITY (CRITICAL — THIS IS YOUR #1 PRIORITY):
+You are building apps that compete with the world's best AI-generated UIs (Replit, v0, Bolt).
+Every app you generate MUST look like a PREMIUM, FORTUNE-500 SaaS product. Users will judge E-Code entirely based on how good your output looks.
+
+MANDATORY DESIGN RULES:
+1. VISUAL IDENTITY:
+   - Dark mode by default with rich color palette (NOT plain gray — use deep blues, purples, gradients)
+   - Primary accent color with complementary shades (e.g., indigo-500, violet-600, emerald-500)
+   - Background: layered gradients (from-slate-950 via-slate-900 to-slate-950), subtle noise/grain texture
+   - Cards: glass-morphism (bg-white/5 backdrop-blur-xl border border-white/10), soft glow shadows
+   - Never use default browser styles — EVERY element must be intentionally designed
+
+2. LAYOUT & SPACING:
+   - Professional sidebar navigation (collapsible, icon+label, active states)
+   - Proper content hierarchy with generous padding (p-6, p-8) and margins
+   - CSS Grid or Flexbox for ALL layouts — no floats, no absolute positioning hacks
+   - Max-width containers (max-w-7xl mx-auto) for content areas
+   - Responsive: mobile-first with sm:, md:, lg:, xl: breakpoints
+
+3. TYPOGRAPHY:
+   - Import Inter or system font stack (font-sans)
+   - Clear hierarchy: text-3xl/4xl font-bold for titles, text-lg for subtitles, text-sm for metadata
+   - Proper line-height (leading-relaxed), letter-spacing, font-weight variation
+   - Muted secondary text (text-slate-400, text-gray-500) for less important content
+
+4. COMPONENTS (implement ALL of these that are relevant):
+   - Header/Navbar with logo, navigation, user avatar, and action buttons
+   - Sidebar with icon navigation, collapsible groups, active indicator
+   - Data tables with sorting, filtering, pagination, and row selection
+   - Forms with floating labels, validation states, error messages, and loading states
+   - Modals/Dialogs with backdrop blur, enter/exit animations
+   - Toast notifications (success/error/warning/info) with auto-dismiss
+   - Loading skeletons (pulsing placeholders) instead of spinners where appropriate
+   - Empty states with illustrations/icons and call-to-action buttons
+   - Dropdown menus with search, keyboard navigation
+   - Tabs with animated underline indicator
+   - Tooltips, popovers, and context menus
+   - Progress bars, status badges, and metric cards with trend indicators
+
+5. ANIMATIONS & MICRO-INTERACTIONS:
+   - Page transitions (fade-in, slide-up on mount)
+   - Hover effects on ALL interactive elements (scale, color shift, shadow increase)
+   - Smooth transitions (transition-all duration-200 ease-out)
+   - Loading states with skeleton animations (animate-pulse)
+   - Button press feedback (active:scale-95)
+   - List items staggered entrance animation
+
+6. ICONS: Use Lucide React (lucide-react) for React projects, or Lucide CDN for HTML projects
+
+7. COMPLETENESS:
+   - Build ALL features the user requested — not just 1 or 2
+   - Include realistic sample data (names, dates, numbers, avatars, statuses)
+   - Implement ALL CRUD operations if the app involves data management
+   - Add search, filter, and sort functionality where appropriate
+   - Include proper error handling and edge cases
+   - Add keyboard shortcuts for power users (document them)
+   - Include a responsive mobile layout
+
+ABSOLUTELY FORBIDDEN:
+- Plain unstyled HTML
+- Default browser form elements without custom styling
+- Missing features that the user explicitly asked for
+- Single-file "demo" apps when a full app was requested
+- Placeholder text like "Lorem ipsum" — use realistic contextual content
+- Generic titles like "My App" — use the project context${projectTypeContext}${ecodeGuidelines}${webSearchEnabled ? `
 
 ## Web Search
 You have access to web search tools. Use them when:
@@ -2606,7 +2679,8 @@ Always cite your sources in your response when using information from web search
         res.write(`data: ${JSON.stringify({ type: "file_created", file: { id: ecodeFile.id, filename: "ecode.md", content: ecodeFile.content } })}\n\n`);
       }
 
-      const agentTurboMaxTokens = agentResolved.maxTokens;
+      const agentTurboMaxTokens = Math.min(agentResolved.maxTokens, 16384);
+      console.log(`[AI-AGENT] maxTokens resolved: ${agentResolved.maxTokens} → capped to ${agentTurboMaxTokens}, model: ${agentModelId}, topMode: ${req.body.topAgentMode}, selectedModel: ${agentSelectedModel}`);
 
       const userId = req.session.userId!;
       const approvedPlan = await storage.getLatestPlan(projectId, userId);
@@ -4899,9 +4973,16 @@ Based on the search results above, provide a comprehensive answer to the user's 
       const port = localWS.getLocalWorkspacePort(projectId);
 
       if (wsStatus === "none") {
-        // Check if the project has runnable files to give the right status
         const wsDir = localWS.getWorkspaceDir(projectId);
-        const runnable = localWS.hasRunnableFiles(wsDir);
+        let runnable = localWS.hasRunnableFiles(wsDir);
+        if (!runnable) {
+          const dbFiles = await storage.getFiles(projectId);
+          const fname = (f: any) => f.filename || f.name || "";
+          runnable = dbFiles.some((f: any) => {
+            const n = fname(f);
+            return n === "package.json" || n === "index.html" || n === "main.py" || n === "app.py" || n === "index.ts" || n === "index.js" || n === "main.ts" || n === "main.js" || n === "server.ts" || n === "server.js";
+          });
+        }
         return res.json({
           previewUrl: null,
           status: runnable ? "stopped" : "no_runnable_files",

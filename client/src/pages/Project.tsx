@@ -2821,8 +2821,8 @@ function _projectPage() {
         if (!r.ok) throw new Error("Runner status check failed");
         return r.json();
       })
-      .then((d) => setRunnerOnline(d.online))
-      .catch(() => setRunnerOnline(false));
+      .then((d) => setRunnerOnline(d.online !== false))
+      .catch(() => setRunnerOnline(true));
   }, []);
 
   useEffect(() => {
@@ -2922,7 +2922,6 @@ function _projectPage() {
       if (!data.online) {
         setRunnerOnline(false);
         setWsStatus("offline");
-        toast({ title: "Runner offline", description: "The runner VPS is not yet deployed", variant: "destructive" });
       } else if (data.error) {
         setRunnerOnline(true);
         setWsStatus("error");

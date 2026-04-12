@@ -748,7 +748,6 @@ export function useIDEWorkspace(projectId: string) {
       if (!data.online) {
         setRunnerOnline(false);
         setWsStatus('offline');
-        toast({ title: 'Runner offline', description: 'The runner VPS is not yet deployed', variant: 'destructive' });
       } else if (data.error) {
         setRunnerOnline(true);
         setWsStatus('error');
