@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { storage } from "./storage";
+import { deploymentManager } from "./services/deployment-manager.js";
 import { createServer } from "http";
 import { getStripeSync, isStripeConfigured } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
@@ -384,6 +385,15 @@ async function initTaskTables() {
   await initTaskTables();
 
   await registerRoutes(httpServer, app);
+
+  app.use('/deployed/:slug', (req: Request, res: Response, next: NextFunction) => {
+    const slug = req.params.slug;
+    const servePath = deploymentManager.getStaticRoute(slug);
+    if (!servePath) {
+      return res.status(404).json({ error: 'Deployment not found' });
+    }
+    express.static(servePath, { index: ['index.html'] })(req, res, next);
+  });
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
