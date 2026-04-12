@@ -1054,7 +1054,7 @@ export function useIDEWorkspace(projectId: string) {
   }, []);
 
   // File select handler (from file explorer)
-  const handleFileSelect = useCallback((file: { id: number; name: string }) => {
+  const handleFileSelect = useCallback((file: { id: string | number; name?: string; filename?: string }) => {
     const fileId = String(file.id);
     if (!openTabs.includes(fileId)) {
       setOpenTabs(prev => [...prev, fileId]);

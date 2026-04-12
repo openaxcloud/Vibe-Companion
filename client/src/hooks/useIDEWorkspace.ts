@@ -223,7 +223,7 @@ export function useIDEWorkspace(projectId: string) {
     { id: 'console', label: 'Console', closable: false },
     { id: 'shell', label: 'Shell', closable: false }
   ]);
-  const [selectedFileId, setSelectedFileId] = useState<number | undefined>(validatedState?.selectedFileId);
+  const [selectedFileId, setSelectedFileId] = useState<string | undefined>(validatedState?.selectedFileId);
   const [showFileExplorer, setShowFileExplorer] = useState(validatedState?.showFileExplorer ?? true);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -478,12 +478,14 @@ export function useIDEWorkspace(projectId: string) {
     }
   }, [isRunning, projectId, executionId, setIsRunning, setExecutionId]);
 
-  const handleFileSelect = useCallback((file: { id: number; name: string }) => {
-    setSelectedFileId(file.id);
-    const tabId = `file:${file.id}`;
+  const handleFileSelect = useCallback((file: { id: string | number; name?: string; filename?: string }) => {
+    const fId = String(file.id);
+    setSelectedFileId(fId);
+    const tabId = `file:${fId}`;
+    const label = file.filename || file.name || fId;
     setTabs(prev => {
       if (!prev.find(t => t.id === tabId)) {
-        return [...prev, { id: tabId, label: file.name, closable: true }];
+        return [...prev, { id: tabId, label, closable: true }];
       }
       return prev;
     });

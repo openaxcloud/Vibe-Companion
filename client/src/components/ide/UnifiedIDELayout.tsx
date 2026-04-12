@@ -891,7 +891,7 @@ function UnifiedIDELayout({
           <Suspense fallback={<FileExplorerSkeleton />}>
             <InlineMobileFileExplorer
               projectId={projectId}
-              onFileSelect={(file) => handleFileSelect({ id: file.id, name: file.name })}
+              onFileSelect={(file) => handleFileSelect({ id: file.id, filename: file.filename })}
               selectedFileId={selectedFileId}
               className="h-full"
             />
@@ -1334,7 +1334,7 @@ function UnifiedIDELayout({
             inline={true}
             onClose={() => {}}
             projectId={projectId}
-            onFileSelect={(file) => handleFileSelect({ id: file.id, name: file.name })}
+            onFileSelect={(file) => handleFileSelect({ id: file.id, filename: file.filename })}
           />
         </Suspense>
       );
@@ -1639,9 +1639,9 @@ function UnifiedIDELayout({
               onFileSelect={(file: { id: number; name: string } | number) => {
                 setShowCommandPalette(false);
                 if (typeof file === 'number') {
-                  handleFileSelect({ id: file, name: '' });
+                  handleFileSelect({ id: String(file), filename: '' });
                 } else {
-                  handleFileSelect({ id: file.id, name: file.name });
+                  handleFileSelect({ id: file.id, filename: file.filename });
                 }
               }}
               onToolSelect={(tool) => {
@@ -1846,9 +1846,9 @@ function UnifiedIDELayout({
               onFileSelect={(file: { id: number; name: string } | number) => {
                 setShowCommandPalette(false);
                 if (typeof file === 'number') {
-                  handleFileSelect({ id: file, name: '' });
+                  handleFileSelect({ id: String(file), filename: '' });
                 } else {
-                  handleFileSelect({ id: file.id, name: file.name });
+                  handleFileSelect({ id: file.id, filename: file.filename });
                 }
               }}
               onToolSelect={(tool) => {
@@ -2112,10 +2112,9 @@ function UnifiedIDELayout({
           content: f.content || ''
         }))}
         onFileSelect={(file) => {
-          const fileId = parseInt(file.id, 10);
-          if (fileId) {
-            setSelectedFileId(fileId);
-            handleFileSelect({ id: fileId, name: file.name });
+          if (file.id) {
+            setSelectedFileId(file.id);
+            handleFileSelect({ id: file.id, filename: file.filename });
           }
           setShowQuickFileSearch(false);
         }}
@@ -2162,9 +2161,9 @@ function UnifiedIDELayout({
           onFileSelect={(file: { id: number; name: string } | number) => {
             setShowCommandPalette(false);
             if (typeof file === 'number') {
-              handleFileSelect({ id: file, name: '' });
+              handleFileSelect({ id: String(file), filename: '' });
             } else {
-              handleFileSelect({ id: file.id, name: file.name });
+              handleFileSelect({ id: file.id, filename: file.filename });
             }
           }}
           onToolSelect={(tool) => {

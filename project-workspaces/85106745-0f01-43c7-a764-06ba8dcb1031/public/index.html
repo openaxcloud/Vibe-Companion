@@ -1,0 +1,77 @@
+<!DOCTYPE html>  
+<html lang="en">  
+<head>  
+    <meta charset="UTF-8">  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+    <title>E-commerce Marketplace</title>  
+    <script src="https://cdn.tailwindcss.com"></script>  
+</head>  
+<body class="bg-slate-900 text-white">  
+    <header class="p-5 shadow-lg">  
+        <h1 class="text-4xl font-bold">E-commerce Marketplace</h1>  
+    </header>  
+    <main class="p-5">  
+        <div id="product-catalog"></div>  
+        <div class="mt-10">  
+            <h2 class="text-2xl mb-5">Register</h2>  
+            <input type="text" id="register-username" placeholder="Username" class="p-2 mb-2 w-full rounded-lg">  
+            <input type="password" id="register-password" placeholder="Password" class="p-2 mb-2 w-full rounded-lg">  
+            <button id="register-button" class="bg-blue-600 p-2 rounded-lg">Register</button>  
+        </div>  
+        <div class="mt-10">  
+            <h2 class="text-2xl mb-5">Login</h2>  
+            <input type="text" id="login-username" placeholder="Username" class="p-2 mb-2 w-full rounded-lg">  
+            <input type="password" id="login-password" placeholder="Password" class="p-2 mb-2 w-full rounded-lg">  
+            <button id="login-button" class="bg-green-600 p-2 rounded-lg">Login</button>  
+        </div>  
+    </main>  
+    <footer class="p-5">  
+        <p>© 2026 E-commerce Marketplace</p>  
+    </footer>  
+    <script>  
+        async function fetchProducts() {  
+            const response = await fetch('/api/products');  
+            const products = await response.json();  
+            const catalog = document.getElementById('product-catalog');  
+            catalog.innerHTML = '';  
+            products.forEach(product => {  
+                const productDiv = document.createElement('div');  
+                productDiv.className = 'p-4 bg-gray-800 rounded-lg shadow-lg mb-4';  
+                productDiv.innerHTML = `  
+                    <h2 class="text-lg font-semibold">${product.name}</h2>  
+                    <p>${product.description}</p>  
+                    <p class="text-xl font-bold">$${product.price.toFixed(2)}</p>  
+                `;  
+                catalog.appendChild(productDiv);  
+            });  
+        }  
+        document.getElementById('register-button').onclick = async () => {
+            const username = document.getElementById('register-username').value;
+            const password = document.getElementById('register-password').value;
+            await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            alert('User registered!');
+        };
+        document.getElementById('login-button').onclick = async () => {
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            if (response.ok) {
+                const { token } = await response.json();
+                localStorage.setItem('token', token);
+                alert('Login successful!');
+            } else {
+                alert('Login failed. Check your credentials.');
+            }
+        };
+        fetchProducts();  
+    </script>  
+</body>  
+</html>  

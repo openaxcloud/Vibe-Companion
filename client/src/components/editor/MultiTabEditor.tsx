@@ -69,7 +69,7 @@ export function MultiTabEditor({
       const languageCompartment = new Compartment();
       const themeCompartment = new Compartment();
       
-      const languageSupport = await loadLanguageForFile(file.name);
+      const languageSupport = await loadLanguageForFile(file.filename || file.name || '');
 
       const updateListener = EditorView.updateListener.of((update) => {
         if (update.docChanged) {
@@ -127,7 +127,7 @@ export function MultiTabEditor({
         savedSelection: null,
       };
     } catch (error) {
-      console.error('Failed to create CM6 editor instance for file:', file.name, error);
+      console.error('Failed to create CM6 editor instance for file:', file.filename || file.name, error);
       return null;
     }
   }, []);

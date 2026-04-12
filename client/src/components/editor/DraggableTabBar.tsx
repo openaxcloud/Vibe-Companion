@@ -67,7 +67,7 @@ export function DraggableTabBar({
 
   const getFileName = (fileId: number) => {
     const file = files.find(f => f.id === fileId);
-    return file?.name || `File ${fileId}`;
+    return file?.filename || file?.name || `File ${fileId}`;
   };
 
   return (

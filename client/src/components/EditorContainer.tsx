@@ -77,7 +77,7 @@ const EditorContainer = ({
               onClick={() => onFileSelect(file.id)}
             >
               <span className="truncate max-w-[120px]">
-                {file.name}
+                {file.filename || file.id}
               </span>
               {unsavedFiles[file.id] && (
                 <span className="h-2 w-2 rounded-full bg-blue-500" />
