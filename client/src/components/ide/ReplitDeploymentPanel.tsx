@@ -95,9 +95,15 @@ export function ReplitDeploymentPanel({
   className,
   defaultTab = 'deploy'
 }: ReplitDeploymentPanelProps) {
-  const [view, setView] = useState<PanelView>('type-select');
+  const [view, setViewLocal] = useState<PanelView>('type-select');
   const [deployType, setDeployType] = useState<DeploymentType>('autoscale');
   const [overviewTab, setOverviewTab] = useState<OverviewTab>('overview');
+  const [viewInitialized, setViewInitialized] = useState(false);
+
+  const setView = useCallback((v: PanelView) => {
+    setViewLocal(v);
+    try { sessionStorage.setItem(`deploy-view-${projectId}`, v); } catch {}
+  }, [projectId]);
 
   const [vcpuIndex, setVcpuIndex] = useState(4);
   const [ramIndex, setRamIndex] = useState(3);
@@ -168,15 +174,45 @@ export function ReplitDeploymentPanel({
   const isInProgress = displayStatus === 'publishing';
 
   useEffect(() => {
+    if (isLoadingDeployment || viewInitialized) return;
+    setViewInitialized(true);
+
+    let savedView: string | null = null;
+    try { savedView = sessionStorage.getItem(`deploy-view-${projectId}`); } catch {}
+
+    if (deployment) {
+      const status = translateStatusToUI(deployment.status);
+      if (status === 'live' || status === 'failed') {
+        setViewLocal('overview');
+        setOverviewTab('overview');
+      } else if (status === 'publishing') {
+        setIsDeploying(true);
+        setViewLocal('deploying');
+      } else if (savedView === 'overview' || savedView === 'deploying') {
+        setViewLocal('overview');
+      } else if (savedView === 'configure') {
+        setViewLocal('configure');
+      } else {
+        setViewLocal('overview');
+      }
+    } else {
+      if (savedView === 'configure') {
+        setViewLocal('configure');
+      } else {
+        setViewLocal('type-select');
+      }
+    }
+  }, [isLoadingDeployment, deployment, viewInitialized, projectId]);
+
+  useEffect(() => {
+    if (!viewInitialized) return;
     if (deployment && isActive && view === 'deploying') {
       setIsDeploying(false);
       setDeployProgress(100);
       setView('overview');
       setOverviewTab('overview');
-    } else if (deployment && (isActive || isInProgress) && view === 'type-select') {
-      setView('overview');
     }
-  }, [deployment?.id, deployment?.status]);
+  }, [deployment?.status, viewInitialized]);
 
   useEffect(() => {
     if (isDeploying) {
@@ -187,7 +223,17 @@ export function ReplitDeploymentPanel({
         const stageIdx = Math.min(Math.floor(i / 4), stages.length - 1);
         setDeployStage(stages[stageIdx]);
         setDeployProgress(Math.min(i * 5, 95));
-        if (i >= 20) clearInterval(interval);
+        if (i >= 20) {
+          clearInterval(interval);
+          setTimeout(() => {
+            setDeployProgress(100);
+            setDeployStage('Complete!');
+            setIsDeploying(false);
+            setView('overview');
+            setOverviewTab('overview');
+            refetchDeployment();
+          }, 2000);
+        }
       }, 800);
       return () => clearInterval(interval);
     }
