@@ -408,8 +408,8 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   }, [setActiveActivityItem, setShowFileExplorer, setIsSidebarCollapsed, setLeftPanelTab, handleAddTool]);
 
   // Mobile state
-  const [mobileActiveTab, setMobileActiveTabRaw] = useState<MobileTab>('agent');
-  const lastPrimaryTabRef = useRef<MobileTab>('agent');
+  const [mobileActiveTab, setMobileActiveTabRaw] = useState<MobileTab>('preview');
+  const lastPrimaryTabRef = useRef<MobileTab>('preview');
 
   const setMobileActiveTab = useCallback((tab: MobileTab) => {
     if (PRIMARY_MOBILE_TABS.includes(tab)) {
