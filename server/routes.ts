@@ -1809,6 +1809,7 @@ export async function registerRoutes(
     if (process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) {
       models.push(
         { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "anthropic", description: "Best overall — top intelligence for coding, reasoning & agentic tasks", maxTokens: 200000, supportsStreaming: true, costPer1kTokens: 0.003, available: true },
+        { id: "claude-opus-4-20250514", name: "Claude Opus 4", provider: "anthropic", description: "Most powerful Claude — complex analysis and deep reasoning", maxTokens: 200000, supportsStreaming: true, costPer1kTokens: 0.015, available: true },
       );
     }
     if (process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) {

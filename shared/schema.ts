@@ -765,14 +765,14 @@ export function getProviderPricing(provider: string): { input: number; output: n
 
 export const AGENT_MODE_MODELS: Record<AgentMode, Record<string, string>> = {
   economy: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4.1-mini", gemini: "gemini-2.5-flash" },
-  power: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4.1", gemini: "gemini-2.5-pro" },
-  turbo: { claude: "claude-sonnet-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro" },
+  power: { claude: "claude-opus-4-20250514", gpt: "gpt-4.1", gemini: "gemini-2.5-pro" },
+  turbo: { claude: "claude-opus-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro" },
 };
 
 export const TOP_AGENT_MODE_MODELS: Record<TopAgentMode, Record<string, string>> = {
   lite: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4.1-nano", gemini: "gemini-2.5-flash" },
   autonomous: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4.1", gemini: "gemini-2.5-flash" },
-  max: { claude: "claude-sonnet-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro" },
+  max: { claude: "claude-opus-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro" },
 };
 
 export const customDomains = pgTable("custom_domains", {

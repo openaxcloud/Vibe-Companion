@@ -121,6 +121,10 @@ export async function registerAiAssistantRoutes(app: Express, ctx: RouteContext)
     baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
   });
 
+  const anthropicDirect = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY!,
+  });
+
   const openai = new OpenAI({
     apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
     baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -199,8 +203,9 @@ export async function registerAiAssistantRoutes(app: Express, ctx: RouteContext)
 
   const geminiDefault = process.env.GEMINI_API_KEY ? geminiDirect : gemini;
 
-  async function resolveProviderClients(projectId: string | undefined, provider: string, userId?: string): Promise<{ anthropicClient: Anthropic; openaiClient: OpenAI; geminiClient: GoogleGenAI; credMode: string }> {
-    return { anthropicClient: anthropic, openaiClient: openai, geminiClient: geminiDefault, credMode: "managed" };
+  async function resolveProviderClients(projectId: string | undefined, provider: string, userId?: string, modelId?: string): Promise<{ anthropicClient: Anthropic; openaiClient: OpenAI; geminiClient: GoogleGenAI; credMode: string }> {
+    const useDirectAnthropic = modelId && modelId.includes("opus");
+    return { anthropicClient: useDirectAnthropic ? anthropicDirect : anthropic, openaiClient: openai, geminiClient: geminiDefault, credMode: "managed" };
   }
 
   app.post("/api/projects/generate", requireAuth, aiGenerateLimiter, async (req: Request, res: Response) => {
@@ -1457,7 +1462,7 @@ Rules:
 
       const chatProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic", grok: "xai", moonshot: "moonshot", perplexity: "perplexity", mistral: "mistral" };
       const chatProvider = chatProviderMap[selectedModel] || selectedModel;
-      const { anthropicClient: chatAnthropicClient, openaiClient: chatOpenaiClient, geminiClient: chatGeminiClient, credMode: chatCredMode } = await resolveProviderClients(req.body.projectId, chatProvider, req.session.userId!);
+      const { anthropicClient: chatAnthropicClient, openaiClient: chatOpenaiClient, geminiClient: chatGeminiClient, credMode: chatCredMode } = await resolveProviderClients(req.body.projectId, chatProvider, req.session.userId!, modelId);
 
       if (chatCredMode === "managed") {
         const chatPreCheck = await storage.checkCreditsAvailable(req.session.userId!, 1);
@@ -2341,7 +2346,7 @@ Rules:
 
       const agentProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic", perplexity: "perplexity", mistral: "mistral" };
       const agentProvider = agentProviderMap[agentSelectedModel] || agentSelectedModel;
-      const { anthropicClient: agentAnthropicClient, openaiClient: agentOpenaiClient, geminiClient: agentGeminiClient, credMode: agentCredMode } = await resolveProviderClients(projectId, agentProvider, req.session.userId!);
+      const { anthropicClient: agentAnthropicClient, openaiClient: agentOpenaiClient, geminiClient: agentGeminiClient, credMode: agentCredMode } = await resolveProviderClients(projectId, agentProvider, req.session.userId!, agentModelId);
 
       if (agentCredMode === "managed") {
         const agentPreCheck = await storage.checkCreditsAvailable(req.session.userId!, 1);
