@@ -284,7 +284,7 @@ export class LoadTestingService extends EventEmitter {
     } else {
       const client = new Anthropic({ apiKey });
       const stream = await client.messages.stream({
-        model: 'claude-3-5-haiku-20241022',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 50,
         messages: [{ role: 'user', content: 'Test load testing message' }]
       });

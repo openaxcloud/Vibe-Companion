@@ -222,7 +222,7 @@ export interface DelegationDecision {
 const MODEL_TIERS: Record<string, Record<string, string | null>> = {
   fast: {
     openai: 'gpt-4.1-nano',
-    anthropic: 'claude-3-5-haiku-20241022',
+    anthropic: 'claude-sonnet-4-20250514',
     google: 'gemini-2.5-flash',
     xai: 'grok-3-mini'
   },

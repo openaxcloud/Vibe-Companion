@@ -199,7 +199,7 @@ const swaggerDefinition = {
           'o4-mini',
           'claude-opus-4-20250514',
           'claude-sonnet-4-20250514',
-          'claude-3-7-sonnet-20250219',
+          'claude-sonnet-4-20250514',
           'gemini-2.5-flash',
           'gemini-2.5-pro',
           'grok-4-1-fast-reasoning',

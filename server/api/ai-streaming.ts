@@ -241,7 +241,7 @@ router.post('/agent/chat/stream', ensureAuthenticated, async (req, res) => {
   
   const getFastModel = (prov: string): string => {
     switch (prov) {
-      case 'anthropic': return 'claude-3-5-haiku-20241022';
+      case 'anthropic': return 'claude-sonnet-4-20250514';
       case 'openai': return 'gpt-4.1-nano';
       case 'gemini': return 'gemini-2.5-flash';
       case 'xai': return 'grok-3-mini';

@@ -24,10 +24,10 @@ export const AI_MODEL_PRICING = {
   'gpt-4': { input: 0.03, output: 0.06, creditsPerThousand: 0.09 },
 
   // Anthropic Models
-  'claude-3-5-sonnet-20241022': { input: 0.003, output: 0.015, creditsPerThousand: 0.018 },
-  'claude-3-5-haiku-20241022': { input: 0.0008, output: 0.004, creditsPerThousand: 0.005 },
-  'claude-3-opus-20240229': { input: 0.015, output: 0.075, creditsPerThousand: 0.09 },
-  'claude-3-haiku-20240307': { input: 0.00025, output: 0.00125, creditsPerThousand: 0.0015 },
+  'claude-sonnet-4-20250514': { input: 0.003, output: 0.015, creditsPerThousand: 0.018 },
+  'claude-sonnet-4-20250514': { input: 0.0008, output: 0.004, creditsPerThousand: 0.005 },
+  'claude-opus-4-20250514': { input: 0.015, output: 0.075, creditsPerThousand: 0.09 },
+  'claude-sonnet-4-20250514': { input: 0.00025, output: 0.00125, creditsPerThousand: 0.0015 },
 
   // Google Gemini Models
   'gemini-2.5-flash': { input: 0.000075, output: 0.0003, creditsPerThousand: 0.0004 },

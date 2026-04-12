@@ -187,9 +187,7 @@ export class AnthropicProvider implements AIProvider {
   private static getDefaultModel(): string {
     const anthropicModels = AI_MODELS.filter(m => m.provider === 'anthropic');
     return anthropicModels.find(m => m.id === 'claude-sonnet-4-20250514')?.id
-        || anthropicModels.find(m => m.id === 'claude-3-7-sonnet-20250219')?.id
-        || anthropicModels.find(m => m.id === 'claude-3-5-sonnet-20241022')?.id
-        || anthropicModels.find(m => m.id === 'claude-3-5-haiku-20241022')?.id
+        || anthropicModels.find(m => m.id === 'claude-opus-4-20250514')?.id
         || 'claude-sonnet-4-20250514';
   }
 

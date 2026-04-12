@@ -55,24 +55,17 @@ interface AIModel {
 
 const AI_MODELS: AIModel[] = [
   // OpenAI
-  { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', description: 'Flagship multimodal — vision, audio, and text with 128K context', speed: 'fast', capability: 'advanced' },
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', description: 'Fast and affordable — best price-to-performance', speed: 'fast', capability: 'standard' },
-  { id: 'o1', name: 'o1', provider: 'OpenAI', description: 'Advanced reasoning — excels at complex STEM and coding', speed: 'medium', capability: 'expert' },
-  { id: 'o1-mini', name: 'o1 Mini', provider: 'OpenAI', description: 'Faster reasoning — coding, math, and science tasks', speed: 'fast', capability: 'advanced' },
+  { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI', description: 'OpenAI flagship — best coding, instruction following, and long context', speed: 'fast', capability: 'advanced' },
+  { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', provider: 'OpenAI', description: 'Fast and efficient — best price-to-performance ratio', speed: 'fast', capability: 'standard' },
+  { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano', provider: 'OpenAI', description: 'Smallest fastest model — for latency-sensitive tasks', speed: 'fast', capability: 'basic' },
+  { id: 'o4-mini', name: 'o4-mini', provider: 'OpenAI', description: 'Best thinking model — fast reasoning for STEM and coding', speed: 'fast', capability: 'advanced' },
   { id: 'o3', name: 'o3', provider: 'OpenAI', description: 'Most powerful reasoning — frontier performance on hard benchmarks', speed: 'medium', capability: 'expert' },
   // Anthropic
-  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', description: 'Best balance of speed and intelligence — top coding and reasoning', speed: 'fast', capability: 'advanced' },
-  { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', provider: 'Anthropic', description: 'Fast and affordable — quick tasks and lightweight agents', speed: 'fast', capability: 'standard' },
-  { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'Anthropic', description: 'Most capable Claude — complex analysis and long-form writing', speed: 'medium', capability: 'expert' },
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'Anthropic', description: 'Best overall — top intelligence for coding, reasoning & agentic tasks', speed: 'fast', capability: 'advanced' },
+  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'Anthropic', description: 'Most powerful Claude — complex analysis and deep reasoning', speed: 'medium', capability: 'expert' },
   // Google Gemini
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', description: 'Adaptive thinking — fast reasoning with 1M context window', speed: 'fast', capability: 'advanced' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Google', description: 'Next-gen performance — native tool use and superior speed', speed: 'fast', capability: 'advanced' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'Google', description: 'Long context champion — 2M context for large codebases', speed: 'medium', capability: 'advanced' },
-  // xAI
-  { id: 'grok-3', name: 'Grok 3', provider: 'xAI', description: 'xAI flagship — real-time knowledge, strong reasoning, 131K context', speed: 'fast', capability: 'advanced' },
-  // Moonshot AI
-  { id: 'moonshot-v1-32k', name: 'Moonshot v1 32K', provider: 'Moonshot AI', description: 'Balanced — 32K context for most coding and analysis tasks', speed: 'fast', capability: 'standard' },
-  { id: 'moonshot-v1-128k', name: 'Moonshot v1 128K', provider: 'Moonshot AI', description: 'Long context — 128K for large codebases and documents', speed: 'medium', capability: 'advanced' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', description: 'Most powerful Gemini — state-of-the-art reasoning and 1M context', speed: 'medium', capability: 'expert' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', description: 'Fast multimodal AI — thinking capabilities with 1M context', speed: 'fast', capability: 'advanced' },
 ];
 
 export default function AssistantPage() {

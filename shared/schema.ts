@@ -723,17 +723,15 @@ export const AUTONOMOUS_TIER_CONFIG = {
 } as const;
 
 export const MODEL_TOKEN_PRICING: Record<string, { input: number; output: number; label: string; creditsPerMillionInput: number; creditsPerMillionOutput: number }> = {
-  "gpt-4o-mini": { input: 0.00015, output: 0.0006, label: "GPT-4o Mini", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
-  "gpt-4o": { input: 0.0025, output: 0.01, label: "GPT-4o", creditsPerMillionInput: 250, creditsPerMillionOutput: 1000 },
-  "claude-sonnet-4-6": { input: 0.003, output: 0.015, label: "Claude Sonnet 4", creditsPerMillionInput: 300, creditsPerMillionOutput: 1500 },
-  "gemini-2.0-flash": { input: 0.00015, output: 0.0006, label: "Gemini 2.0 Flash", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
-  "gemini-2.5-flash": { input: 0.00015, output: 0.0006, label: "Gemini 2.5 Flash", creditsPerMillionInput: 15, creditsPerMillionOutput: 60 },
-  "mistral-small-latest": { input: 0.001, output: 0.003, label: "Mistral Small", creditsPerMillionInput: 100, creditsPerMillionOutput: 300 },
-  "mistral-large-latest": { input: 0.002, output: 0.006, label: "Mistral Large", creditsPerMillionInput: 200, creditsPerMillionOutput: 600 },
-  "sonar": { input: 0.001, output: 0.005, label: "Perplexity Sonar", creditsPerMillionInput: 100, creditsPerMillionOutput: 500 },
-  "sonar-pro": { input: 0.003, output: 0.015, label: "Perplexity Sonar Pro", creditsPerMillionInput: 300, creditsPerMillionOutput: 1500 },
-  "meta-llama/llama-3.3-70b-instruct": { input: 0.0025, output: 0.01, label: "Llama 3.3 70B", creditsPerMillionInput: 250, creditsPerMillionOutput: 1000 },
-  "dalle-3": { input: 0.04, output: 0, label: "DALL-E 3", creditsPerMillionInput: 4000, creditsPerMillionOutput: 0 },
+  "gpt-4.1": { input: 0.002, output: 0.008, label: "GPT-4.1", creditsPerMillionInput: 200, creditsPerMillionOutput: 800 },
+  "gpt-4.1-mini": { input: 0.0004, output: 0.0016, label: "GPT-4.1 Mini", creditsPerMillionInput: 40, creditsPerMillionOutput: 160 },
+  "gpt-4.1-nano": { input: 0.0001, output: 0.0004, label: "GPT-4.1 Nano", creditsPerMillionInput: 10, creditsPerMillionOutput: 40 },
+  "o4-mini": { input: 0.0011, output: 0.0044, label: "o4-mini", creditsPerMillionInput: 110, creditsPerMillionOutput: 440 },
+  "o3": { input: 0.01, output: 0.04, label: "o3", creditsPerMillionInput: 1000, creditsPerMillionOutput: 4000 },
+  "claude-sonnet-4-20250514": { input: 0.003, output: 0.015, label: "Claude Sonnet 4", creditsPerMillionInput: 300, creditsPerMillionOutput: 1500 },
+  "claude-opus-4-20250514": { input: 0.015, output: 0.075, label: "Claude Opus 4", creditsPerMillionInput: 1500, creditsPerMillionOutput: 7500 },
+  "gemini-2.5-pro": { input: 0.00125, output: 0.01, label: "Gemini 2.5 Pro", creditsPerMillionInput: 125, creditsPerMillionOutput: 1000 },
+  "gemini-2.5-flash": { input: 0.0000375, output: 0.00015, label: "Gemini 2.5 Flash", creditsPerMillionInput: 4, creditsPerMillionOutput: 15 },
 };
 
 export const SERVICE_CREDIT_COSTS: Record<string, number> = {
@@ -766,15 +764,15 @@ export function getProviderPricing(provider: string): { input: number; output: n
 }
 
 export const AGENT_MODE_MODELS: Record<AgentMode, Record<string, string>> = {
-  economy: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.5-flash", grok: "grok-3-mini", moonshot: "moonshot-v1-8k", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar", mistral: "mistral-small-latest" },
-  power: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-pro", grok: "grok-3", moonshot: "kimi-k2", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
-  turbo: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-pro", grok: "grok-3", moonshot: "kimi-k2", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
+  economy: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4.1-mini", gemini: "gemini-2.5-flash" },
+  power: { claude: "claude-opus-4-20250514", gpt: "gpt-4.1", gemini: "gemini-2.5-pro" },
+  turbo: { claude: "claude-opus-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro" },
 };
 
 export const TOP_AGENT_MODE_MODELS: Record<TopAgentMode, Record<string, string>> = {
-  lite: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.5-flash", grok: "grok-3-mini", moonshot: "moonshot-v1-8k", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar", mistral: "mistral-small-latest" },
-  autonomous: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash", grok: "grok-3", moonshot: "kimi-k2", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
-  max: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-pro", grok: "grok-3", moonshot: "kimi-k2", openrouter: "meta-llama/llama-3.3-70b-instruct", perplexity: "sonar-pro", mistral: "mistral-large-latest" },
+  lite: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4.1-nano", gemini: "gemini-2.5-flash" },
+  autonomous: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4.1", gemini: "gemini-2.5-flash" },
+  max: { claude: "claude-opus-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro" },
 };
 
 export const customDomains = pgTable("custom_domains", {
@@ -2806,12 +2804,15 @@ export const voiceVideoParticipants = pgTable("voice_video_participants", {
 });
 
 export const AI_MODELS = {
-  "gpt-4o": { provider: "openai", name: "GPT-4o", maxTokens: 4096 },
-  "gpt-4o-mini": { provider: "openai", name: "GPT-4o Mini", maxTokens: 4096 },
-  "claude-sonnet-4-20250514": { provider: "anthropic", name: "Claude Sonnet 4", maxTokens: 8192 },
-  "claude-3-5-haiku-20241022": { provider: "anthropic", name: "Claude 3.5 Haiku", maxTokens: 8192 },
-  "gemini-2.5-flash": { provider: "gemini", name: "Gemini 2.5 Flash", maxTokens: 8192 },
-  "gemini-2.5-pro": { provider: "gemini", name: "Gemini 2.5 Pro", maxTokens: 8192 },
+  "gpt-4.1": { provider: "openai", name: "GPT-4.1", maxTokens: 1047576 },
+  "gpt-4.1-mini": { provider: "openai", name: "GPT-4.1 Mini", maxTokens: 1047576 },
+  "gpt-4.1-nano": { provider: "openai", name: "GPT-4.1 Nano", maxTokens: 1047576 },
+  "o4-mini": { provider: "openai", name: "o4-mini", maxTokens: 200000 },
+  "o3": { provider: "openai", name: "o3", maxTokens: 200000 },
+  "claude-sonnet-4-20250514": { provider: "anthropic", name: "Claude Sonnet 4", maxTokens: 200000 },
+  "claude-opus-4-20250514": { provider: "anthropic", name: "Claude Opus 4", maxTokens: 200000 },
+  "gemini-2.5-pro": { provider: "gemini", name: "Gemini 2.5 Pro", maxTokens: 1000000 },
+  "gemini-2.5-flash": { provider: "gemini", name: "Gemini 2.5 Flash", maxTokens: 1000000 },
 } as const;
 
 export const autoCheckpoints = pgTable("auto_checkpoints", {

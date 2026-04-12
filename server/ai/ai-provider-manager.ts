@@ -946,12 +946,9 @@ export class AIProviderManager {
    */
   getAvailableProviders(): Array<{ name: string; isAvailable: boolean }> {
     const providerMap: Record<string, string[]> = {
-      'OpenAI': ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini', 'o4-mini', 'o3', 'o3-mini'],
-      'Claude': ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
-      'Anthropic': ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
-      'Gemini': ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-      'Moonshot': ['kimi-k2', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
-      'xAI': ['grok-3', 'grok-3-mini', 'grok-3-fast']
+      'OpenAI': ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o4-mini', 'o3'],
+      'Anthropic': ['claude-sonnet-4-20250514', 'claude-opus-4-20250514'],
+      'Gemini': ['gemini-2.5-pro', 'gemini-2.5-flash']
     };
     
     return Object.entries(providerMap).map(([name, modelIds]) => ({
@@ -971,7 +968,7 @@ export class AIProviderManager {
       'OpenAI': 'gpt-4.1',
       'Claude': 'claude-sonnet-4-20250514',
       'Claude Sonnet 4': 'claude-sonnet-4-20250514',
-      'Claude 3.5 Sonnet': 'claude-3-5-sonnet-20241022',
+      'Claude 3.5 Sonnet': 'claude-sonnet-4-20250514',
       'Anthropic': 'claude-sonnet-4-20250514',
       'Gemini': 'gemini-2.5-flash',
       'Moonshot': 'kimi-k2',

@@ -22,35 +22,19 @@ export interface ModelPricingEntry extends ModelPricing {
  */
 export const MODEL_PRICING: Record<string, ModelPricingEntry> = {
   // ── OpenAI ───────────────────────────────────────────────────────────────────
-  'gpt-4o':          { input: 2.5,   output: 10.0,  provider: 'openai', name: 'GPT-4o' },
-  'gpt-4o-mini':     { input: 0.15,  output: 0.6,   provider: 'openai', name: 'GPT-4o Mini' },
-  'o1':              { input: 15.0,  output: 60.0,  provider: 'openai', name: 'o1' },
-  'o1-mini':         { input: 3.0,   output: 12.0,  provider: 'openai', name: 'o1 Mini' },
+  'gpt-4.1':         { input: 2.0,   output: 8.0,   provider: 'openai', name: 'GPT-4.1' },
+  'gpt-4.1-mini':    { input: 0.4,   output: 1.6,   provider: 'openai', name: 'GPT-4.1 Mini' },
+  'gpt-4.1-nano':    { input: 0.1,   output: 0.4,   provider: 'openai', name: 'GPT-4.1 Nano' },
+  'o4-mini':         { input: 1.1,   output: 4.4,   provider: 'openai', name: 'o4-mini' },
   'o3':              { input: 10.0,  output: 40.0,  provider: 'openai', name: 'o3' },
-  'gpt-4-turbo':     { input: 10.0,  output: 30.0,  provider: 'openai', name: 'GPT-4 Turbo' },
-  'gpt-4':           { input: 30.0,  output: 60.0,  provider: 'openai', name: 'GPT-4' },
 
   // ── Anthropic ────────────────────────────────────────────────────────────────
-  'claude-3-5-sonnet-20241022': { input: 3.0,   output: 15.0,  provider: 'anthropic', name: 'Claude 3.5 Sonnet' },
-  'claude-3-5-haiku-20241022':  { input: 0.8,   output: 4.0,   provider: 'anthropic', name: 'Claude 3.5 Haiku' },
-  'claude-3-opus-20240229':     { input: 15.0,  output: 75.0,  provider: 'anthropic', name: 'Claude 3 Opus' },
-  'claude-3-haiku-20240307':    { input: 0.25,  output: 1.25,  provider: 'anthropic', name: 'Claude 3 Haiku' },
+  'claude-sonnet-4-20250514': { input: 3.0,   output: 15.0,  provider: 'anthropic', name: 'Claude Sonnet 4' },
+  'claude-opus-4-20250514':   { input: 15.0,  output: 75.0,  provider: 'anthropic', name: 'Claude Opus 4' },
 
   // ── Google Gemini ─────────────────────────────────────────────────────────────
-  'gemini-2.5-flash': { input: 0.075, output: 0.3,  provider: 'gemini', name: 'Gemini 2.5 Flash' },
-  'gemini-2.0-flash': { input: 0.075, output: 0.3,  provider: 'gemini', name: 'Gemini 2.0 Flash' },
-  'gemini-1.5-pro':   { input: 1.25,  output: 5.0,  provider: 'gemini', name: 'Gemini 1.5 Pro' },
-  'gemini-1.5-flash': { input: 0.075, output: 0.3,  provider: 'gemini', name: 'Gemini 1.5 Flash' },
-
-  // ── xAI — grok-3 family (confirmed real, Mar 2026) ───────────────────────────
-  'grok-3':      { input: 3.0,  output: 15.0, provider: 'xai', name: 'Grok 3' },
-  'grok-3-mini': { input: 0.3,  output: 0.5,  provider: 'xai', name: 'Grok 3 Mini' },
-  'grok-3-fast': { input: 5.0,  output: 25.0, provider: 'xai', name: 'Grok 3 Fast' },
-
-  // ── Moonshot AI ───────────────────────────────────────────────────────────────
-  'moonshot-v1-8k':   { input: 0.12, output: 0.12, provider: 'moonshot', name: 'Moonshot v1 8K' },
-  'moonshot-v1-32k':  { input: 0.24, output: 0.24, provider: 'moonshot', name: 'Moonshot v1 32K' },
-  'moonshot-v1-128k': { input: 0.96, output: 0.96, provider: 'moonshot', name: 'Moonshot v1 128K' },
+  'gemini-2.5-pro':   { input: 1.25,  output: 10.0,  provider: 'gemini', name: 'Gemini 2.5 Pro' },
+  'gemini-2.5-flash': { input: 0.0375, output: 0.15,  provider: 'gemini', name: 'Gemini 2.5 Flash' },
 };
 
 /**

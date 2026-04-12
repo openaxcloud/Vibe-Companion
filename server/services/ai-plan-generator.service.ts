@@ -61,7 +61,7 @@ export class AIPlanGeneratorService {
   private readonly PROVIDER_FALLBACK_CHAIN = [
     'gemini-2.5-flash',             // PRIMARY: Google Gemini 2.5 Flash
     'gpt-4o',                       // OpenAI GPT-4o (flagship)
-    'claude-3-5-haiku-20241022',    // Anthropic Claude 3.5 Haiku (fastest Claude)
+    'claude-sonnet-4-20250514',    // Anthropic Claude 3.5 Haiku (fastest Claude)
     'grok-3',                       // xAI Grok 3
     'moonshot-v1-128k'              // Moonshot AI Kimi 128K
   ];

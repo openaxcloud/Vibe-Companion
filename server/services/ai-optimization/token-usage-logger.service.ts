@@ -36,11 +36,8 @@ export class TokenUsageLoggerService {
     // Anthropic
     'claude-opus-4-20250514': { prompt: 0.015, completion: 0.075 },
     'claude-sonnet-4-20250514': { prompt: 0.003, completion: 0.015 },
-    'claude-3-7-sonnet-20250219': { prompt: 0.003, completion: 0.015 },
-    'claude-3-5-sonnet-20241022': { prompt: 0.003, completion: 0.015 },
-    'claude-3-5-haiku-20241022': { prompt: 0.0008, completion: 0.004 },
-    'claude-3-opus-20240229': { prompt: 0.015, completion: 0.075 },
-    'claude-3-haiku-20240307': { prompt: 0.00025, completion: 0.00125 },
+    'claude-sonnet-4-20250514': { prompt: 0.00025, completion: 0.00125 },
+    'claude-opus-4-20250514': { prompt: 0.015, completion: 0.075 },
     // Google Gemini
     'gemini-2.5-pro': { prompt: 0.00125, completion: 0.005 },
     'gemini-2.5-flash': { prompt: 0.000075, completion: 0.0003 },

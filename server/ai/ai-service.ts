@@ -54,13 +54,13 @@ export class AIService {
         available: !!openai,
         configured: !!openaiKey,
         keyPresent: !!process.env.OPENAI_API_KEY,
-        models: openai ? ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini', 'o4-mini', 'o3', 'o3-mini'] : []
+        models: openai ? ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o4-mini', 'o3'] : []
       },
       anthropic: {
         available: !!anthropic,
         configured: !!anthropicKey,
         keyPresent: !!process.env.ANTHROPIC_API_KEY,
-        models: anthropic ? ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022'] : []
+        models: anthropic ? ['claude-sonnet-4-20250514', 'claude-opus-4-20250514'] : []
       },
       anyAvailable: !!openai || !!anthropic,
       missingKeys: [
@@ -89,7 +89,7 @@ export class AIService {
     }
     
     if (!isOpenAIModel && !isAnthropicModel) {
-      throw new Error(`Unsupported model: ${model}. Available models: gpt-4.1, gpt-4.1-nano, claude-sonnet-4-20250514, claude-3-5-haiku-20241022`);
+      throw new Error(`Unsupported model: ${model}. Available models: gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, o4-mini, o3, claude-sonnet-4-20250514, claude-opus-4-20250514, gemini-2.5-pro, gemini-2.5-flash`);
     }
   }
 
@@ -230,22 +230,18 @@ export class AIService {
       'claude-sonnet-4':             'claude-sonnet-4-20250514',
       'claude-sonnet-4-5':           'claude-sonnet-4-20250514',
       'claude-sonnet-4-20250514':    'claude-sonnet-4-20250514',
-      // Claude 3.7 Sonnet (Feb 2025 — extended thinking)
-      'claude-3-7-sonnet':           'claude-3-7-sonnet-20250219',
-      'claude-3-7-sonnet-20250219':  'claude-3-7-sonnet-20250219',
-      // Claude 3.5 Sonnet (Oct 2024 — still valid)
-      'claude-3-5-sonnet-20241022':  'claude-3-5-sonnet-20241022',
-      // Haiku — fastest Claude
-      'claude-haiku':                'claude-3-5-haiku-20241022',
-      'claude-haiku-4':              'claude-3-5-haiku-20241022',
-      'claude-haiku-4-5':            'claude-3-5-haiku-20241022',
-      'claude-3-5-haiku-20241022':   'claude-3-5-haiku-20241022',
-      // Opus 4 family (best quality)
+      'claude-3-7-sonnet':           'claude-sonnet-4-20250514',
+      'claude-3-5-sonnet':           'claude-sonnet-4-20250514',
+      'claude-haiku':                'claude-sonnet-4-20250514',
+      'claude-haiku-4':              'claude-sonnet-4-20250514',
+      'claude-haiku-4-5':            'claude-sonnet-4-20250514',
+      'claude-sonnet-4-20250514':     'claude-sonnet-4-20250514',
+      'claude-3-5-haiku':            'claude-sonnet-4-20250514',
       'claude-opus':                 'claude-opus-4-20250514',
       'claude-opus-4':               'claude-opus-4-20250514',
       'claude-opus-4-5':             'claude-opus-4-20250514',
       'claude-opus-4-20250514':      'claude-opus-4-20250514',
-      'claude-3-opus-20240229':      'claude-3-opus-20240229',
+      'claude-opus-4-20250514':      'claude-opus-4-20250514',
     };
     
     const resolvedModel = ANTHROPIC_MODEL_MAP[model] || 'claude-sonnet-4-20250514';

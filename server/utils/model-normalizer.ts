@@ -48,59 +48,47 @@ const MODEL_NORMALIZATION_MAP: Record<string, string> = {
   'gpt-5.4-pro-2026-03-05': 'gpt-4.1',
 
   // ── Anthropic ────────────────────────────────────────────────────────────────
-  // Confirmed real (400 "credit balance too low" = model exists)
-  'claude-3-5-sonnet-20241022':   'claude-3-5-sonnet-20241022',
-  'claude-3-5-haiku-20241022':    'claude-3-5-haiku-20241022',
-  'claude-3-opus-20240229':       'claude-3-opus-20240229',
-  'claude-3-haiku-20240307':      'claude-3-haiku-20240307',
-  'claude-3-7-sonnet-20250219':   'claude-3-7-sonnet-20250219',
   'claude-sonnet-4-20250514':     'claude-sonnet-4-20250514',
   'claude-opus-4-20250514':       'claude-opus-4-20250514',
-  // Aliases → latest real
+  // Aliases → latest
   'claude-sonnet':                'claude-sonnet-4-20250514',
-  'claude-opus':                  'claude-opus-4-20250514',
-  'claude-haiku':                 'claude-3-5-haiku-20241022',
-  'claude-3-5-sonnet':            'claude-3-5-sonnet-20241022',
-  'claude-3-7-sonnet':            'claude-3-7-sonnet-20250219',
-  'claude-3-opus':                'claude-3-opus-20240229',
-  'claude-3-haiku':               'claude-3-haiku-20240307',
-  'claude-opus-4-5':              'claude-opus-4-20250514',
-  'claude-opus-4.5':              'claude-opus-4-20250514',
   'claude-sonnet-4':              'claude-sonnet-4-20250514',
   'claude-sonnet-4-5':            'claude-sonnet-4-20250514',
-  // Deprecated → real
-  'claude-haiku-4-5-20251015':    'claude-3-5-haiku-20241022',
+  'claude-opus':                  'claude-opus-4-20250514',
+  'claude-opus-4':                'claude-opus-4-20250514',
+  'claude-opus-4-5':              'claude-opus-4-20250514',
+  'claude-opus-4.5':              'claude-opus-4-20250514',
+  // Deprecated → redirect to latest
+  'claude-haiku':                 'claude-sonnet-4-20250514',
+  'claude-3-haiku':               'claude-sonnet-4-20250514',
+  'claude-3-haiku-20240307':      'claude-sonnet-4-20250514',
+  'claude-3-5-haiku':             'claude-sonnet-4-20250514',
+  'claude-3-5-sonnet':            'claude-sonnet-4-20250514',
+  'claude-3-5-sonnet-20241022':   'claude-sonnet-4-20250514',
+  'claude-3-7-sonnet':            'claude-sonnet-4-20250514',
+  'claude-3-7-sonnet-20250219':   'claude-sonnet-4-20250514',
+  'claude-3-opus':                'claude-opus-4-20250514',
+  'claude-3-opus-20240229':       'claude-opus-4-20250514',
+  'claude-haiku-4-5-20251015':    'claude-sonnet-4-20250514',
   'claude-sonnet-4-5-20250929':   'claude-sonnet-4-20250514',
   'claude-opus-4-5-20251101':     'claude-opus-4-20250514',
   'claude-opus-4-5-20251124':     'claude-opus-4-20250514',
   'claude-opus-4-1-20250805':     'claude-opus-4-20250514',
 
   // ── Google Gemini ─────────────────────────────────────────────────────────────
-  // Confirmed real
   'gemini-2.5-flash':             'gemini-2.5-flash',
   'gemini-2.5-pro':               'gemini-2.5-pro',
-  'gemini-2.0-flash':             'gemini-2.0-flash',
-  'gemini-2.0-flash-lite':        'gemini-2.0-flash-lite',
-  'gemini-1.5-pro':               'gemini-1.5-pro',
-  'gemini-1.5-flash':             'gemini-1.5-flash',
   // Aliases → latest
   'gemini-pro':                   'gemini-2.5-pro',
   'gemini-flash':                 'gemini-2.5-flash',
-  // Deprecated → real
+  // Deprecated → redirect to latest
+  'gemini-2.0-flash':             'gemini-2.5-flash',
+  'gemini-2.0-flash-lite':        'gemini-2.5-flash',
+  'gemini-1.5-pro':               'gemini-2.5-pro',
+  'gemini-1.5-flash':             'gemini-2.5-flash',
   'gemini-3-flash':               'gemini-2.5-flash',
   'gemini-3-pro':                 'gemini-2.5-pro',
-  'gemini-2.0-flash-exp':         'gemini-2.0-flash',
-
-  // ── xAI / Grok ───────────────────────────────────────────────────────────────
-  // grok-3 family confirmed real (403 billing = model exists)
-  // grok-2-1212 returns 400 "model not found" — deprecated/wrong ID
-  'grok-3':                       'grok-3',
-  'grok-3-mini':                  'grok-3-mini',
-  'grok-3-fast':                  'grok-3-fast',
-  // Old/wrong IDs → grok-3
-  'grok-2-1212':                  'grok-3',
-  'grok-2-vision-1212':           'grok-3',
-  'grok-2':                       'grok-3',
+  'gemini-2.0-flash-exp':         'gemini-2.5-flash',
   'grok-2-latest':                'grok-3',
   'grok':                         'grok-3',
   'grok-beta':                    'grok-3',

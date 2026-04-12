@@ -122,11 +122,8 @@ router.get('/pricing', (_req, res) => {
       // Anthropic — confirmed real models (March 2026)
       'claude-opus-4-20250514':     { input: 0.000015,   output: 0.000075,   creditsPerThousand: 15 },
       'claude-sonnet-4-20250514':   { input: 0.000003,   output: 0.000015,   creditsPerThousand: 3 },
-      'claude-3-7-sonnet-20250219': { input: 0.000003,   output: 0.000015,   creditsPerThousand: 3 },
-      'claude-3-5-sonnet-20241022': { input: 0.000003,   output: 0.000015,   creditsPerThousand: 3 },
-      'claude-3-5-haiku-20241022':  { input: 0.00000025, output: 0.00000125, creditsPerThousand: 0.25 },
-      'claude-3-opus-20240229':     { input: 0.000015,   output: 0.000075,   creditsPerThousand: 15 },
-      'claude-3-haiku-20240307':    { input: 0.00000025, output: 0.00000125, creditsPerThousand: 0.25 },
+      'claude-sonnet-4-20250514':    { input: 0.00000025, output: 0.00000125, creditsPerThousand: 0.25 },
+      'claude-opus-4-20250514':     { input: 0.000015,   output: 0.000075,   creditsPerThousand: 15 },
       // Gemini
       'gemini-2.5-pro':             { input: 0.00000125, output: 0.000010,   creditsPerThousand: 1.25 },
       'gemini-2.5-flash':           { input: 0.0000000375, output: 0.00000015, creditsPerThousand: 0.0375 },

@@ -30,7 +30,7 @@ const logger = createLogger('fast-bootstrap');
 // These are the fastest models across all providers
 const FAST_MODELS = [
   { id: 'gpt-4.1-nano', avgLatencyMs: 300, provider: 'openai' },
-  { id: 'claude-3-5-haiku-20241022', avgLatencyMs: 350, provider: 'anthropic' },
+  { id: 'claude-sonnet-4-20250514', avgLatencyMs: 350, provider: 'anthropic' },
   { id: 'gemini-2.5-flash', avgLatencyMs: 400, provider: 'gemini' },
   { id: 'gpt-4.1-mini', avgLatencyMs: 420, provider: 'openai' },
 ] as const;

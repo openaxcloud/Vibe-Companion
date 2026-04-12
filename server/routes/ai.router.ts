@@ -108,7 +108,7 @@ router.get('/features', (_req, res) => {
     ],
     providers: [
       { name: 'OpenAI', models: ['GPT-4o', 'GPT-4o Mini', 'o1', 'o3'], available: !!process.env.OPENAI_API_KEY },
-      { name: 'Anthropic', models: ['Claude 3 Opus', 'Claude 3.5 Sonnet', 'Claude 3.5 Haiku'], available: !!process.env.ANTHROPIC_API_KEY },
+      { name: 'Anthropic', models: ['Claude Opus 4', 'Claude 3.5 Sonnet', 'Claude 3.5 Haiku'], available: !!process.env.ANTHROPIC_API_KEY },
       { name: 'Google Gemini', models: ['Gemini 2.5 Flash', 'Gemini 2.0 Flash', 'Gemini 1.5 Pro'], available: !!process.env.GEMINI_API_KEY },
       { name: 'xAI', models: ['Grok 2'], available: !!process.env.XAI_API_KEY },
       { name: 'Moonshot (Kimi)', models: ['Kimi K2 Thinking', 'Kimi K2 Turbo'], available: !!process.env.MOONSHOT_API_KEY }

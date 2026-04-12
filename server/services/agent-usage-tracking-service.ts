@@ -466,9 +466,9 @@ export class AgentUsageTrackingService extends EventEmitter {
   private calculateCost(tokens: number, model: string): number {
     // Pricing in cents per 1K tokens (December 2025)
     const pricing: Record<string, { input: number; output: number }> = {
-      'claude-3-opus-20240229': { input: 1.5, output: 7.5 },
-      'claude-3-5-sonnet-20241022': { input: 0.3, output: 1.5 },
-      'claude-3-5-haiku-20241022': { input: 0.025, output: 0.125 },
+      'claude-opus-4-20250514': { input: 1.5, output: 7.5 },
+      'claude-sonnet-4-20250514': { input: 0.3, output: 1.5 },
+      'claude-sonnet-4-20250514': { input: 0.025, output: 0.125 },
       'gpt-4o': { input: 0.5, output: 1.5 },
       'gpt-4.1': { input: 0.25, output: 1.0 },
       'gpt-4o-mini': { input: 0.015, output: 0.06 },

@@ -11,8 +11,7 @@ export interface AIModel {
 
 export const MODELFARM_MODELS = new Set([
   'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
-  'gpt-4o', 'gpt-4o-mini',
-  'o4-mini', 'o3', 'o3-mini',
+  'o4-mini', 'o3',
 ]);
 
 export const AI_MODELS: AIModel[] = [
@@ -20,7 +19,7 @@ export const AI_MODELS: AIModel[] = [
     id: 'gpt-4.1',
     name: 'GPT-4.1',
     provider: 'openai',
-    description: 'OpenAI legacy flagship — best coding, instruction following, and long context (free via Replit ModelFarm)',
+    description: 'OpenAI flagship — best coding, instruction following, and long context',
     maxTokens: 1047576,
     supportsStreaming: true,
     costPer1kTokens: 0.002
@@ -29,7 +28,7 @@ export const AI_MODELS: AIModel[] = [
     id: 'gpt-4.1-mini',
     name: 'GPT-4.1 Mini',
     provider: 'openai',
-    description: 'Fast and efficient legacy model — best price-to-performance (free via Replit ModelFarm)',
+    description: 'Fast and efficient — best price-to-performance ratio',
     maxTokens: 1047576,
     supportsStreaming: true,
     costPer1kTokens: 0.0004
@@ -38,34 +37,16 @@ export const AI_MODELS: AIModel[] = [
     id: 'gpt-4.1-nano',
     name: 'GPT-4.1 Nano',
     provider: 'openai',
-    description: 'Smallest fastest legacy model — for latency-sensitive tasks (free via Replit ModelFarm)',
+    description: 'Smallest fastest model — for latency-sensitive tasks',
     maxTokens: 1047576,
     supportsStreaming: true,
     costPer1kTokens: 0.0001
   },
   {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    provider: 'openai',
-    description: 'Multimodal model — vision, audio, and text with 128K context (free via Replit ModelFarm)',
-    maxTokens: 128000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.005
-  },
-  {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    provider: 'openai',
-    description: 'Affordable multimodal model — vision + text at low cost (free via Replit ModelFarm)',
-    maxTokens: 128000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.00015
-  },
-  {
     id: 'o4-mini',
     name: 'o4-mini',
     provider: 'openai',
-    description: 'Best thinking model — fast reasoning for STEM and coding (free via Replit ModelFarm)',
+    description: 'Best thinking model — fast reasoning for STEM and coding',
     maxTokens: 200000,
     supportsStreaming: true,
     costPer1kTokens: 0.0011
@@ -74,35 +55,8 @@ export const AI_MODELS: AIModel[] = [
     id: 'o3',
     name: 'o3',
     provider: 'openai',
-    description: 'Most powerful reasoning — frontier performance on hard benchmarks (free via Replit ModelFarm)',
+    description: 'Most powerful reasoning — frontier performance on hard benchmarks',
     maxTokens: 200000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.01
-  },
-  {
-    id: 'o3-mini',
-    name: 'o3-mini',
-    provider: 'openai',
-    description: 'Efficient reasoning — strong on math, science, and code (free via Replit ModelFarm)',
-    maxTokens: 200000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.0011
-  },
-  {
-    id: 'o1',
-    name: 'o1',
-    provider: 'openai',
-    description: 'Advanced reasoning model for complex problem solving',
-    maxTokens: 128000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.015
-  },
-  {
-    id: 'gpt-4-turbo',
-    name: 'GPT-4 Turbo',
-    provider: 'openai',
-    description: 'Previous-generation flagship with broad knowledge',
-    maxTokens: 128000,
     supportsStreaming: true,
     costPer1kTokens: 0.01
   },
@@ -125,51 +79,6 @@ export const AI_MODELS: AIModel[] = [
     costPer1kTokens: 0.015
   },
   {
-    id: 'claude-3-7-sonnet-20250219',
-    name: 'Claude 3.7 Sonnet',
-    provider: 'anthropic',
-    description: 'Extended thinking — advanced multi-step reasoning',
-    maxTokens: 200000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.003
-  },
-  {
-    id: 'claude-3-5-sonnet-20241022',
-    name: 'Claude 3.5 Sonnet',
-    provider: 'anthropic',
-    description: 'Proven coding and analysis model (Oct 2024)',
-    maxTokens: 200000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.003
-  },
-  {
-    id: 'claude-3-5-haiku-20241022',
-    name: 'Claude 3.5 Haiku',
-    provider: 'anthropic',
-    description: 'Fastest Claude — near-instant responses for everyday tasks',
-    maxTokens: 200000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.0008
-  },
-  {
-    id: 'claude-3-opus-20240229',
-    name: 'Claude 3 Opus',
-    provider: 'anthropic',
-    description: 'Legacy flagship for complex reasoning (2024)',
-    maxTokens: 200000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.015
-  },
-  {
-    id: 'claude-3-haiku-20240307',
-    name: 'Claude 3 Haiku',
-    provider: 'anthropic',
-    description: 'Fastest compact legacy model — high throughput, low latency',
-    maxTokens: 200000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.00025
-  },
-  {
     id: 'gemini-2.5-pro',
     name: 'Gemini 2.5 Pro',
     provider: 'gemini',
@@ -187,94 +96,12 @@ export const AI_MODELS: AIModel[] = [
     supportsStreaming: true,
     costPer1kTokens: 0.0000375
   },
-  {
-    id: 'gemini-3.1-pro-preview',
-    name: 'Gemini 3.1 Pro Preview',
-    provider: 'gemini',
-    description: 'Latest Gemini flagship — cutting-edge reasoning and multi-step problem solving',
-    maxTokens: 1000000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.00125
-  },
-  {
-    id: 'gemini-3-flash-preview',
-    name: 'Gemini 3 Flash Preview',
-    provider: 'gemini',
-    description: 'Next-gen fast multimodal model with enhanced capabilities',
-    maxTokens: 1000000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.0000375
-  },
-  {
-    id: 'gemini-2.5-flash-lite',
-    name: 'Gemini 2.5 Flash Lite',
-    provider: 'gemini',
-    description: 'Lightest and fastest Gemini model — most cost-efficient option',
-    maxTokens: 1000000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.000019
-  },
-  {
-    id: 'grok-3',
-    name: 'Grok 3',
-    provider: 'xai',
-    description: "xAI's flagship model — real-time knowledge, strong reasoning, 131K context",
-    maxTokens: 131072,
-    supportsStreaming: true,
-    costPer1kTokens: 0.003
-  },
-  {
-    id: 'grok-3-mini',
-    name: 'Grok 3 Mini',
-    provider: 'xai',
-    description: 'Efficient Grok model — fast reasoning at lower cost',
-    maxTokens: 131072,
-    supportsStreaming: true,
-    costPer1kTokens: 0.0003
-  },
-  {
-    id: 'grok-3-fast',
-    name: 'Grok 3 Fast',
-    provider: 'xai',
-    description: 'Fastest Grok 3 variant — optimized for speed-critical workloads',
-    maxTokens: 131072,
-    supportsStreaming: true,
-    costPer1kTokens: 0.005
-  },
-  {
-    id: 'kimi-k2',
-    name: 'Kimi K2',
-    provider: 'moonshot',
-    description: 'Flagship Kimi model — advanced reasoning and multi-step problem solving',
-    maxTokens: 131072,
-    supportsStreaming: true,
-    costPer1kTokens: 0.002
-  },
-  {
-    id: 'moonshot-v1-8k',
-    name: 'Kimi 8K',
-    provider: 'moonshot',
-    description: 'Fast inference for shorter contexts — ideal for quick tasks',
-    maxTokens: 8192,
-    supportsStreaming: true,
-    costPer1kTokens: 0.0012
-  },
-  {
-    id: 'moonshot-v1-32k',
-    name: 'Kimi 32K',
-    provider: 'moonshot',
-    description: 'Balanced performance with 32K context window',
-    maxTokens: 32768,
-    supportsStreaming: true,
-    costPer1kTokens: 0.0024
-  },
-  {
-    id: 'moonshot-v1-128k',
-    name: 'Kimi 128K',
-    provider: 'moonshot',
-    description: 'Long-context specialist — documents, codebases, long conversations',
-    maxTokens: 131072,
-    supportsStreaming: true,
-    costPer1kTokens: 0.006
-  },
 ];
+
+export function getModelById(id: string): AIModel | undefined {
+  return AI_MODELS.find(m => m.id === id);
+}
+
+export function getModelsByProvider(provider: string): AIModel[] {
+  return AI_MODELS.filter(m => m.provider === provider);
+}

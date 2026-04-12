@@ -45,7 +45,7 @@ export interface TaskDelegationInput {
 const MODEL_TIERS: Record<ModelTier, Record<Provider, { model: string; costPer1kTokens: number; avgLatencyMs: number } | null>> = {
   fast: {
     openai: { model: 'gpt-4.1-nano', costPer1kTokens: 0.0001, avgLatencyMs: 300 },
-    anthropic: { model: 'claude-3-5-haiku-20241022', costPer1kTokens: 0.001, avgLatencyMs: 600 },
+    anthropic: { model: 'claude-sonnet-4-20250514', costPer1kTokens: 0.001, avgLatencyMs: 600 },
     google: { model: 'gemini-2.5-flash', costPer1kTokens: 0.000075, avgLatencyMs: 400 },
     xai: null,
     moonshot: { model: 'moonshot-v1-32k', costPer1kTokens: 0.0015, avgLatencyMs: 700 }

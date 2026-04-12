@@ -1797,22 +1797,25 @@ export async function registerRoutes(
   // --- AI Models API (for AIModelSelector) ---
   function getAvailableAIModels() {
     const models: Array<{id: string; name: string; provider: string; description: string; maxTokens: number; supportsStreaming: boolean; costPer1kTokens: number; available: boolean}> = [];
-    if (process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) {
-      models.push(
-        { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "anthropic", description: "Latest Claude Sonnet — fast, intelligent, great for coding", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.003, available: true },
-        { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", provider: "anthropic", description: "Fast and affordable for quick tasks", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.001, available: true },
-      );
-    }
     if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY) {
       models.push(
-        { id: "gpt-4o", name: "GPT-4o", provider: "openai", description: "OpenAI's most capable model", maxTokens: 4096, supportsStreaming: true, costPer1kTokens: 0.005, available: true },
-        { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "openai", description: "Fast and affordable GPT-4 class model", maxTokens: 4096, supportsStreaming: true, costPer1kTokens: 0.00015, available: true },
+        { id: "gpt-4.1", name: "GPT-4.1", provider: "openai", description: "OpenAI flagship — best coding, instruction following, and long context", maxTokens: 1047576, supportsStreaming: true, costPer1kTokens: 0.002, available: true },
+        { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "openai", description: "Fast and efficient — best price-to-performance ratio", maxTokens: 1047576, supportsStreaming: true, costPer1kTokens: 0.0004, available: true },
+        { id: "gpt-4.1-nano", name: "GPT-4.1 Nano", provider: "openai", description: "Smallest fastest model — for latency-sensitive tasks", maxTokens: 1047576, supportsStreaming: true, costPer1kTokens: 0.0001, available: true },
+        { id: "o4-mini", name: "o4-mini", provider: "openai", description: "Best thinking model — fast reasoning for STEM and coding", maxTokens: 200000, supportsStreaming: true, costPer1kTokens: 0.0011, available: true },
+        { id: "o3", name: "o3", provider: "openai", description: "Most powerful reasoning — frontier performance on hard benchmarks", maxTokens: 200000, supportsStreaming: true, costPer1kTokens: 0.01, available: true },
+      );
+    }
+    if (process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) {
+      models.push(
+        { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "anthropic", description: "Best overall — top intelligence for coding, reasoning & agentic tasks", maxTokens: 200000, supportsStreaming: true, costPer1kTokens: 0.003, available: true },
+        { id: "claude-opus-4-20250514", name: "Claude Opus 4", provider: "anthropic", description: "Most powerful Claude — complex analysis and deep reasoning", maxTokens: 200000, supportsStreaming: true, costPer1kTokens: 0.015, available: true },
       );
     }
     if (process.env.AI_INTEGRATIONS_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
       models.push(
-        { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "gemini", description: "Google's fast multimodal model", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.00025, available: true },
-        { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "gemini", description: "Google's most capable model", maxTokens: 8192, supportsStreaming: true, costPer1kTokens: 0.00125, available: true },
+        { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "gemini", description: "Most powerful Gemini — state-of-the-art reasoning and 1M context", maxTokens: 1000000, supportsStreaming: true, costPer1kTokens: 0.00125, available: true },
+        { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "gemini", description: "Fast multimodal AI — thinking capabilities with 1M context", maxTokens: 1000000, supportsStreaming: true, costPer1kTokens: 0.0000375, available: true },
       );
     }
     return models;
