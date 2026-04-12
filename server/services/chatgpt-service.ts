@@ -278,7 +278,7 @@ export class ChatGPTService {
     const params: any = { model: session.model, messages: msgs, stream: true };
 
     if (isReasoningModel(session.model)) {
-      params.max_completion_tokens = 32768;
+      params.max_completion_tokens = 16384;
     } else {
       params.max_tokens = 4096;
       params.temperature = 0.7;
@@ -334,7 +334,7 @@ export class ChatGPTService {
       const params: any = { model, messages: msgs };
 
       if (isReasoningModel(model)) {
-        params.max_completion_tokens = 32768;
+        params.max_completion_tokens = 16384;
       } else {
         params.max_tokens = 4096;
         params.temperature = 0.7;

@@ -204,11 +204,13 @@ router.post('/agent/chat/stream', ensureAuthenticated, async (req, res) => {
     fastMode = false, // Fast Mode for quick 10-60s targeted changes
     context = [],
     temperature = 0.7,
-    maxTokens = 4096,
+    maxTokens: rawMaxTokens = 4096,
     tools = [],
     systemPrompt,
     capabilities = {}
   } = req.body;
+  
+  const maxTokens = Math.min(Number(rawMaxTokens) || 4096, 16384);
   
   // Handle both message (string) and messages (array) input formats
   // If messages array is provided, extract the last user message

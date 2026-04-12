@@ -650,11 +650,12 @@ export class AIProviderManager {
       completionParams.temperature = options?.temperature || 0.7;
     }
     
-    // Use correct token parameter based on model family
+    // Use correct token parameter based on model family (cap at 16384 for API compatibility)
+    const safeMaxTokens = Math.min(options?.max_tokens || 4000, 16384);
     if (isNewGenModel) {
-      completionParams.max_completion_tokens = options?.max_tokens || 4000;
+      completionParams.max_completion_tokens = safeMaxTokens;
     } else {
-      completionParams.max_tokens = options?.max_tokens || 4000;
+      completionParams.max_tokens = safeMaxTokens;
     }
 
     if (options?.reasoning_effort && /^o[1-9]/.test(modelId)) {
