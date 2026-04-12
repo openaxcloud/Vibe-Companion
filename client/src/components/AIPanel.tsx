@@ -848,7 +848,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [showSettings, setShowSettings] = useState(false);
   const [userPlan, setUserPlan] = useState<string>("free");
   const [credentialModes, setCredentialModes] = useState<Record<string, { mode: string; hasApiKey: boolean; configured: boolean }>>({});
-  const [showManagedApproval, setShowManagedApproval] = useState<{ provider: string; providerLabel: string } | null>(null);
   const [audioOutputEnabled, setAudioOutputEnabled] = useState(() => {
     try { return localStorage.getItem("ai-audio-output") === "true"; } catch { return false; }
   });
@@ -901,56 +900,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     return { text: cfg.hasApiKey ? "Your key" : "BYOK (no key set)", isManaged: false };
   };
 
-  const handleApproveManaged = async (provider: string) => {
-    if (!projectId) return;
-    try {
-      const res = await fetch(`/api/projects/${projectId}/ai-credentials/${provider}/approve-managed`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", ...(getCsrfToken() ? { "x-csrf-token": getCsrfToken()! } : {}) } as HeadersInit,
-      });
-      if (res.ok) {
-        setCredentialModes(prev => ({ ...prev, [provider]: { mode: "managed", hasApiKey: false, configured: true } }));
-      }
-    } catch {}
-    setShowManagedApproval(null);
-  };
-
-  const [byokKeyInput, setByokKeyInput] = useState("");
-  const BYOK_SECRET_NAMES: Record<string, string> = {
-    openai: "OPENAI_API_KEY",
-    anthropic: "ANTHROPIC_API_KEY",
-    google: "GOOGLE_API_KEY",
-    openrouter: "OPENROUTER_API_KEY",
-  };
-  const handleDismissManaged = async (provider: string) => {
-    if (!projectId) { setShowManagedApproval(null); return; }
-    try {
-      if (byokKeyInput.trim()) {
-        const secretKey = BYOK_SECRET_NAMES[provider];
-        if (secretKey) {
-          await fetch(`/api/projects/${projectId}/env-vars`, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json", ...(getCsrfToken() ? { "x-csrf-token": getCsrfToken()! } : {}) } as HeadersInit,
-            body: JSON.stringify({ key: secretKey, value: byokKeyInput.trim() }),
-          });
-        }
-      }
-      const res = await fetch(`/api/projects/${projectId}/ai-credentials/${provider}`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", ...(getCsrfToken() ? { "x-csrf-token": getCsrfToken()! } : {}) } as HeadersInit,
-        body: JSON.stringify({ mode: "byok" }),
-      });
-      if (res.ok) {
-        const hasKey = !!byokKeyInput.trim();
-        setCredentialModes(prev => ({ ...prev, [provider]: { mode: "byok", hasApiKey: hasKey || prev[provider]?.hasApiKey || false, configured: true } }));
-      }
-    } catch {}
-    setByokKeyInput("");
-    setShowManagedApproval(null);
-  };
 
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [showImageDialog, setShowImageDialog] = useState(false);
@@ -4247,17 +4196,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
                     {([
-                      { key: "claude" as AIModel, name: "Claude Sonnet", badge: "Anthropic", color: "#7C65CB", icon: Sparkles, byokOnly: false },
-                      { key: "gpt" as AIModel, name: "GPT-4o", badge: "OpenAI", color: "#0CCE6B", icon: Zap, byokOnly: false },
-                      { key: "gemini" as AIModel, name: "Gemini Flash", badge: "Google", color: "#4285F4", icon: Zap, byokOnly: false },
-                      { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe, byokOnly: false },
-                      { key: "perplexity" as AIModel, name: "Perplexity", badge: "Search AI (BYOK)", color: "#20808D", icon: Search, byokOnly: true },
-                      { key: "mistral" as AIModel, name: "Mistral", badge: "Mistral AI (BYOK)", color: "#FF7000", icon: Zap, byokOnly: true },
-                    ]).filter(m => {
-                      if (!m.byokOnly) return true;
-                      const cred = getCredLabel(m.key);
-                      return !cred.isManaged || (credentialModes[m.key]?.hasApiKey);
-                    }).map(m => {
+                      { key: "claude" as AIModel, name: "Claude Sonnet", badge: "Anthropic", color: "#7C65CB", icon: Sparkles },
+                      { key: "gpt" as AIModel, name: "GPT-4o", badge: "OpenAI", color: "#0CCE6B", icon: Zap },
+                      { key: "gemini" as AIModel, name: "Gemini Flash", badge: "Google", color: "#4285F4", icon: Zap },
+                      { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe },
+                      { key: "perplexity" as AIModel, name: "Perplexity", badge: "Search AI", color: "#20808D", icon: Search },
+                      { key: "mistral" as AIModel, name: "Mistral", badge: "Mistral AI", color: "#FF7000", icon: Zap },
+                    ]).map(m => {
                       const cred = getCredLabel(m.key);
                       const MdlIcon = m.icon;
                       return (
@@ -4418,54 +4363,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         )}
       </div>}
 
-      {showManagedApproval && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50 rounded-xl" data-testid="dialog-managed-approval">
-          <div className="bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-xl p-5 mx-4 max-w-sm w-full shadow-xl">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-[#0079F2]/15 flex items-center justify-center">
-                <Shield className="w-4 h-4 text-[#0079F2]" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-[var(--ide-text)]">AI Credentials</h3>
-                <p className="text-[10px] text-[var(--ide-text-muted)]">{showManagedApproval.providerLabel}</p>
-              </div>
-            </div>
-            <p className="text-[12px] text-[var(--ide-text-secondary)] mb-3 leading-relaxed">
-              Choose how to authenticate with <strong>{showManagedApproval.providerLabel}</strong> for this project. Managed credentials are billed to your platform credits at public API prices.
-            </p>
-            <div className="mb-3">
-              <label className="text-[11px] text-[var(--ide-text-muted)] block mb-1">Or enter your own API key (stored in project Secrets):</label>
-              <input
-                type="password"
-                placeholder="sk-..."
-                value={byokKeyInput}
-                onChange={e => setByokKeyInput(e.target.value)}
-                className="w-full h-8 px-2 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] text-[12px] text-[var(--ide-text)] placeholder-[var(--ide-text-muted)] outline-none focus:border-[#0079F2]"
-                data-testid="input-byok-key"
-              />
-              <p className="text-[9px] text-[var(--ide-text-muted)] mt-1">
-                Key will be saved as {BYOK_SECRET_NAMES[showManagedApproval.provider] || "API_KEY"} in Secrets
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                className="flex-1 h-8 rounded-lg bg-[#0079F2] hover:bg-[#0066CC] text-white text-[12px] font-medium transition-colors"
-                onClick={() => handleApproveManaged(showManagedApproval.provider)}
-                data-testid="button-approve-managed"
-              >
-                Approve
-              </button>
-              <button
-                className="flex-1 h-8 rounded-lg bg-[var(--ide-surface)] hover:bg-[var(--ide-hover)] text-[var(--ide-text-secondary)] text-[12px] font-medium transition-colors border border-[var(--ide-border)]"
-                onClick={() => handleDismissManaged(showManagedApproval.provider)}
-                data-testid="button-dismiss-managed"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

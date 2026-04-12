@@ -196,18 +196,9 @@ export async function registerAiAssistantRoutes(app: Express, ctx: RouteContext)
     return `OpenRouter error: ${msg.substring(0, 200)}`;
   }
 
-  const BYOK_SECRET_KEYS: Record<string, string> = {
-    openai: "OPENAI_API_KEY",
-    anthropic: "ANTHROPIC_API_KEY",
-    google: "GOOGLE_API_KEY",
-    openrouter: "OPENROUTER_API_KEY",
-    perplexity: "PERPLEXITY_API_KEY",
-    mistral: "MISTRAL_API_KEY",
-  };
-
   const geminiDefault = process.env.GEMINI_API_KEY ? geminiDirect : gemini;
 
-  async function resolveProviderClients(projectId: string | undefined, provider: string, userId?: string): Promise<{ anthropicClient: Anthropic; openaiClient: OpenAI; geminiClient: GoogleGenAI; credMode: string; byokNoKey?: boolean }> {
+  async function resolveProviderClients(projectId: string | undefined, provider: string, userId?: string): Promise<{ anthropicClient: Anthropic; openaiClient: OpenAI; geminiClient: GoogleGenAI; credMode: string }> {
     return { anthropicClient: anthropic, openaiClient: openai, geminiClient: geminiDefault, credMode: "managed" };
   }
 
@@ -1271,8 +1262,8 @@ Any closing remarks...`;
       if (!code || typeof cursorOffset !== "number") {
         return res.status(400).json({ message: "code and cursorOffset required" });
       }
-      const { openaiClient: completeOaiClient, credMode: completeCredMode, byokNoKey: completeByokNoKey } = await resolveProviderClients(req.body.projectId, "openai", req.session.userId!);
-      if (completeCredMode === "managed" || completeByokNoKey) {
+      const { openaiClient: completeOaiClient, credMode: completeCredMode } = await resolveProviderClients(req.body.projectId, "openai", req.session.userId!);
+      if (completeCredMode === "managed") {
         const completePreCheck = await storage.checkCreditsAvailable(req.session.userId!, 1);
         if (!completePreCheck.allowed) {
           return res.json({ completion: "" });
@@ -1465,9 +1456,9 @@ Rules:
 
       const chatProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic", grok: "xai", moonshot: "moonshot", perplexity: "perplexity", mistral: "mistral" };
       const chatProvider = chatProviderMap[selectedModel] || selectedModel;
-      const { anthropicClient: chatAnthropicClient, openaiClient: chatOpenaiClient, geminiClient: chatGeminiClient, credMode: chatCredMode, byokNoKey: chatByokNoKey } = await resolveProviderClients(req.body.projectId, chatProvider, req.session.userId!);
+      const { anthropicClient: chatAnthropicClient, openaiClient: chatOpenaiClient, geminiClient: chatGeminiClient, credMode: chatCredMode } = await resolveProviderClients(req.body.projectId, chatProvider, req.session.userId!);
 
-      if (chatCredMode === "managed" || chatByokNoKey) {
+      if (chatCredMode === "managed") {
         const chatPreCheck = await storage.checkCreditsAvailable(req.session.userId!, 1);
         if (!chatPreCheck.allowed) {
           return res.status(429).json({ message: "Daily credit limit reached. Upgrade your plan for more credits." });
@@ -1718,8 +1709,7 @@ Rules:
         endpoint: "/api/ai/chat",
       }).catch(() => {});
 
-      const donePayload: { done: boolean; byokNoKey?: boolean; fallback?: boolean; fallbackModel?: string } = { done: true };
-      if (chatByokNoKey) donePayload.byokNoKey = true;
+      const donePayload: { done: boolean; fallback?: boolean; fallbackModel?: string } = { done: true };
       if (usedFallback) { donePayload.fallback = true; donePayload.fallbackModel = actualModelId; }
       res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
@@ -2340,9 +2330,9 @@ Rules:
 
       const agentProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic", perplexity: "perplexity", mistral: "mistral" };
       const agentProvider = agentProviderMap[agentSelectedModel] || agentSelectedModel;
-      const { anthropicClient: agentAnthropicClient, openaiClient: agentOpenaiClient, geminiClient: agentGeminiClient, credMode: agentCredMode, byokNoKey: agentByokNoKey } = await resolveProviderClients(projectId, agentProvider, req.session.userId!);
+      const { anthropicClient: agentAnthropicClient, openaiClient: agentOpenaiClient, geminiClient: agentGeminiClient, credMode: agentCredMode } = await resolveProviderClients(projectId, agentProvider, req.session.userId!);
 
-      if (agentCredMode === "managed" || agentByokNoKey) {
+      if (agentCredMode === "managed") {
         const agentPreCheck = await storage.checkCreditsAvailable(req.session.userId!, 1);
         if (!agentPreCheck.allowed) {
           return res.status(429).json({ message: "Daily credit limit reached. Upgrade your plan for more credits." });
@@ -4037,8 +4027,7 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         log(`Failed to auto-update ecode.md: ${ecodeErr.message}`, "ai");
       }
 
-      const agentDonePayload: { type: string; byokNoKey?: boolean } = { type: "done" };
-      if (agentByokNoKey) agentDonePayload.byokNoKey = true;
+      const agentDonePayload: { type: string } = { type: "done" };
       res.write(`data: ${JSON.stringify(agentDonePayload)}\n\n`);
       res.end();
     } catch (error: any) {
@@ -4084,9 +4073,9 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
       const liteSelectedModel = requestedModel || "claude";
       const liteProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic" };
       const liteProvider = liteProviderMap[liteSelectedModel] || liteSelectedModel;
-      const { anthropicClient: liteAnthropicClient, openaiClient: liteOpenaiClient, geminiClient: liteGeminiClient, credMode: liteCredMode, byokNoKey: liteByokNoKey } = await resolveProviderClients(projectId, liteProvider, req.session.userId!);
+      const { anthropicClient: liteAnthropicClient, openaiClient: liteOpenaiClient, geminiClient: liteGeminiClient, credMode: liteCredMode } = await resolveProviderClients(projectId, liteProvider, req.session.userId!);
 
-      if (liteCredMode === "managed" || liteByokNoKey) {
+      if (liteCredMode === "managed") {
         const liteAiQuota = await storage.incrementAiCall(req.session.userId!);
         if (!liteAiQuota.allowed) {
           return res.status(429).json({ message: "Daily AI call limit reached. Upgrade to Pro for more." });
@@ -4438,8 +4427,7 @@ DESIGN QUALITY (for web projects):
         endpoint: "/api/ai/lite",
       }).catch(() => {});
 
-      const liteDonePayload: { type: string; byokNoKey?: boolean } = { type: "done" };
-      if (liteByokNoKey) liteDonePayload.byokNoKey = true;
+      const liteDonePayload: { type: string } = { type: "done" };
       res.write(`data: ${JSON.stringify(liteDonePayload)}\n\n`);
       res.end();
     } catch (error: any) {
