@@ -41,7 +41,7 @@ export class OpenHandsClient extends EventEmitter {
   }
 
   get isConfigured(): boolean {
-    return !!this.config.serverUrl;
+    return !!this.config.serverUrl && !!this.config.apiKey;
   }
 
   private get headers(): Record<string, string> {
@@ -52,31 +52,59 @@ export class OpenHandsClient extends EventEmitter {
 
   async checkHealth(): Promise<{ ok: boolean; version?: string; error?: string }> {
     try {
-      const res = await fetch(`${this.config.serverUrl}/api/health`, {
+      const healthEndpoints = [
+        `${this.config.serverUrl}/api/health`,
+        `${this.config.serverUrl}/api/options/defaults`,
+      ];
+      for (const url of healthEndpoints) {
+        try {
+          const res = await fetch(url, {
+            headers: this.headers,
+            signal: AbortSignal.timeout(10000),
+          });
+          if (res.ok) {
+            const contentType = res.headers.get("content-type") || "";
+            if (contentType.includes("application/json")) {
+              const data = await res.json();
+              return { ok: true, version: data.version || "cloud" };
+            }
+            return { ok: true, version: "cloud" };
+          }
+        } catch {}
+      }
+      const listRes = await fetch(`${this.config.serverUrl}/api/conversations`, {
         headers: this.headers,
         signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-      const data = await res.json();
-      return { ok: true, version: data.version || "unknown" };
+      if (listRes.ok || listRes.status === 401 || listRes.status === 403) {
+        return { ok: listRes.ok, version: "cloud", error: listRes.ok ? undefined : "auth failed" };
+      }
+      return { ok: false, error: `HTTP ${listRes.status}` };
     } catch (err: any) {
       return { ok: false, error: err.message };
     }
   }
 
   async createConversation(initialMessage: string): Promise<string> {
-    const res = await fetch(`${this.config.serverUrl}/api/conversations`, {
+    const body: Record<string, any> = {
+      initial_user_msg: initialMessage,
+    };
+
+    let res = await fetch(`${this.config.serverUrl}/api/conversations`, {
       method: "POST",
       headers: this.headers,
-      body: JSON.stringify({
-        initial_user_msg: initialMessage,
-        selected_repository: null,
-        selected_agent: "CodeActAgent",
-        selected_model: this.config.model,
-        max_iterations: this.config.maxIterations,
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(30000),
     });
+
+    if (!res.ok && res.status === 422) {
+      res = await fetch(`${this.config.serverUrl}/api/conversations`, {
+        method: "POST",
+        headers: this.headers,
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(30000),
+      });
+    }
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
@@ -91,6 +119,12 @@ export class OpenHandsClient extends EventEmitter {
       status: "running",
       events: [],
     });
+
+    if (initialMessage && conversationId) {
+      try {
+        await this.sendMessage(conversationId, initialMessage);
+      } catch {}
+    }
 
     return conversationId;
   }
@@ -111,47 +145,103 @@ export class OpenHandsClient extends EventEmitter {
     }
   }
 
-  async *streamEvents(conversationId: string): AsyncGenerator<OpenHandsEvent> {
-    const url = `${this.config.serverUrl}/api/conversations/${conversationId}/events/stream`;
-
-    const res = await fetch(url, {
-      headers: { ...this.headers, Accept: "text/event-stream" },
-      signal: AbortSignal.timeout(this.config.timeout!),
-    });
-
-    if (!res.ok) {
-      throw new Error(`OpenHands stream failed: ${res.status}`);
-    }
-
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error("No response body");
-
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const event: OpenHandsEvent = JSON.parse(line.slice(6));
-              const session = this.sessions.get(conversationId);
-              if (session) session.events.push(event);
-              this.emit("event", conversationId, event);
-              yield event;
-            } catch {}
+  async waitForReady(conversationId: string, maxWaitMs = 120000): Promise<string> {
+    const start = Date.now();
+    const interval = 3000;
+    while (Date.now() - start < maxWaitMs) {
+      try {
+        const res = await fetch(
+          `${this.config.serverUrl}/api/conversations/${conversationId}`,
+          { headers: this.headers, signal: AbortSignal.timeout(10000) },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const status = (data.status || "").toUpperCase();
+          if (status === "RUNNING" || status === "AWAITING_USER_INPUT" || status === "FINISHED") {
+            return status;
+          }
+          if (status === "ERROR" || status === "STOPPED") {
+            throw new Error(`OpenHands conversation ${status}`);
           }
         }
+      } catch (err: any) {
+        if (err.message?.includes("conversation")) throw err;
       }
-    } finally {
-      reader.releaseLock();
+      await new Promise((r) => setTimeout(r, interval));
+    }
+    throw new Error("OpenHands sandbox startup timed out");
+  }
+
+  async *streamEvents(conversationId: string): AsyncGenerator<OpenHandsEvent> {
+    await this.waitForReady(conversationId);
+
+    const pollUrl = `${this.config.serverUrl}/api/conversations/${conversationId}/events`;
+    let lastEventId = -1;
+    let emptyPolls = 0;
+    const maxEmptyPolls = 40;
+
+    while (emptyPolls < maxEmptyPolls) {
+      try {
+        const res = await fetch(
+          `${pollUrl}?start_id=${lastEventId + 1}&limit=50`,
+          { headers: this.headers, signal: AbortSignal.timeout(15000) },
+        );
+
+        if (!res.ok) {
+          emptyPolls++;
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+
+        const data = await res.json();
+        const events: any[] = data.events || (Array.isArray(data) ? data : []);
+
+        if (events.length === 0) {
+          emptyPolls++;
+          const statusRes = await fetch(
+            `${this.config.serverUrl}/api/conversations/${conversationId}`,
+            { headers: this.headers, signal: AbortSignal.timeout(10000) },
+          ).catch(() => null);
+          if (statusRes?.ok) {
+            const statusData = await statusRes.json();
+            const s = (statusData.status || "").toUpperCase();
+            if (s === "FINISHED" || s === "STOPPED" || s === "ERROR") break;
+            if (s === "AWAITING_USER_INPUT") break;
+          }
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+
+        emptyPolls = 0;
+        for (const event of events) {
+          const eid = event.id ?? event.event_id ?? -1;
+          if (typeof eid === "number" && eid > lastEventId) lastEventId = eid;
+
+          const mapped: OpenHandsEvent = {
+            id: eid,
+            timestamp: event.timestamp || new Date().toISOString(),
+            source: event.source || "agent",
+            action: event.action,
+            observation: event.observation,
+            message: event.message || event.content,
+            content: event.content,
+            args: event.args,
+            extras: event.extras,
+          };
+
+          const session = this.sessions.get(conversationId);
+          if (session) session.events.push(mapped);
+          this.emit("event", conversationId, mapped);
+          yield mapped;
+
+          const act = event.action || event.observation || "";
+          if (act === "finish" || act === "agent_finish") return;
+        }
+      } catch (err: any) {
+        if (err.name === "AbortError") break;
+        emptyPolls++;
+        await new Promise((r) => setTimeout(r, 2000));
+      }
     }
   }
 
@@ -233,9 +323,11 @@ export function getOpenHandsClient(userId?: string): OpenHandsClient {
   const key = userId || "__default__";
   let client = _instances.get(key);
   if (!client) {
+    const apiKey = process.env.OPENHANDS_API_KEY || "";
+    const serverUrl = process.env.OPENHANDS_SERVER_URL || (apiKey ? "https://app.all-hands.dev" : "");
     client = new OpenHandsClient({
-      serverUrl: process.env.OPENHANDS_SERVER_URL || "",
-      apiKey: process.env.OPENHANDS_API_KEY || "",
+      serverUrl,
+      apiKey,
       model: process.env.OPENHANDS_MODEL || "claude-sonnet-4-20250514",
     });
     _instances.set(key, client);

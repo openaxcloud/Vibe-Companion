@@ -60,31 +60,35 @@ router.post("/message", requireAuth, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "OpenHands not configured. Set server URL in settings." });
     }
 
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+
     try {
       let convId = sessionId;
       if (!convId) {
+        res.write(`data: ${JSON.stringify({ type: "text", content: "> Starting OpenHands sandbox...\n" })}\n\n`);
         convId = await client.createConversation(message);
       } else {
         await client.sendMessage(convId, message);
       }
 
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-        "X-Accel-Buffering": "no",
-      });
-
       res.write(`data: ${JSON.stringify({ type: "session", conversationId: convId })}\n\n`);
+
+      res.write(`data: ${JSON.stringify({ type: "text", content: "> Waiting for agent response...\n" })}\n\n`);
 
       try {
         for await (const event of client.streamEvents(convId)) {
           const mapped = {
-            type: event.action ? "action" : "observation",
+            type: event.action ? "action" : event.observation ? "observation" : "text",
             source: event.source,
             action: event.action,
             observation: event.observation,
             message: event.message || event.content,
+            content: event.content || event.message,
             args: event.args,
             extras: event.extras,
           };
