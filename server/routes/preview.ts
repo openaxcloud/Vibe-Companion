@@ -524,8 +524,24 @@ router.get('/projects/:id/preview/', requireAuth, ensureProjectAccess, async (re
       return;
     }
     
-    // No index.html found anywhere
-    return res.status(404).send('No index.html found in project');
+    return res.status(200).type('html').send(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Building...</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.c{text-align:center;padding:2rem}
+.spinner{width:48px;height:48px;border:3px solid #21262d;border-top-color:#f97316;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1.5rem}
+@keyframes spin{to{transform:rotate(360deg)}}
+h2{font-size:1.25rem;margin-bottom:.5rem;color:#e6edf3}
+p{font-size:.875rem;color:#8b949e;max-width:320px;line-height:1.5}
+</style>
+${getHotReloadScript(projectId)}
+</head><body><div class="c">
+<div class="spinner"></div>
+<h2>Building your app...</h2>
+<p>The AI agent is generating your project files. Switch to the Agent tab to see progress. This page will auto-refresh when ready.</p>
+</div></body></html>`);
   } catch (error) {
     console.error('Error serving preview root:', error);
     res.status(500).send('Failed to serve preview');

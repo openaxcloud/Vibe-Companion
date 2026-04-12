@@ -536,6 +536,42 @@ function UnifiedIDELayout({
     }
   }, [bootstrapToken, setLeftPanelTab, setIsSidebarCollapsed]);
 
+  const bootstrapConsumedRef = useRef(false);
+  const bootstrapPromptRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (bootstrapConsumedRef.current || !projectId) return;
+    const promptKey = `agent-prompt-${projectId}`;
+    const savedPrompt = sessionStorage.getItem(promptKey);
+    if (savedPrompt) {
+      bootstrapConsumedRef.current = true;
+      sessionStorage.removeItem(promptKey);
+      sessionStorage.removeItem(`agent-build-mode-${projectId}`);
+      bootstrapPromptRef.current = savedPrompt;
+      setMobileActiveTab('agent');
+      setLeftPanelTab('agent');
+    }
+  }, [projectId, setMobileActiveTab, setLeftPanelTab]);
+
+  const mobileAgentHandlersRef = useRef<ExternalInputHandlers | null>(null);
+  useEffect(() => {
+    mobileAgentHandlersRef.current = mobileAgentHandlers;
+  }, [mobileAgentHandlers]);
+
+  useEffect(() => {
+    if (!bootstrapPromptRef.current) return;
+    const h = mobileAgentHandlersRef.current || mobileAgentHandlers;
+    if (h?.handleSubmit) {
+      const prompt = bootstrapPromptRef.current;
+      bootstrapPromptRef.current = null;
+      try {
+        h.handleSubmit(prompt);
+      } catch (err) {
+        console.error('[Bootstrap] Failed to send prompt:', err);
+        bootstrapPromptRef.current = prompt;
+      }
+    }
+  }, [mobileAgentHandlers?.handleSubmit]);
+
   // Tool name mapping for display
   const toolNameMap: Record<string, string> = {
     agent: 'Agent', preview: 'Preview', deploy: 'Deploy', console: 'Console',
