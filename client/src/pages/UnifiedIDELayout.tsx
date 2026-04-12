@@ -506,8 +506,9 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       sessionStorage.removeItem(promptKey);
       sessionStorage.removeItem(`agent-build-mode-${projectId}`);
       bootstrapPromptRef.current = savedPrompt;
+      setMobileActiveTab('agent');
     }
-  }, [projectId]);
+  }, [projectId, setMobileActiveTab]);
 
   useEffect(() => {
     if (!bootstrapPromptRef.current) return;
@@ -519,6 +520,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         h.handleSubmit(prompt);
       } catch (err) {
         console.error('[Bootstrap] Failed to send prompt:', err);
+        bootstrapPromptRef.current = prompt;
       }
     }
   }, [mobileAgentHandlers?.handleSubmit]);
