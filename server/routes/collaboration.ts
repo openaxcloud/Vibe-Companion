@@ -18,12 +18,11 @@ const router = Router();
  * SECURITY FIX #24: Verify user has access to project
  * User has access if they own the project or are a collaborator
  */
-async function verifyProjectAccess(projectId: number, userId: number): Promise<boolean> {
-  const project = await storage.getProject(String(projectId));
+async function verifyProjectAccess(projectId: string, userId: number): Promise<boolean> {
+  const project = await storage.getProject(projectId);
   if (!project) return false;
-  if (project.ownerId === userId) return true;
+  if (project.ownerId === userId || project.userId === userId) return true;
   
-  // Check if user is a participant in any session for this project
   const participant = await db
     .select()
     .from(sessionParticipants)
@@ -53,8 +52,7 @@ router.post('/generate-link', requireAuth, async (req: Request, res: Response) =
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // SECURITY FIX #24: Verify user has access to the project
-    const hasAccess = await verifyProjectAccess(parseInt(projectId, 10), userId);
+    const hasAccess = await verifyProjectAccess(projectId, userId);
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied: You do not have access to this project' });
     }
@@ -71,10 +69,10 @@ router.post('/generate-link', requireAuth, async (req: Request, res: Response) =
 // Get active sessions for a project
 router.get('/sessions/:projectId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const projectIdNum = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const userId = req.user?.id;
     
-    if (isNaN(projectIdNum)) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
     
@@ -82,8 +80,7 @@ router.get('/sessions/:projectId', requireAuth, async (req: Request, res: Respon
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    // SECURITY FIX #24: Verify user has access to the project
-    const hasAccess = await verifyProjectAccess(projectIdNum, userId);
+    const hasAccess = await verifyProjectAccess(projectId, userId);
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied: You do not have access to this project' });
     }
@@ -93,7 +90,7 @@ router.get('/sessions/:projectId', requireAuth, async (req: Request, res: Respon
       .from(collaborationSessions)
       .where(
         and(
-          eq(collaborationSessions.projectId, projectIdNum),
+          eq(collaborationSessions.projectId, projectId),
           eq(collaborationSessions.active, true)
         )
       );
@@ -195,10 +192,10 @@ router.post('/join', requireAuth, async (req: Request, res: Response) => {
 // Get session statistics
 router.get('/stats/:projectId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const projectIdNum = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const userId = req.user?.id;
     
-    if (isNaN(projectIdNum)) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
@@ -206,8 +203,7 @@ router.get('/stats/:projectId', requireAuth, async (req: Request, res: Response)
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // SECURITY FIX #24: Verify user has access to the project
-    const hasAccess = await verifyProjectAccess(projectIdNum, userId);
+    const hasAccess = await verifyProjectAccess(projectId, userId);
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied: You do not have access to this project' });
     }
@@ -217,7 +213,7 @@ router.get('/stats/:projectId', requireAuth, async (req: Request, res: Response)
       .from(collaborationSessions)
       .where(
         and(
-          eq(collaborationSessions.projectId, projectIdNum),
+          eq(collaborationSessions.projectId, projectId),
           eq(collaborationSessions.active, true)
         )
       );
@@ -231,7 +227,7 @@ router.get('/stats/:projectId', requireAuth, async (req: Request, res: Response)
       )
       .where(
         and(
-          eq(collaborationSessions.projectId, projectIdNum),
+          eq(collaborationSessions.projectId, projectId),
           eq(sessionParticipants.active, true)
         )
       );
@@ -261,8 +257,7 @@ router.post('/invite', requireAuth, async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // SECURITY FIX #24: Verify user has access to the project before inviting
-    const hasAccess = await verifyProjectAccess(parseInt(projectId, 10), inviterId);
+    const hasAccess = await verifyProjectAccess(projectId, inviterId);
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied: You do not have access to this project' });
     }
@@ -333,7 +328,7 @@ router.post('/invite', requireAuth, async (req: Request, res: Response) => {
     
     const invitedUser = await storage.getUserByEmail(email);
     if (invitedUser) {
-      const project = await storage.getProject(parseInt(projectId, 10));
+      const project = await storage.getProject(projectId);
       const projectName = project?.name || `Project #${projectId}`;
       notifyCollaborationInvite(invitedUser.id, inviterName, projectName).catch(err =>
         logger.warn('[Collaboration] Failed to send push notification for invite:', err)
@@ -387,10 +382,10 @@ router.get('/active', requireAuth, async (req: Request, res: Response) => {
 // Get collaborators/users for a project - matches frontend expectations
 router.get('/:projectId/users', requireAuth, async (req: Request, res: Response) => {
   try {
-    const projectIdNum = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const userId = req.user?.id;
     
-    if (isNaN(projectIdNum)) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
@@ -398,19 +393,17 @@ router.get('/:projectId/users', requireAuth, async (req: Request, res: Response)
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // SECURITY FIX #24: Verify user has access to the project
-    const hasAccess = await verifyProjectAccess(projectIdNum, userId);
+    const hasAccess = await verifyProjectAccess(projectId, userId);
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied: You do not have access to this project' });
     }
     
-    // Get all active sessions for this project
     const sessions = await db
       .select()
       .from(collaborationSessions)
       .where(
         and(
-          eq(collaborationSessions.projectId, projectIdNum),
+          eq(collaborationSessions.projectId, projectId),
           eq(collaborationSessions.active, true)
         )
       );
@@ -437,7 +430,7 @@ router.get('/:projectId/users', requireAuth, async (req: Request, res: Response)
       )
       .where(
         and(
-          eq(collaborationSessions.projectId, projectIdNum),
+          eq(collaborationSessions.projectId, projectId),
           eq(sessionParticipants.active, true)
         )
       );
@@ -468,12 +461,12 @@ router.get('/:projectId/users', requireAuth, async (req: Request, res: Response)
 // Send invitation to a specific project - matches frontend expectations
 router.post('/:projectId/invite', requireAuth, async (req: Request, res: Response) => {
   try {
-    const projectIdNum = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const { email, role } = req.body;
     const userId = req.user?.id;
     const inviterName = req.user?.username || 'Someone';
     
-    if (isNaN(projectIdNum)) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
@@ -481,8 +474,7 @@ router.post('/:projectId/invite', requireAuth, async (req: Request, res: Respons
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // SECURITY FIX #24: Verify user has access to the project before inviting
-    const hasAccess = await verifyProjectAccess(projectIdNum, userId);
+    const hasAccess = await verifyProjectAccess(projectId, userId);
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied: You do not have access to this project' });
     }
@@ -491,11 +483,10 @@ router.post('/:projectId/invite', requireAuth, async (req: Request, res: Respons
       return res.status(400).json({ error: 'Email is required' });
     }
     
-    // Generate invitation token
     const inviteToken = require('nanoid').nanoid(32);
-    const inviteLink = `${req.protocol}://${req.get('host')}/ide/${projectIdNum}?invite=${inviteToken}`;
+    const inviteLink = `${req.protocol}://${req.get('host')}/ide/${projectId}?invite=${inviteToken}`;
     
-    logger.info(`[Collaboration] Invite sent from ${inviterName} to ${email} for project ${projectIdNum} as ${role || 'editor'}`);
+    logger.info(`[Collaboration] Invite sent from ${inviterName} to ${email} for project ${projectId} as ${role || 'editor'}`);
     
     res.json({ 
       success: true, 
@@ -511,12 +502,12 @@ router.post('/:projectId/invite', requireAuth, async (req: Request, res: Respons
 // Update collaborator role - matches frontend expectations
 router.patch('/:projectId/users/:collaboratorId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const projectIdNum = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const { collaboratorId } = req.params;
     const { role } = req.body;
     const userId = req.user?.id;
     
-    if (isNaN(projectIdNum)) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
@@ -524,8 +515,7 @@ router.patch('/:projectId/users/:collaboratorId', requireAuth, async (req: Reque
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // SECURITY FIX #24: Verify user has access to the project (only owners can change roles)
-    const hasAccess = await verifyProjectAccess(projectIdNum, userId);
+    const hasAccess = await verifyProjectAccess(projectId, userId);
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied: You do not have access to this project' });
     }
@@ -534,8 +524,7 @@ router.patch('/:projectId/users/:collaboratorId', requireAuth, async (req: Reque
       return res.status(400).json({ error: 'Role is required' });
     }
     
-    // For now, just acknowledge - real role management would need a separate table
-    logger.info(`[Collaboration] Updated role for ${collaboratorId} to ${role} in project ${projectIdNum}`);
+    logger.info(`[Collaboration] Updated role for ${collaboratorId} to ${role} in project ${projectId}`);
     
     res.json({ 
       success: true, 
@@ -550,11 +539,11 @@ router.patch('/:projectId/users/:collaboratorId', requireAuth, async (req: Reque
 // Remove collaborator - matches frontend expectations
 router.delete('/:projectId/users/:collaboratorId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const projectIdNum = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const { collaboratorId } = req.params;
     const userId = req.user?.id;
     
-    if (isNaN(projectIdNum)) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
@@ -562,19 +551,17 @@ router.delete('/:projectId/users/:collaboratorId', requireAuth, async (req: Requ
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // SECURITY FIX #24: Verify user has access to the project (only owners can remove collaborators)
-    const hasAccess = await verifyProjectAccess(projectIdNum, userId);
+    const hasAccess = await verifyProjectAccess(projectId, userId);
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied: You do not have access to this project' });
     }
     
-    // Mark participant as inactive
     await db
       .update(sessionParticipants)
       .set({ active: false, leftAt: new Date() })
       .where(eq(sessionParticipants.id, collaboratorId));
     
-    logger.info(`[Collaboration] Removed collaborator ${collaboratorId} from project ${projectIdNum}`);
+    logger.info(`[Collaboration] Removed collaborator ${collaboratorId} from project ${projectId}`);
     
     res.json({ 
       success: true, 
@@ -681,11 +668,11 @@ router.post('/sessions/:sessionId/messages', requireAuth, async (req: Request, r
 // Get chat messages for a project (uses active session)
 router.get('/:projectId/messages', requireAuth, async (req: Request, res: Response) => {
   try {
-    const projectIdNum = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const userId = req.user?.id;
     const limit = parseInt(req.query.limit as string) || 100;
     
-    if (isNaN(projectIdNum)) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
@@ -693,19 +680,17 @@ router.get('/:projectId/messages', requireAuth, async (req: Request, res: Respon
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // SECURITY FIX #24: Verify user has access to the project
-    const hasAccess = await verifyProjectAccess(projectIdNum, userId);
+    const hasAccess = await verifyProjectAccess(projectId, userId);
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied: You do not have access to this project' });
     }
     
-    // Get active session for this project
     const [activeSession] = await db
       .select()
       .from(collaborationSessions)
       .where(
         and(
-          eq(collaborationSessions.projectId, projectIdNum),
+          eq(collaborationSessions.projectId, projectId),
           eq(collaborationSessions.active, true)
         )
       )
@@ -734,12 +719,12 @@ router.get('/:projectId/messages', requireAuth, async (req: Request, res: Respon
 // Send a message to a project (uses or creates active session)
 router.post('/:projectId/messages', requireAuth, async (req: Request, res: Response) => {
   try {
-    const projectIdNum = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const { content, type = 'text', codeLanguage, metadata, fileId } = req.body;
     const userId = req.user?.id;
     const username = req.user?.username || 'Anonymous';
     
-    if (isNaN(projectIdNum)) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
     
@@ -751,33 +736,30 @@ router.post('/:projectId/messages', requireAuth, async (req: Request, res: Respo
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // SECURITY FIX #24: Verify user has access to the project
-    const hasAccess = await verifyProjectAccess(projectIdNum, userId);
+    const hasAccess = await verifyProjectAccess(projectId, userId);
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied: You do not have access to this project' });
     }
     
-    // Get or create active session for this project
     let [activeSession] = await db
       .select()
       .from(collaborationSessions)
       .where(
         and(
-          eq(collaborationSessions.projectId, projectIdNum),
+          eq(collaborationSessions.projectId, projectId),
           eq(collaborationSessions.active, true)
         )
       )
       .orderBy(desc(collaborationSessions.createdAt))
       .limit(1);
     
-    // Create a new session if none exists
     if (!activeSession) {
       const [newSession] = await db
         .insert(collaborationSessions)
         .values({
-          projectId: projectIdNum,
-          fileId: fileId || 0, // Default to 0 if no file specified
-          active: true,
+          projectId: projectId,
+          hostId: String(userId),
+          status: 'active',
         })
         .returning();
       activeSession = newSession;
@@ -801,7 +783,7 @@ router.post('/:projectId/messages', requireAuth, async (req: Request, res: Respo
     try {
       const collabService = getCollaborationService();
       if (collabService) {
-        collabService.broadcastToProject(projectIdNum, 'chat', {
+        collabService.broadcastToProject(projectId, 'chat', {
           userId,
           username,
           message: content,
