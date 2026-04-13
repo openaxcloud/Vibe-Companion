@@ -1,5 +1,5 @@
 import { Switch, Route, Redirect, useParams, Router } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, fetchCsrfToken } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -258,10 +258,18 @@ function UnifiedProjectRoute() {
   return <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div>}><UnifiedIDELayout projectId={resolvedId} bootstrapToken={bootstrapToken} /></Suspense>;
 }
 
+function CsrfInitializer() {
+  useEffect(() => {
+    fetchCsrfToken().catch(() => {});
+  }, []);
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
+        <CsrfInitializer />
         <ThemeProvider>
           <TooltipProvider>
             <a href="#main-content" className="skip-to-main">Skip to main content</a>

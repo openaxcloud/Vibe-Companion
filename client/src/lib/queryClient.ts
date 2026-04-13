@@ -16,7 +16,10 @@ export function resetCSRFToken() {
 }
 
 export async function fetchCsrfToken(): Promise<string> {
-  const res = await fetch("/api/csrf-token", { credentials: "include" });
+  const res = await fetch("/api/csrf-token?_=" + Date.now(), {
+    credentials: "include",
+    cache: "no-store",
+  });
   if (res.ok) {
     const data = await res.json();
     csrfToken = data.csrfToken;
@@ -104,8 +107,13 @@ export async function apiRequest<T = Response>(
   if (data) {
     headers["Content-Type"] = "application/json";
   }
-  if (csrfToken && !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) {
-    headers["X-CSRF-Token"] = csrfToken;
+  if (!["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) {
+    if (!csrfToken) {
+      await fetchCsrfToken();
+    }
+    if (csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
+    }
   }
 
   const res = await fetch(url, {

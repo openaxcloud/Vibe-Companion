@@ -986,6 +986,7 @@ function csrfProtection(req: Request, res: Response, next: NextFunction) {
   }
   const token = req.headers["x-csrf-token"] as string;
   if (!token || !req.session.csrfToken || token !== req.session.csrfToken) {
+    console.warn(`[csrf] FAILED ${req.method} ${fullPath} — provided=${token ? token.substring(0, 8) + "..." : "NONE"} stored=${req.session.csrfToken ? req.session.csrfToken.substring(0, 8) + "..." : "NONE"} sessionID=${req.sessionID?.substring(0, 8)}`);
     return res.status(403).json({ message: "Invalid CSRF token" });
   }
   next();
@@ -1282,7 +1283,16 @@ export async function registerRoutes(
     if (!req.session.csrfToken) {
       req.session.csrfToken = generateCsrfToken();
     }
-    return res.json({ csrfToken: req.session.csrfToken });
+    const token = req.session.csrfToken;
+    req.session.save((err) => {
+      if (err) {
+        console.error("[csrf-token] Session save error:", err);
+      }
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+      res.set("Pragma", "no-cache");
+      res.set("Expires", "0");
+      return res.json({ csrfToken: token });
+    });
   });
 
   app.get("/api/auth/config", (_req: Request, res: Response) => {

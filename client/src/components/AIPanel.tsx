@@ -1311,7 +1311,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const persistMessage = useCallback(async (role: string, content: string, msgModel?: string, fileOps?: { type: "created" | "updated"; filename: string }[] | null) => {
     if (!projectId || !content) return;
     try {
-      const csrfToken = getCsrfToken();
+      let csrfToken = getCsrfToken();
+      if (!csrfToken) {
+        csrfToken = await fetchCsrfToken();
+      }
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
       const res = await fetch(`/api/ai/conversations/${projectId}/messages`, {
@@ -2009,7 +2012,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     assistantId: string,
   ): Promise<boolean> => {
     const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
-    const csrfToken = getCsrfToken();
+    let csrfToken = getCsrfToken();
+    if (!csrfToken) {
+      csrfToken = await fetchCsrfToken();
+    }
     if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
 
     const body = {
@@ -2238,7 +2244,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       }
 
       const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
-      const csrfToken = getCsrfToken();
+      let csrfToken = getCsrfToken();
+      if (!csrfToken) {
+        csrfToken = await fetchCsrfToken();
+      }
       if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
       console.log("[AIPanel] Sending POST to", endpoint, "csrf=", csrfToken ? "present" : "MISSING", "msgs=", outbound.length);
       const res = await fetch(endpoint, {
