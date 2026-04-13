@@ -2298,7 +2298,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const cleaned = prev.slice(0, -2);
       const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: retryInput };
       const assistantId = (Date.now() + 1).toString();
-      const updatedMessages = [...cleaned, userMsg, { id: assistantId, role: "assistant" as const, content: "", model }];
+      const retryEffectiveModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : model;
+      const updatedMessages = [...cleaned, userMsg, { id: assistantId, role: "assistant" as const, content: "", model: retryEffectiveModel }];
       setIsStreaming(true);
       abortRef.current = new AbortController();
       const isAgent = mode === "agent" && !!projectId;
@@ -2316,6 +2317,21 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const retryToken = getCsrfToken();
       if (retryToken) retryHeaders["X-CSRF-Token"] = retryToken;
       persistMessage("user", retryInput);
+      if (agentProvider !== "builtin") {
+        sendViaExternalProvider(agentProvider, retryInput, assistantId).then(() => {
+          setMessages((prev) => {
+            const assistantMsg = prev.find((m) => m.id === assistantId);
+            if (assistantMsg?.content) persistMessage("assistant", assistantMsg.content, retryEffectiveModel);
+            return prev;
+          });
+        }).catch((err: unknown) => {
+          if (err instanceof Error) {
+            setLastFailedInput(retryInput);
+            setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Connection error — ${err.message}` } : m));
+          }
+        }).finally(() => { setIsStreaming(false); abortRef.current = null; onAgentComplete?.(); });
+        return updatedMessages;
+      }
       fetch(endpoint, { method: "POST", headers: retryHeaders, credentials: "include", body: JSON.stringify(body), signal: abortRef.current.signal })
         .then(async (res) => {
           if (!res.ok) {
@@ -2327,7 +2343,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           setMessages((prev) => {
             const assistantMsg = prev.find((m) => m.id === assistantId);
             if (assistantMsg && assistantMsg.content) {
-              persistMessage("assistant", assistantMsg.content, model, assistantMsg.fileOps);
+              persistMessage("assistant", assistantMsg.content, retryEffectiveModel, assistantMsg.fileOps);
             }
             return prev;
           });
