@@ -297,6 +297,7 @@ export interface IStorage {
   getConversation(projectId: string, userId: string): Promise<AiConversation | undefined>;
   getPlanConversation(projectId: string, userId: string): Promise<AiConversation | undefined>;
   getConversationById(id: string): Promise<AiConversation | undefined>;
+  getProjectConversationHistory(projectId: string, userId: string): Promise<AiConversation[]>;
   createConversation(data: InsertAiConversation): Promise<AiConversation>;
   updateConversation(id: string, data: Partial<{ title: string; model: string }>): Promise<AiConversation | undefined>;
   deleteConversation(id: string): Promise<boolean>;
@@ -1787,6 +1788,17 @@ export class DatabaseStorage implements IStorage {
   async getConversationById(id: string): Promise<AiConversation | undefined> {
     const [conv] = await db.select().from(aiConversations).where(eq(aiConversations.id, id)).limit(1);
     return conv;
+  }
+
+  async getProjectConversationHistory(projectId: string, userId: string): Promise<AiConversation[]> {
+    return db.select().from(aiConversations)
+      .where(and(
+        eq(aiConversations.projectId, projectId),
+        eq(aiConversations.userId, userId),
+        sql`${aiConversations.title} != '__plan__'`
+      ))
+      .orderBy(desc(aiConversations.updatedAt))
+      .limit(50);
   }
 
   async createConversation(data: InsertAiConversation): Promise<AiConversation> {

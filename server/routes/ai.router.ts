@@ -171,6 +171,19 @@ router.post('/feedback', ensureAuthenticated, (_req, res) => {
   res.json({ success: true, message: 'Feedback recorded' });
 });
 
+// --- Conversation history routes ---
+router.get('/conversations/:projectId/history', ensureAuthenticated, async (req, res) => {
+  try {
+    const { storage } = await import('../storage');
+    const userId = (req.session as any)?.userId;
+    if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+    const history = await storage.getProjectConversationHistory(req.params.projectId, userId);
+    return res.json(history);
+  } catch (err: any) {
+    return res.status(500).json({ message: err.message || 'Failed to load history' });
+  }
+});
+
 // --- Project-specific routes (MUST come AFTER all fixed-path routes) ---
 // POST /api/ai/:projectId/chat — project-specific AI chat (ReplitAssistant, AIAssistant)
 router.post('/:projectId/chat', ensureAuthenticated, generateProjectChat);
