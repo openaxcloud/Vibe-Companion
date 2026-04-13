@@ -77,7 +77,7 @@ export class OpenAIProvider implements AIProvider {
     this.model = OpenAIProvider.getDefaultModel();
   }
 
-  async generateCompletion(prompt: string, systemPrompt: string, maxTokens = 1024, temperature = 0.2, userId?: number): Promise<string> {
+  async generateCompletion(prompt: string, systemPrompt: string, maxTokens = 8192, temperature = 0.2, userId?: number): Promise<string> {
     const completion = await this.client.chat.completions.create({
       model: this.model,
       messages: [
@@ -107,7 +107,7 @@ export class OpenAIProvider implements AIProvider {
     return result;
   }
 
-  async generateChat(messages: ChatMessage[], maxTokens = 1024, temperature = 0.5, userId?: number): Promise<string> {
+  async generateChat(messages: ChatMessage[], maxTokens = 8192, temperature = 0.5, userId?: number): Promise<string> {
     const completion = await this.client.chat.completions.create({
       model: this.model,
       messages: messages as any,
@@ -198,7 +198,7 @@ export class AnthropicProvider implements AIProvider {
     this.model = AnthropicProvider.getDefaultModel();
   }
 
-  async generateCompletion(prompt: string, systemPrompt: string, maxTokens = 1024, temperature = 0.2, userId?: number): Promise<string> {
+  async generateCompletion(prompt: string, systemPrompt: string, maxTokens = 8192, temperature = 0.2, userId?: number): Promise<string> {
     const message = await this.client.messages.create({
       model: this.model,
       system: systemPrompt,
@@ -229,7 +229,7 @@ export class AnthropicProvider implements AIProvider {
     return result;
   }
 
-  async generateChat(messages: ChatMessage[], maxTokens = 1024, temperature = 0.5, userId?: number): Promise<string> {
+  async generateChat(messages: ChatMessage[], maxTokens = 8192, temperature = 0.5, userId?: number): Promise<string> {
     // Extract system message and convert to Anthropic format
     const systemMessage = messages.find(m => m.role === 'system');
     const userMessages = messages.filter(m => m.role !== 'system');
@@ -338,13 +338,13 @@ export class ECodeModelProvider implements AIProvider {
     }
   }
 
-  async generateCompletion(prompt: string, systemPrompt: string, maxTokens = 1024, temperature = 0.2, userId?: number): Promise<string> {
+  async generateCompletion(prompt: string, systemPrompt: string, maxTokens = 8192, temperature = 0.2, userId?: number): Promise<string> {
     // E-Code models use enhanced prompts for better performance
     const enhancedSystemPrompt = `${systemPrompt}\n\nYou are ${this.name}, an AI assistant fine-tuned by E-Code for superior performance in software development tasks.`;
     return this.baseProvider.generateCompletion(prompt, enhancedSystemPrompt, maxTokens, temperature, userId);
   }
 
-  async generateChat(messages: ChatMessage[], maxTokens = 1024, temperature = 0.5, userId?: number): Promise<string> {
+  async generateChat(messages: ChatMessage[], maxTokens = 8192, temperature = 0.5, userId?: number): Promise<string> {
     // Enhance system message with E-Code model identity
     const enhancedMessages = messages.map(m => {
       if (m.role === 'system') {
