@@ -4397,20 +4397,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               <div className="flex items-center gap-1">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button
-                      className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-                        topMode === "build"
-                          ? "bg-[#7C65CB]/15 text-[#7C65CB]"
-                          : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
-                      }`}
-                      data-testid="mode-build"
-                    >
-                      <Hammer className="w-3 h-3" />
-                      Build
-                      <ChevronDown className="w-2.5 h-2.5 opacity-60" />
-                    </button>
+                    {(() => {
+                      const triggerConfig = topMode === "plan"
+                        ? { icon: Map, label: "Plan", color: "#F59E0B", bg: "#F59E0B" }
+                        : mode === "chat"
+                          ? { icon: MessageSquare, label: "Chat", color: "#0CCE6B", bg: "#0CCE6B" }
+                          : { icon: Bot, label: "Agent", color: "#7C65CB", bg: "#7C65CB" };
+                      const TriggerIcon = triggerConfig.icon;
+                      return (
+                        <button
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all"
+                          style={{ backgroundColor: `${triggerConfig.bg}15`, color: triggerConfig.color }}
+                          data-testid="mode-build"
+                        >
+                          <TriggerIcon className="w-3 h-3" />
+                          {triggerConfig.label}
+                          <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                        </button>
+                      );
+                    })()}
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
+                  <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
                     <DropdownMenuItem
                       className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
                       onClick={() => { setTopMode("build"); setMode("agent"); }}
@@ -4434,6 +4441,18 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         <span className="text-[10px] text-[var(--ide-text-muted)]">Ask questions, get help</span>
                       </div>
                       {topMode === "build" && mode === "chat" && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B] ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5 border-t border-[var(--ide-border)] mt-1 pt-1.5"
+                      onClick={() => setTopMode("plan")}
+                      data-testid="mode-plan-button"
+                    >
+                      <Map className="w-3.5 h-3.5 text-[#F59E0B]" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">Plan</span>
+                        <span className="text-[10px] text-[var(--ide-text-muted)]">Architect & plan before building</span>
+                      </div>
+                      {topMode === "plan" && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B] ml-auto" />}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -4506,26 +4525,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <div className={`relative rounded-md ${topMode === "plan" ? "p-[1px]" : ""}`}
-                  style={topMode === "plan" ? {
-                    background: "linear-gradient(135deg, #F59E0B, #EF4444, #8B5CF6, #0079F2, #F59E0B)",
-                    backgroundSize: "300% 300%",
-                    animation: "gradient-spin 3s ease infinite",
-                  } : {}}
-                >
-                  <button
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-                      topMode === "plan"
-                        ? "bg-[var(--ide-panel)] text-[#F59E0B]"
-                        : "text-[var(--ide-text-muted)] hover:text-[#F59E0B] hover:bg-[#F59E0B]/10"
-                    }`}
-                    onClick={() => setTopMode("plan")}
-                    data-testid="mode-plan-button"
-                  >
-                    <Map className="w-3 h-3" />
-                    Plan
-                  </button>
-                </div>
               </div>
             )}
             {projectId && (
