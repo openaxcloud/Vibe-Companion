@@ -1,12 +1,18 @@
-import type { Express } from "express";
+export {
+  startAutomationScheduler,
+  scheduleAutomation,
+  unscheduleAutomation,
+  stopBotAutomation,
+  executeAutomation,
+  generateWebhookToken,
+  validateCronExpression,
+} from "../automationScheduler";
 
-export async function initAutomationScheduler(app?: Express): Promise<void> {}
+export function initAutomationScheduler(): Promise<void> {
+  return Promise.resolve();
+}
 
-export async function startAutomationScheduler(app?: Express): Promise<void> {}
-
-export function scheduleAutomation(automationId: string, cron: string): void {}
-
-export function cancelAutomation(automationId: string): void {}
+export function cancelAutomation(_id: string): void {}
 
 export function getScheduledAutomations(): any[] {
   return [];

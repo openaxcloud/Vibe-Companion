@@ -208,6 +208,7 @@ export class MainRouter {
       phantomPanelsMod,
       publishMod,
       sshInfoMod,
+      automationsMod,
     ] = await Promise.all([
       safeImport("placeholder", () => import("./placeholder.router")),
       safeImport("logs", () => import("./logs.router")),
@@ -306,6 +307,7 @@ export class MainRouter {
       safeImport("phantom-panels", () => import("./phantom-panels.router")),
       safeImport("publish", () => import("./publish.router")),
       safeImport("ssh-info", () => import("./ssh-info.router")),
+      safeImport("automations", () => import("./automations.router")),
     ]);
 
     const [openhandsMod, gooseMod, agentProvidersMod] = await Promise.all([
@@ -451,6 +453,7 @@ export class MainRouter {
     mount(app, '/api', tierLimiters.api, def(phantomPanelsMod));
     mount(app, '/api', tierLimiters.api, def(publishMod));
     mount(app, '/api', tierLimiters.api, def(sshInfoMod));
+    mount(app, '/api', tierLimiters.api, def(automationsMod));
 
     mount(app, '/api/openhands', tierLimiters.api, def(openhandsMod));
     mount(app, '/api/goose', tierLimiters.api, def(gooseMod));
