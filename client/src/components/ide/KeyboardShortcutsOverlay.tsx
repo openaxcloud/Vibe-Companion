@@ -72,6 +72,7 @@ const categories = Array.from(new Set(shortcuts.map((s) => s.category)));
 interface KeyboardShortcutsOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  inline?: boolean;
 }
 
 function KeyCombo({ keys }: { keys: string[] }) {
@@ -97,9 +98,109 @@ function KeyCombo({ keys }: { keys: string[] }) {
   );
 }
 
+function ShortcutsContent({ filteredShortcuts, groupedShortcuts, searchQuery, setSearchQuery, activeCategory, setActiveCategory }: {
+  filteredShortcuts: ShortcutEntry[];
+  groupedShortcuts: Record<string, ShortcutEntry[]>;
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+  activeCategory: string | null;
+  setActiveCategory: (c: string | null) => void;
+}) {
+  return (
+    <>
+      <div className="relative mt-1">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ide-text-muted)]" />
+        <input
+          type="text"
+          placeholder="Search shortcuts..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full h-9 pl-9 pr-3 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] text-sm text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus:outline-none focus:ring-1 focus:ring-[#0079F2] transition-colors"
+          data-testid="input-search-shortcuts-overlay"
+        />
+      </div>
+
+      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+        <button
+          onClick={() => setActiveCategory(null)}
+          className={cn(
+            'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
+            !activeCategory
+              ? 'bg-[#0079F2]/15 text-[#0079F2]'
+              : 'bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]'
+          )}
+        >
+          All
+        </button>
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setActiveCategory(cat === activeCategory ? null : cat)}
+            className={cn(
+              'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
+              cat === activeCategory
+                ? 'bg-[#0079F2]/15 text-[#0079F2]'
+                : 'bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]'
+            )}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex-1 overflow-y-auto mt-3 -mx-1 px-1">
+        {Object.entries(groupedShortcuts).map(([category, items]) => (
+          <div key={category} className="mb-4">
+            <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2 px-1">
+              {category}
+            </h3>
+            <div className="rounded-lg border border-[var(--ide-border)] overflow-hidden">
+              {items.map((shortcut, i) => (
+                <div
+                  key={`${shortcut.description}-${i}`}
+                  className={cn(
+                    'flex items-center justify-between px-3 py-2',
+                    i > 0 && 'border-t border-[var(--ide-border)]',
+                    'hover:bg-[var(--ide-hover)] transition-colors'
+                  )}
+                >
+                  <span className="text-sm text-[var(--ide-text-secondary)]">
+                    {shortcut.description}
+                  </span>
+                  <KeyCombo keys={shortcut.keys} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {filteredShortcuts.length === 0 && (
+          <div className="flex flex-col items-center py-10 text-[var(--ide-text-muted)]">
+            <Keyboard className="w-8 h-8 mb-2 opacity-40" />
+            <p className="text-sm">No shortcuts found</p>
+            <p className="text-xs mt-1 opacity-70">Try a different search term</p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between pt-3 border-t border-[var(--ide-border)] text-[10px] text-[var(--ide-text-muted)]">
+        <span>{filteredShortcuts.length} shortcuts</span>
+        <span className="inline-flex items-center gap-1">
+          Press
+          <kbd className="px-1 py-0.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] font-mono">
+            ?
+          </kbd>
+          anywhere to toggle this overlay
+        </span>
+      </div>
+    </>
+  );
+}
+
 export function KeyboardShortcutsOverlay({
   open,
   onOpenChange,
+  inline,
 }: KeyboardShortcutsOverlayProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -122,6 +223,17 @@ export function KeyboardShortcutsOverlay({
     {}
   );
 
+  const contentProps = { filteredShortcuts, groupedShortcuts, searchQuery, setSearchQuery, activeCategory, setActiveCategory };
+
+  if (inline) {
+    if (!open) return null;
+    return (
+      <div className="flex flex-col h-full p-4 bg-[var(--ide-panel)] text-[var(--ide-text)] overflow-hidden" data-testid="keyboard-shortcuts-inline">
+        <ShortcutsContent {...contentProps} />
+      </div>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] bg-[var(--ide-panel)] border-[var(--ide-border)] text-[var(--ide-text)] overflow-hidden flex flex-col">
@@ -134,95 +246,7 @@ export function KeyboardShortcutsOverlay({
             Quick reference for all available keyboard shortcuts
           </DialogDescription>
         </DialogHeader>
-
-        {/* Search */}
-        <div className="relative mt-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ide-text-muted)]" />
-          <input
-            type="text"
-            placeholder="Search shortcuts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] text-sm text-[var(--ide-text)] placeholder:text-[var(--ide-text-muted)] focus:outline-none focus:ring-1 focus:ring-[#0079F2] transition-colors"
-          />
-        </div>
-
-        {/* Category pills */}
-        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-          <button
-            onClick={() => setActiveCategory(null)}
-            className={cn(
-              'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
-              !activeCategory
-                ? 'bg-[#0079F2]/15 text-[#0079F2]'
-                : 'bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]'
-            )}
-          >
-            All
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat === activeCategory ? null : cat)}
-              className={cn(
-                'px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
-                cat === activeCategory
-                  ? 'bg-[#0079F2]/15 text-[#0079F2]'
-                  : 'bg-[var(--ide-surface)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text-secondary)]'
-              )}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        {/* Shortcuts list */}
-        <div className="flex-1 overflow-y-auto mt-3 -mx-1 px-1">
-          {Object.entries(groupedShortcuts).map(([category, items]) => (
-            <div key={category} className="mb-4">
-              <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-2 px-1">
-                {category}
-              </h3>
-              <div className="rounded-lg border border-[var(--ide-border)] overflow-hidden">
-                {items.map((shortcut, i) => (
-                  <div
-                    key={`${shortcut.description}-${i}`}
-                    className={cn(
-                      'flex items-center justify-between px-3 py-2',
-                      i > 0 && 'border-t border-[var(--ide-border)]',
-                      'hover:bg-[var(--ide-hover)] transition-colors'
-                    )}
-                  >
-                    <span className="text-sm text-[var(--ide-text-secondary)]">
-                      {shortcut.description}
-                    </span>
-                    <KeyCombo keys={shortcut.keys} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {filteredShortcuts.length === 0 && (
-            <div className="flex flex-col items-center py-10 text-[var(--ide-text-muted)]">
-              <Keyboard className="w-8 h-8 mb-2 opacity-40" />
-              <p className="text-sm">No shortcuts found</p>
-              <p className="text-xs mt-1 opacity-70">Try a different search term</p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-[var(--ide-border)] text-[10px] text-[var(--ide-text-muted)]">
-          <span>{filteredShortcuts.length} shortcuts</span>
-          <span className="inline-flex items-center gap-1">
-            Press
-            <kbd className="px-1 py-0.5 rounded bg-[var(--ide-surface)] border border-[var(--ide-border)] font-mono">
-              ?
-            </kbd>
-            anywhere to toggle this overlay
-          </span>
-        </div>
+        <ShortcutsContent {...contentProps} />
       </DialogContent>
     </Dialog>
   );

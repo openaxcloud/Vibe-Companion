@@ -2089,10 +2089,25 @@ function UnifiedIDELayout({
         }}
       />
       
-      <KeyboardShortcutsOverlay
-        open={showKeyboardShortcuts}
-        onOpenChange={setShowKeyboardShortcuts}
-      />
+      {deviceType === 'mobile' ? (
+        <MobileModal
+          isOpen={showKeyboardShortcuts}
+          onClose={() => setShowKeyboardShortcuts(false)}
+          title="Keyboard Shortcuts"
+          variant="fullscreen"
+        >
+          <KeyboardShortcutsOverlay
+            open={showKeyboardShortcuts}
+            onOpenChange={setShowKeyboardShortcuts}
+            inline
+          />
+        </MobileModal>
+      ) : (
+        <KeyboardShortcutsOverlay
+          open={showKeyboardShortcuts}
+          onOpenChange={setShowKeyboardShortcuts}
+        />
+      )}
       
       <ReplitToolsSheet
         open={showToolsSheet}
