@@ -29,7 +29,7 @@ import {
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
-import { getCsrfToken } from "@/lib/queryClient";
+import { getCsrfToken, fetchCsrfToken } from "@/lib/queryClient";
 
 type FileInfo = { id: string; filename: string; content: string };
 
@@ -1881,7 +1881,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     assistantId: string,
   ): Promise<boolean> => {
     const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
-    const csrfToken = getCsrfToken();
+    let csrfToken = getCsrfToken();
+    if (!csrfToken) {
+      csrfToken = await fetchCsrfToken();
+    }
     if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
 
     let sessionId = claudeAgentSessionId;
