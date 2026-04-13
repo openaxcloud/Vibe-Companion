@@ -17,7 +17,7 @@ import {
   Settings2, Search, FlaskConical, Brain, Globe,
   Pause, GripVertical, Pencil, ListOrdered, ChevronUp, SlidersHorizontal,
   Map, Hammer, Play, CheckCircle2, Circle, Clock, ArrowRight, Layers,
-  Volume2, VolumeX, Download, Square, RefreshCw, Server
+  Volume2, VolumeX, Download, Square, RefreshCw, Server, Terminal
 } from "lucide-react";
 import ArtifactTypeCarousel, { ArtifactTypePill } from "./ArtifactTypeCarousel";
 import FigmaDesignCard, { FigmaLinkIndicator, detectFigmaUrl } from "./FigmaDesignCard";
