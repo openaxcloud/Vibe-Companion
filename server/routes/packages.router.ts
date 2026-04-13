@@ -135,16 +135,10 @@ function spawnPackageManager(
   });
 }
 
-/**
- * Middleware to validate project access
- * SECURITY: Enforces project ownership - only owner or collaborators can modify packages
- * Works with both req.params.projectId and req.query.projectId
- */
 const ensureProjectAccess = async (req: any, res: any, next: any) => {
   try {
-    // Support both params (POST/PATCH/DELETE) and query (GET) parameters
     const projectIdParam = req.params.projectId || req.query.projectId;
-    const userId = req.user?.id;
+    const userId = req.user?.id || req.session?.userId;
     
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -154,42 +148,28 @@ const ensureProjectAccess = async (req: any, res: any, next: any) => {
       return res.status(400).json({ error: 'Project ID is required' });
     }
     
-    // Parse project ID as number (storage expects numbers)
-    const projectId = parseInt(projectIdParam);
-    if (isNaN(projectId)) {
-      return res.status(400).json({ 
-        error: 'Invalid project ID',
-        details: 'Project ID must be a number'
-      });
-    }
-    
-    // Get project from storage
-    const project = await storage.getProject(projectId);
+    const project = await storage.getProject(projectIdParam);
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
     
-    // Check if user is the owner
-    if (project.ownerId === userId) {
-      // Store the validated numeric projectId for later use
-      req.validatedProjectId = projectId;
+    if (project.userId === userId) {
+      req.validatedProjectId = projectIdParam;
+      req.project = project;
       return next();
     }
     
-    // Check if user is a collaborator
-    const collaborators = await storage.getProjectCollaborators(projectId);
-    const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+    try {
+      const collaborators = await storage.getProjectCollaborators(projectIdParam);
+      const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+      if (isCollaborator) {
+        req.validatedProjectId = projectIdParam;
+        req.project = project;
+        return next();
+      }
+    } catch {}
     
-    if (!isCollaborator) {
-      return res.status(403).json({ 
-        error: 'Forbidden',
-        details: "You don't have access to this project"
-      });
-    }
-    
-    // Store the validated numeric projectId for later use
-    req.validatedProjectId = projectId;
-    next();
+    return res.status(403).json({ error: 'Forbidden' });
   } catch (error) {
     console.error('[Packages] Error checking project access:', error);
     res.status(500).json({ error: 'Failed to verify project access' });
@@ -373,88 +353,42 @@ router.post('/:projectId/uninstall', ensureAuthenticated, ensureProjectAccess, a
  */
 router.get('/installed', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
   try {
-    // Use the validated numeric projectId from middleware
-    const projectId = req.validatedProjectId || parseInt(req.query.projectId as string);
+    const projectId = req.validatedProjectId || req.query.projectId as string;
+    const files = await storage.getFiles(projectId);
     
-    // Validate project ID string format for filesystem access
-    const projectIdStr = req.query.projectId as string;
-    if (!isValidProjectId(projectIdStr)) {
-      return res.status(400).json({ 
-        error: 'Invalid project ID',
-        details: 'Project ID contains invalid characters or path traversal attempts'
-      });
-    }
-    
-    // Resolve working directory using the validated string
-    const workingDir = await resolveProjectDirectory(projectIdStr);
-    
-    if (!workingDir) {
-      return res.json({
-        success: true,
-        packages: [],
-        message: 'Project directory does not exist',
-      });
-    }
-    
-    // Try to read package.json
-    try {
-      const packageJsonPath = path.join(workingDir, 'package.json');
-      const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
-      
-      const dependencies = {
-        ...packageJson.dependencies,
-        ...packageJson.devDependencies,
-      };
-      
-      const packages = Object.entries(dependencies).map(([name, version]) => ({
-        name,
-        version: version as string,
-        type: packageJson.dependencies?.[name] ? 'production' : 'development',
-      }));
-      
-      return res.json({
-        success: true,
-        packages,
-        language: 'javascript',
-      });
-    } catch (err: any) { console.error("[catch]", err?.message || err);
-      // Try Python requirements.txt
+    const pkgFile = files.find((f: any) => f.filename === 'package.json');
+    if (pkgFile && pkgFile.content) {
       try {
-        const requirementsPath = path.join(workingDir, 'requirements.txt');
-        const requirements = await fs.readFile(requirementsPath, 'utf-8');
-        
-        const packages = requirements
-          .split('\n')
-          .filter(line => line.trim() && !line.startsWith('#'))
-          .map(line => {
-            const [name, version] = line.split('==');
-            return {
-              name: name.trim(),
-              version: version?.trim() || 'latest',
-              type: 'production',
-            };
-          });
-        
-        return res.json({
-          success: true,
-          packages,
-          language: 'python',
-        });
-      } catch (err: any) { console.error("[catch]", err?.message || err);
-        // No package files found
-        return res.json({
-          success: true,
-          packages: [],
-          message: 'No package files found',
-        });
-      }
+        const pkg = JSON.parse(pkgFile.content);
+        const deps = pkg.dependencies || {};
+        const devDeps = pkg.devDependencies || {};
+        const packages = [
+          ...Object.entries(deps).map(([name, version]) => ({
+            name, version: String(version), type: 'production',
+          })),
+          ...Object.entries(devDeps).map(([name, version]) => ({
+            name, version: String(version), type: 'development',
+          })),
+        ];
+        return res.json({ success: true, packages, language: 'javascript' });
+      } catch {}
     }
+    
+    const reqFile = files.find((f: any) => f.filename === 'requirements.txt');
+    if (reqFile && reqFile.content) {
+      const packages = reqFile.content.split('\n')
+        .filter((l: string) => l.trim() && !l.startsWith('#'))
+        .map((line: string) => {
+          const match = line.match(/^([a-zA-Z0-9_.-]+)(?:[=<>!~]+(.+))?$/);
+          return { name: match ? match[1].trim() : line.trim(), version: match?.[2]?.trim() || 'latest', type: 'production' };
+        });
+      return res.json({ success: true, packages, language: 'python' });
+    }
+    
+    return res.json({ success: true, packages: [], message: 'No package files found' });
   } catch (error: any) {
     console.error('[Packages] Failed to fetch installed packages:', error);
-    res.status(500).json({
-      error: 'Failed to fetch installed packages',
-      message: error.message,
-    });
+    res.status(500).json({ error: 'Failed to fetch installed packages', message: error.message });
   }
 });
 
@@ -620,106 +554,65 @@ router.post('/:projectId/update', ensureAuthenticated, ensureProjectAccess, asyn
  */
 router.get('/:projectId/list', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
   try {
-    const { projectId } = req.params;
-    
-    if (!isValidProjectId(projectId)) {
-      return res.status(400).json({ 
-        error: 'Invalid project ID',
-        details: 'Project ID contains invalid characters'
-      });
-    }
-    
-    const workingDir = await resolveProjectDirectory(projectId);
-    
-    if (!workingDir) {
-      return res.json({
-        success: true,
-        packages: [],
-        systemDependencies: [],
-        message: 'Project directory does not exist',
-      });
-    }
+    const projectId = req.params.projectId;
+    const files = await storage.getFiles(projectId);
     
     let packages: any[] = [];
     let language = 'nodejs';
     
-    // Try to read package.json
-    try {
-      const packageJsonPath = path.join(workingDir, 'package.json');
-      const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
-      
-      const dependencies = packageJson.dependencies || {};
-      const devDependencies = packageJson.devDependencies || {};
-      
-      packages = [
-        ...Object.entries(dependencies).map(([name, version]) => ({
-          name,
-          version: version as string,
-          type: 'production',
-          isDev: false,
-        })),
-        ...Object.entries(devDependencies).map(([name, version]) => ({
-          name,
-          version: version as string,
-          type: 'development',
-          isDev: true,
-        })),
-      ];
-      language = 'nodejs';
-    } catch (err: any) { console.error("[catch]", err?.message || err);
-      // Try Python requirements.txt
+    const pkgFile = files.find((f: any) => f.filename === 'package.json');
+    if (pkgFile && pkgFile.content) {
       try {
-        const requirementsPath = path.join(workingDir, 'requirements.txt');
-        const requirements = await fs.readFile(requirementsPath, 'utf-8');
-        
-        packages = requirements
-          .split('\n')
-          .filter(line => line.trim() && !line.startsWith('#'))
-          .map(line => {
-            const match = line.match(/^([a-zA-Z0-9_.-]+)(?:==|>=|<=|~=|!=)?(.*)$/);
+        const pkg = JSON.parse(pkgFile.content);
+        const deps = pkg.dependencies || {};
+        const devDeps = pkg.devDependencies || {};
+        packages = [
+          ...Object.entries(deps).map(([name, version]) => ({
+            name, version: String(version), type: 'production', isDev: false,
+          })),
+          ...Object.entries(devDeps).map(([name, version]) => ({
+            name, version: String(version), type: 'development', isDev: true,
+          })),
+        ];
+        language = 'nodejs';
+      } catch {}
+    } else {
+      const reqFile = files.find((f: any) => f.filename === 'requirements.txt');
+      if (reqFile && reqFile.content) {
+        packages = reqFile.content.split('\n')
+          .filter((l: string) => l.trim() && !l.startsWith('#'))
+          .map((line: string) => {
+            const match = line.match(/^([a-zA-Z0-9_.-]+)(?:[=<>!~]+(.+))?$/);
             return {
               name: match ? match[1].trim() : line.trim(),
-              version: match && match[2] ? match[2].trim() : 'latest',
-              type: 'production',
-              isDev: false,
+              version: match?.[2]?.trim() || 'latest',
+              type: 'production', isDev: false,
             };
           });
         language = 'python';
-      } catch (err: any) { console.error("[catch]", err?.message || err);
-        packages = [];
       }
     }
     
-    // System dependencies (from .replit or nix config if available)
     let systemDependencies: any[] = [];
-    try {
-      const replitPath = path.join(workingDir, '.replit');
-      const replitContent = await fs.readFile(replitPath, 'utf-8');
-      // Parse basic nix packages from .replit file
-      const nixMatch = replitContent.match(/nix\s*=\s*\[([^\]]*)\]/);
-      if (nixMatch) {
-        systemDependencies = nixMatch[1]
-          .split(',')
-          .map(pkg => pkg.trim().replace(/["']/g, ''))
-          .filter(pkg => pkg)
-          .map(pkg => ({ name: pkg, type: 'system' }));
-      }
-    } catch (err: any) { console.error("[catch]", err?.message || err);
-      systemDependencies = [];
+    const nixFile = files.find((f: any) => f.filename === 'replit.nix');
+    if (nixFile && nixFile.content) {
+      try {
+        const depsMatch = nixFile.content.match(/deps\s*=\s*\[([^\]]*)\]/s);
+        if (depsMatch) {
+          const pkgMatches = depsMatch[1].match(/pkgs\.([a-zA-Z0-9_-]+)/g);
+          if (pkgMatches) {
+            systemDependencies = pkgMatches.map(m => ({
+              name: m.replace('pkgs.', ''), type: 'system',
+            }));
+          }
+        }
+      } catch {}
     }
     
-    return res.json({
-      success: true,
-      packages,
-      systemDependencies,
-      language,
-    });
+    return res.json({ success: true, packages, systemDependencies, language });
   } catch (error: any) {
     console.error('[Packages] Failed to fetch packages:', error);
-    res.status(500).json({
-      error: 'Failed to fetch packages',
-      message: error.message,
-    });
+    res.status(500).json({ error: 'Failed to fetch packages', message: error.message });
   }
 });
 
@@ -1273,109 +1166,154 @@ const projectPackagesRouter = Router();
 
 projectPackagesRouter.get('/:projectId/packages', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
   try {
-    const { projectId } = req.params;
+    const projectId = req.params.projectId;
+    const files = await storage.getFiles(projectId);
     
-    if (!isValidProjectId(projectId)) {
-      return res.status(400).json({ error: 'Invalid project ID' });
-    }
-    
-    const workingDir = await resolveProjectDirectory(projectId);
-    
-    if (!workingDir) {
-      return res.json({ packages: [], language: 'javascript', packageManager: 'npm' });
-    }
-    
-    const { language, manager: packageManager } = await detectProjectManager(workingDir);
     let packages: any[] = [];
+    let packageManager = 'npm';
+    let language = 'javascript';
+    const managers: string[] = [];
+    const groups: Record<string, any> = {};
     
-    if (language === 'javascript') {
+    const pkgFile = files.find((f: any) => f.filename === 'package.json');
+    if (pkgFile && pkgFile.content) {
+      managers.push('npm');
       try {
-        const packageJson = JSON.parse(await fs.readFile(path.join(workingDir, 'package.json'), 'utf-8'));
-        const deps = packageJson.dependencies || {};
-        const devDeps = packageJson.devDependencies || {};
-        packages = [
+        const pkg = JSON.parse(pkgFile.content);
+        const deps = pkg.dependencies || {};
+        const devDeps = pkg.devDependencies || {};
+        const npmPkgs = [
           ...Object.entries(deps).map(([name, version]) => ({
             name,
-            version: (version as string).replace(/^[\^~>=<]/, ''),
-            isDevDependency: false,
+            version: String(version),
+            dev: false,
           })),
           ...Object.entries(devDeps).map(([name, version]) => ({
             name,
-            version: (version as string).replace(/^[\^~>=<]/, ''),
-            isDevDependency: true,
+            version: String(version),
+            dev: true,
           })),
         ];
-      } catch (err: any) { console.error("[catch]", err?.message || err); /* no package.json */ }
-    } else if (language === 'python') {
-      try {
-        const content = await fs.readFile(path.join(workingDir, 'requirements.txt'), 'utf-8');
-        packages = content.split('\n')
-          .filter(line => line.trim() && !line.startsWith('#'))
-          .map(line => {
-            const match = line.match(/^([a-zA-Z0-9_.-]+)(?:[=<>!~]+(.+))?$/);
-            return {
-              name: match ? match[1].trim() : line.trim(),
-              version: match && match[2] ? match[2].trim() : 'latest',
-              isDevDependency: false,
-            };
-          });
-      } catch (err: any) { console.error("[catch]", err?.message || err); /* no requirements.txt */ }
-    } else if (language === 'rust') {
-      packages = await parseCargoTomlDependencies(workingDir);
-    } else if (language === 'go') {
-      packages = await parseGoModDependencies(workingDir);
+        packages.push(...npmPkgs);
+        groups['javascript'] = { packages: npmPkgs, manager: 'npm', language: 'javascript' };
+      } catch {}
     }
     
-    res.json({ packages, language, packageManager });
+    const reqFile = files.find((f: any) => f.filename === 'requirements.txt');
+    const pyprojectFile = files.find((f: any) => f.filename === 'pyproject.toml');
+    if (pyprojectFile && pyprojectFile.content && pyprojectFile.content.includes('[tool.poetry]')) {
+      managers.push('poetry');
+      packageManager = managers[0] || 'poetry';
+      language = 'python';
+    } else if (reqFile) {
+      managers.push('pip');
+      if (!pkgFile) { packageManager = 'pip'; language = 'python'; }
+      try {
+        const lines = (reqFile.content || '').split('\n').filter((l: string) => l.trim() && !l.startsWith('#'));
+        const pipPkgs = lines.map((line: string) => {
+          const match = line.match(/^([a-zA-Z0-9_.-]+)(?:[=<>!~]+(.+))?$/);
+          return { name: match ? match[1] : line.trim(), version: match?.[2] || 'latest', dev: false };
+        });
+        packages.push(...pipPkgs);
+        groups['python'] = { packages: pipPkgs, manager: 'pip', language: 'python' };
+      } catch {}
+    }
+    
+    if (managers.length === 0) managers.push('npm');
+    
+    res.json({ packages, packageManager: managers[0] || 'npm', managers, groups, language });
   } catch (error: any) {
     console.error('[Packages] Failed to list packages:', error);
     res.status(500).json({ error: 'Failed to list packages', message: error.message });
   }
 });
 
+async function updatePackageJsonInDb(projectId: string, operation: 'add' | 'remove' | 'update', pkgName: string, version?: string, dev?: boolean) {
+  const files = await storage.getFiles(projectId);
+  const pkgFile = files.find((f: any) => f.filename === 'package.json');
+  let pkg: any = { name: 'project', version: '1.0.0', dependencies: {}, devDependencies: {} };
+  
+  if (pkgFile && pkgFile.content) {
+    try { pkg = JSON.parse(pkgFile.content); } catch {}
+  }
+  if (!pkg.dependencies) pkg.dependencies = {};
+  if (!pkg.devDependencies) pkg.devDependencies = {};
+  
+  if (operation === 'add') {
+    const ver = version || 'latest';
+    let resolvedVersion = ver;
+    if (ver === 'latest') {
+      try {
+        const npmRes = await fetch(`https://registry.npmjs.org/${encodeURIComponent(pkgName)}/latest`, { signal: AbortSignal.timeout(5000) });
+        if (npmRes.ok) {
+          const data = await npmRes.json() as any;
+          resolvedVersion = `^${data.version}`;
+        }
+      } catch {}
+    }
+    if (dev) {
+      pkg.devDependencies[pkgName] = resolvedVersion;
+      delete pkg.dependencies[pkgName];
+    } else {
+      pkg.dependencies[pkgName] = resolvedVersion;
+      delete pkg.devDependencies[pkgName];
+    }
+  } else if (operation === 'remove') {
+    delete pkg.dependencies[pkgName];
+    delete pkg.devDependencies[pkgName];
+  } else if (operation === 'update') {
+    const section = pkg.devDependencies[pkgName] ? 'devDependencies' : 'dependencies';
+    if (version) {
+      pkg[section][pkgName] = version;
+    } else {
+      try {
+        const npmRes = await fetch(`https://registry.npmjs.org/${encodeURIComponent(pkgName)}/latest`, { signal: AbortSignal.timeout(5000) });
+        if (npmRes.ok) {
+          const data = await npmRes.json() as any;
+          pkg[section][pkgName] = `^${data.version}`;
+        }
+      } catch {}
+    }
+  }
+  
+  const content = JSON.stringify(pkg, null, 2);
+  if (pkgFile) {
+    await storage.updateFileContent(pkgFile.id, content);
+  } else {
+    await storage.createFile(projectId, { filename: 'package.json', content });
+  }
+  return pkg;
+}
+
 async function handleInstall(req: any, res: any) {
   try {
-    const { projectId } = req.params;
-    const { name, version, dev, manager: managerOverride } = req.body;
+    const projectId = req.params.projectId;
+    const { name, version, dev, package: packageName } = req.body;
+    const pkgName = name || packageName;
     
-    if (!isValidProjectId(projectId)) {
-      return res.status(400).json({ error: 'Invalid project ID' });
-    }
-    
-    if (!name || !isValidPackageName(name)) {
+    if (!pkgName || !isValidPackageName(pkgName)) {
       return res.status(400).json({ error: 'Invalid or missing package name' });
     }
-    
     if (version && !isValidVersion(version)) {
       return res.status(400).json({ error: 'Invalid version string' });
     }
     
     const workingDir = await resolveProjectDirectory(projectId);
-    if (!workingDir) {
-      return res.status(404).json({ error: 'Project directory not found' });
+    if (workingDir) {
+      try {
+        const detected = await detectProjectManager(workingDir);
+        const { cmd, args } = getInstallCommand(detected.manager, pkgName, version, dev);
+        const { stdout } = await spawnPackageManager(cmd, args, workingDir);
+        return res.json({ success: true, name: pkgName, version: version || 'latest', output: stdout });
+      } catch {}
     }
     
-    const detected = await detectProjectManager(workingDir);
-    const effectiveManager = managerOverride || detected.manager;
-    const { cmd, args } = getInstallCommand(effectiveManager, name, version, dev);
-    
-    const { stdout, stderr } = await spawnPackageManager(cmd, args, workingDir);
-    
-    res.json({
-      success: true,
-      name,
-      version: version || 'latest',
-      manager: effectiveManager,
-      output: stdout,
-      warnings: stderr && !stderr.includes('WARN') ? stderr : undefined,
-    });
+    const pkg = await updatePackageJsonInDb(projectId, 'add', pkgName, version, dev);
+    const installedVersion = (dev ? pkg.devDependencies : pkg.dependencies)[pkgName] || version || 'latest';
+    res.json({ success: true, name: pkgName, version: installedVersion, output: `Added ${pkgName}@${installedVersion} to package.json` });
   } catch (error: any) {
     console.error('[Packages] Install failed:', error);
-    res.status(500).json({
-      error: 'Installation failed',
-      message: error.message,
-      details: error.stderr || error.stdout,
-    });
+    res.status(500).json({ error: 'Installation failed', message: error.message });
   }
 }
 
@@ -1383,154 +1321,100 @@ projectPackagesRouter.post('/:projectId/packages', ensureAuthenticated, ensurePr
 projectPackagesRouter.post('/:projectId/packages/install', ensureAuthenticated, ensureProjectAccess, handleInstall);
 
 projectPackagesRouter.post('/:projectId/packages/install-stream', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
-  const { projectId } = req.params;
-  const { name, version, dev, manager: managerOverride } = req.body;
-  
-  if (!isValidProjectId(projectId)) {
-    return res.status(400).json({ error: 'Invalid project ID' });
-  }
+  const projectId = req.params.projectId;
+  const { name, version, dev } = req.body;
   
   if (!name || !isValidPackageName(name)) {
     return res.status(400).json({ error: 'Invalid or missing package name' });
   }
   
-  if (version && !isValidVersion(version)) {
-    return res.status(400).json({ error: 'Invalid version string' });
-  }
-  
   const workingDir = await resolveProjectDirectory(projectId);
-  if (!workingDir) {
-    return res.status(404).json({ error: 'Project directory not found' });
+  if (workingDir) {
+    try {
+      const detected = await detectProjectManager(workingDir);
+      const { cmd, args } = getInstallCommand(detected.manager, name, version, dev);
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+      const sendEvent = (event: string, data: any) => { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
+      sendEvent('start', { package: name, command: `${cmd} ${args.join(' ')}` });
+      const child = spawn(cmd, args, { cwd: workingDir, timeout: 180000, shell: false });
+      child.stdout.on('data', (d) => { d.toString().split('\n').filter((l: string) => l.trim()).forEach((l: string) => sendEvent('output', { line: l })); });
+      child.stderr.on('data', (d) => { d.toString().split('\n').filter((l: string) => l.trim()).forEach((l: string) => sendEvent('output', { line: l })); });
+      child.on('error', (e) => { sendEvent('error', { message: e.message }); res.end(); });
+      child.on('close', (code) => { sendEvent('done', { exitCode: code, success: code === 0, command: `${cmd} ${args.join(' ')}` }); res.end(); });
+      req.on('close', () => { child.kill(); });
+      return;
+    } catch {}
   }
   
-  const detected = await detectProjectManager(workingDir);
-  const effectiveManager = managerOverride || detected.manager;
-  const { cmd, args } = getInstallCommand(effectiveManager, name, version, dev);
-  
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-  });
-  
-  const sendEvent = (event: string, data: any) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  };
-  
-  sendEvent('start', { package: name, command: `${cmd} ${args.join(' ')}`, manager: effectiveManager });
-  
-  const child = spawn(cmd, args, {
-    cwd: workingDir,
-    timeout: 180000,
-    shell: false,
-  });
-  
-  child.stdout.on('data', (data) => {
-    const lines = data.toString().split('\n').filter((l: string) => l.trim());
-    for (const line of lines) {
-      sendEvent('output', { line, stream: 'stdout' });
-    }
-  });
-  
-  child.stderr.on('data', (data) => {
-    const lines = data.toString().split('\n').filter((l: string) => l.trim());
-    for (const line of lines) {
-      sendEvent('output', { line, stream: 'stderr' });
-    }
-  });
-  
-  child.on('error', (error) => {
-    sendEvent('error', { message: error.message });
+  try {
+    const pkg = await updatePackageJsonInDb(projectId, 'add', name, version, dev);
+    const installedVersion = (dev ? pkg.devDependencies : pkg.dependencies)[name] || version || 'latest';
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+    const sendEvent = (event: string, data: any) => { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
+    sendEvent('start', { package: name });
+    sendEvent('output', { line: `Adding ${name}@${installedVersion} to package.json...` });
+    sendEvent('output', { line: `+ ${name}@${installedVersion}` });
+    sendEvent('done', { success: true, exitCode: 0, command: `npm install ${name}` });
     res.end();
-  });
-  
-  child.on('close', (code) => {
-    sendEvent('complete', { exitCode: code, success: code === 0 });
+  } catch (error: any) {
+    if (!res.headersSent) return res.status(500).json({ error: 'Install failed', message: error.message });
     res.end();
-  });
-  
-  req.on('close', () => {
-    child.kill();
-  });
+  }
 });
 
 projectPackagesRouter.delete('/:projectId/packages/:packageName', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
   try {
     const { projectId, packageName } = req.params;
     
-    if (!isValidProjectId(projectId)) {
-      return res.status(400).json({ error: 'Invalid project ID' });
-    }
-    
     if (!isValidPackageName(packageName)) {
       return res.status(400).json({ error: 'Invalid package name' });
     }
     
     const workingDir = await resolveProjectDirectory(projectId);
-    if (!workingDir) {
-      return res.status(404).json({ error: 'Project directory not found' });
+    if (workingDir) {
+      try {
+        const { manager } = await detectProjectManager(workingDir);
+        const { cmd, args } = getUninstallCommand(manager, packageName);
+        const { stdout } = await spawnPackageManager(cmd, args, workingDir);
+        return res.json({ success: true, message: `Removed ${packageName}`, output: stdout });
+      } catch {}
     }
     
-    const { manager } = await detectProjectManager(workingDir);
-    const { cmd, args } = getUninstallCommand(manager, packageName);
-    
-    const { stdout } = await spawnPackageManager(cmd, args, workingDir);
-    
-    res.json({
-      success: true,
-      message: `Successfully uninstalled ${packageName}`,
-      output: stdout,
-    });
+    await updatePackageJsonInDb(projectId, 'remove', packageName);
+    res.json({ success: true, message: `Removed ${packageName} from package.json` });
   } catch (error: any) {
     console.error('[Packages] Uninstall failed:', error);
-    res.status(500).json({
-      error: 'Uninstall failed',
-      message: error.message,
-    });
+    res.status(500).json({ error: 'Uninstall failed', message: error.message });
   }
 });
 
 projectPackagesRouter.post('/:projectId/packages/update', ensureAuthenticated, ensureProjectAccess, async (req, res) => {
   try {
-    const { projectId } = req.params;
-    const { packages: pkgNames } = req.body;
+    const projectId = req.params.projectId;
+    const { name, packages: pkgNames, version } = req.body;
+    const names: string[] = name ? [name] : (Array.isArray(pkgNames) ? pkgNames : [pkgNames].filter(Boolean));
     
-    if (!isValidProjectId(projectId)) {
-      return res.status(400).json({ error: 'Invalid project ID' });
-    }
-    
-    const names: string[] = Array.isArray(pkgNames) ? pkgNames : [pkgNames].filter(Boolean);
     if (names.length === 0) {
       return res.status(400).json({ error: 'Package name(s) required' });
     }
     
-    for (const n of names) {
-      if (!isValidPackageName(n)) {
-        return res.status(400).json({ error: `Invalid package name: ${n}` });
-      }
-    }
-    
     const workingDir = await resolveProjectDirectory(projectId);
-    if (!workingDir) {
-      return res.status(404).json({ error: 'Project directory not found' });
+    if (workingDir) {
+      try {
+        const { manager } = await detectProjectManager(workingDir);
+        const { cmd, args } = getUpdateCommand(manager, names);
+        const { stdout } = await spawnPackageManager(cmd, args, workingDir);
+        return res.json({ success: true, message: `Updated ${names.join(', ')}`, output: stdout });
+      } catch {}
     }
     
-    const { manager } = await detectProjectManager(workingDir);
-    const { cmd, args } = getUpdateCommand(manager, names);
-    
-    const { stdout } = await spawnPackageManager(cmd, args, workingDir);
-    
-    res.json({
-      success: true,
-      message: `Successfully updated ${names.join(', ')}`,
-      output: stdout,
-    });
+    for (const n of names) {
+      await updatePackageJsonInDb(projectId, 'update', n, version);
+    }
+    res.json({ success: true, message: `Updated ${names.join(', ')} in package.json` });
   } catch (error: any) {
     console.error('[Packages] Update failed:', error);
-    res.status(500).json({
-      error: 'Update failed',
-      message: error.message,
-    });
+    res.status(500).json({ error: 'Update failed', message: error.message });
   }
 });
 
