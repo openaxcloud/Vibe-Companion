@@ -116,8 +116,16 @@ Platform Details:
 - Operating System: Linux-based containerized environment (similar to Replit)
 - Shell: Bash with full command-line utilities
 - Package Managers: npm (Node.js), pip (Python), cargo (Rust), go mod (Go)
-- Database: PostgreSQL (Neon serverless) with Drizzle ORM
+- Database: PostgreSQL with Drizzle ORM (auto-provisioned per project)
 - File System: Accessible via standard fs operations
+
+Auto-Provisioned Database:
+- Every project gets a PostgreSQL database schema automatically on creation.
+- The DATABASE_URL environment variable is pre-configured and available via process.env.DATABASE_URL.
+- The database uses a project-scoped schema (proj_{projectId}) within the platform PostgreSQL instance.
+- Use Drizzle ORM with the schema defined in shared/schema.ts to interact with the database.
+- Tables can be created via Drizzle migrations (npm run db:push) or raw SQL in the Database panel's SQL tab.
+- No manual database setup or configuration is required by the user.
 
 Technology Stack:
 Frontend:

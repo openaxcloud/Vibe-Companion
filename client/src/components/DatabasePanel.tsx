@@ -89,13 +89,13 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
       try {
         const res = await fetch(`/api/projects/${projectId}/database/tables?env=${dbEnv}`, { credentials: "include", signal: controller.signal });
         clearTimeout(timeout);
-        if (!res.ok) return [];
+        if (!res.ok) throw new Error(`Database connection failed (${res.status})`);
         const data = await res.json();
-        if (data.error) return [];
+        if (data.error) throw new Error(data.error);
         return data.tables || [];
-      } catch {
+      } catch (err) {
         clearTimeout(timeout);
-        return [];
+        throw err;
       }
     },
     retry: 1,
@@ -419,7 +419,20 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
             {tablesQuery.isLoading && (
               <div className="px-3 py-2"><Loader2 className="w-3.5 h-3.5 text-[var(--ide-text-muted)] animate-spin" /></div>
             )}
-            {tables.length > 0 && (
+            {tablesQuery.isError && (
+              <div className="flex flex-col items-center justify-center py-8 px-4 gap-2" data-testid="db-error-message">
+                <AlertTriangle className="w-6 h-6 text-amber-400" />
+                <p className="text-[11px] text-[var(--ide-text-muted)] text-center">Failed to connect to database</p>
+                <button
+                  onClick={() => tablesQuery.refetch()}
+                  className="mt-1 text-[10px] px-3 py-1 rounded bg-[var(--ide-surface)] text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/80 transition-colors border border-[var(--ide-border)]"
+                  data-testid="button-retry-db"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {!tablesQuery.isError && tables.length > 0 && (
               <div className="max-h-[160px] overflow-y-auto">
                 {tables.map((table) => (
                   <div key={table}>
@@ -447,13 +460,20 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
                 ))}
               </div>
             )}
-            {tables.length === 0 && !tablesQuery.isLoading && (
-              <div className="flex flex-col items-center justify-center py-8 px-4 gap-2" data-testid="no-database-message">
+            {tables.length === 0 && !tablesQuery.isLoading && !tablesQuery.isError && (
+              <div className="flex flex-col items-center justify-center py-8 px-4 gap-2" data-testid="empty-tables-message">
                 <Database className="w-7 h-7 text-[var(--ide-text-muted)] opacity-40" />
-                <p className="text-[11px] font-medium text-[var(--ide-text-muted)]">No database</p>
+                <p className="text-[11px] font-medium text-[var(--ide-text-muted)]">Tables (0)</p>
                 <p className="text-[10px] text-[var(--ide-text-muted)] opacity-70 text-center">
-                  Create tables using the SQL tab or configure DATABASE_URL.
+                  Your database is ready. Use the SQL tab to create tables.
                 </p>
+                <button
+                  onClick={() => setActiveTab("sql")}
+                  className="mt-1 text-[10px] px-3 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 transition-colors"
+                  data-testid="button-open-sql-tab"
+                >
+                  Open SQL Runner
+                </button>
               </div>
             )}
           </div>

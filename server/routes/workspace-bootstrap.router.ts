@@ -132,6 +132,16 @@ router.post('/bootstrap', csrfProtection, async (req: Request, res: Response) =>
 
     logger.info(`[Bootstrap] Project created: ${project.id} for user ${userId}`);
 
+    (async () => {
+      try {
+        const { autoProvisionProjectDatabase } = await import('../utils/project-db-provision');
+        await autoProvisionProjectDatabase(String(project.id), String(userId));
+        logger.info(`[Bootstrap] Database auto-provisioned for project ${project.id}`);
+      } catch (dbErr: any) {
+        logger.warn(`[Bootstrap] DB auto-provision failed for project ${project.id}: ${dbErr.message}`);
+      }
+    })();
+
     return res.json({ success: true, projectId: project.id, bootstrapToken });
   } catch (error: any) {
     logger.error("[Bootstrap] Error:", error);

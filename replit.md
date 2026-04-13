@@ -50,7 +50,7 @@ Editor engine preference stored in `localStorage("editor-engine")`. Toggle avail
 
 **Developer Tools**: Includes a customizable Keyboard Shortcuts system, a structured Console Panel with run history, an AI Plan Mode for generating structured task lists, and a comprehensive User Settings panel. Dependency Management features a package panel with registry search, import guessing, and version pinning. SSH Panel and Key Management allow users to add and manage SSH public keys for remote access.
 
-**Storage and Database**: Each project receives its own PostgreSQL schema for data isolation. A Database Panel provides a table browser, SQL Runner, and masked credentials display. An App Storage v2 system offers bucket-based object storage with folder organization, access management, and quota enforcement.
+**Storage and Database**: Every project automatically gets its own PostgreSQL schema (`proj_{projectId}`) on creation via `autoProvisionProjectDatabase()` in `server/utils/project-db-provision.ts`. The `DATABASE_URL` and `PGSCHEMA` are stored as encrypted project env vars. The Database Panel shows "Tables (0)" with a SQL Runner link when empty (not "No database"). Legacy `ensureProjectSchema` in `legacy-database-viewer.ts` lazy-creates schemas for older projects. An App Storage v2 system offers bucket-based object storage with folder organization, access management, and quota enforcement.
 
 **Key Features**:
 - **Workflows**: Multi-step build/run pipelines with configurable triggers and execution modes.

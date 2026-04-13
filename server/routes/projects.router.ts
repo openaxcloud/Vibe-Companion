@@ -483,30 +483,26 @@ export class ProjectsRouter {
           projectLogger.warn(`[Projects] Failed to initialize memory bank for project ${project.id}:`, mbError);
         }
         
-        // Auto-provision database ASYNCHRONOUSLY like Replit
-        // This ensures project creation is fast while database provisions in background
-        const databaseInfo: { provisioned: boolean; status: string; message: string; connectionUrl?: string; database?: any } = {
+        const databaseInfo: { provisioned: boolean; status: string; message: string } = {
           provisioned: false,
           status: 'provisioning',
-          message: 'Database is being provisioned in the background'
+          message: 'Database is being provisioned'
         };
-        
-        // Fire-and-forget: Start provisioning in background without blocking response
-        // This prevents API timeout issues when Neon/K8s providers take 45-60s
-        import('../services/project-database-provisioning.service').then(async ({ projectDatabaseService }) => {
+
+        (async () => {
           try {
-            const database = await projectDatabaseService.provisionDatabase(project.id, {
-              plan: 'free',
-              region: 'us-east-1'
-            });
-            projectLogger.info(`[Projects] Database auto-provisioned for project ${project.id}: ${database.database}`);
+            const { autoProvisionProjectDatabase } = await import('../utils/project-db-provision');
+            const result = await autoProvisionProjectDatabase(String(project.id), String(userId));
+            if (result.success) {
+              databaseInfo.provisioned = true;
+              databaseInfo.status = 'running';
+              databaseInfo.message = 'Database ready';
+              projectLogger.info(`[Projects] Database auto-provisioned for project ${project.id}`);
+            }
           } catch (dbError: any) {
-            // Log error - database can be provisioned later via agent or retry
             projectLogger.warn(`[Projects] Failed to auto-provision database for project ${project.id}:`, dbError);
           }
-        }).catch((importErr) => {
-          projectLogger.error(`[Projects] Failed to import database provisioning service:`, importErr);
-        });
+        })();
         
         const owner = await this.storage.getUser(String(userId));
         

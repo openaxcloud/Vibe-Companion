@@ -106,13 +106,13 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
       try {
         const res = await fetch(`/api/projects/${projectId}/database/tables?env=${dbEnv}`, { credentials: 'include', signal: controller.signal });
         clearTimeout(timeout);
-        if (!res.ok) return [];
+        if (!res.ok) throw new Error(`Database connection failed (${res.status})`);
         const data = await res.json();
-        if (data.error) return [];
+        if (data.error) throw new Error(data.error);
         return data.tables || [];
-      } catch {
+      } catch (err) {
         clearTimeout(timeout);
-        return [];
+        throw err;
       }
     },
     retry: 1,
@@ -367,12 +367,12 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
                 </div>
 
                 {noDatabase && (
-                  <div className="flex flex-col items-center justify-center py-8 px-4 gap-3" data-testid="no-database-message">
+                  <div className="flex flex-col items-center justify-center py-8 px-4 gap-3" data-testid="empty-tables-message">
                     <Database className="w-8 h-8 text-[var(--ide-text-muted)] opacity-40" />
                     <div className="text-center">
-                      <p className="text-[12px] font-medium text-[var(--ide-text-muted)]">No database configured</p>
+                      <p className="text-[12px] font-medium text-[var(--ide-text-muted)]">Tables (0)</p>
                       <p className="text-[10px] text-[var(--ide-text-muted)] mt-1 opacity-70">
-                        Create tables using the SQL tab or configure DATABASE_URL in your project settings.
+                        Your database is ready. Use the SQL tab to create tables.
                       </p>
                     </div>
                     <Button
