@@ -1624,13 +1624,6 @@ function UnifiedIDELayout({
           isConnected={isConnected}
         />
 
-        {/* Floating Play/Stop FAB */}
-        <MobileFAB
-          projectId={projectId}
-          isRunning={isRunning}
-          onPlayStop={handleRunStop}
-        />
-
         {/* BottomSheet wrapper for More Menu */}
         <BottomSheet
           isOpen={showMobileMoreMenu}
@@ -1872,12 +1865,6 @@ function UnifiedIDELayout({
             isConnected={isConnected}
           />
 
-          {/* Floating Play/Stop FAB for Tablet */}
-          <MobileFAB
-            projectId={projectId}
-            isRunning={isRunning}
-            onPlayStop={handleRunStop}
-          />
         </div>
 
         {showCommandPalette && (

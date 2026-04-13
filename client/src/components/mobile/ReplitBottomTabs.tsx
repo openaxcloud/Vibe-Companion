@@ -129,57 +129,24 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
         />
       </div>
 
-      <div className="absolute -top-8 left-0 right-0 px-4 flex items-center justify-between pointer-events-none">
-        <div
-          className="flex items-center gap-1 px-2 py-0.5 rounded-full pointer-events-auto animate-fade-in"
-          style={{
-            background: '#1C2333',
-            border: `1px solid ${isConnected ? '#22c55e' : '#ef4444'}`,
-            boxShadow: isConnected ? '0 2px 8px -2px #22c55e' : '0 2px 8px -2px #ef4444',
-          }}
-          data-testid="indicator-connection-status"
-        >
-          <div className={isConnected ? 'animate-pulse-slow' : ''}>
-            {isConnected ? <Wifi className="h-3 w-3 text-green-500" /> : <WifiOff className="h-3 w-3 text-red-500" />}
-          </div>
-          <span
-            className="text-[11px] font-semibold uppercase tracking-wider"
+      {!isConnected && (
+        <div className="absolute -top-5 left-4 pointer-events-none z-10">
+          <div
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded-full animate-fade-in pointer-events-auto"
             style={{
-              color: isConnected ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)',
-              fontFamily: 'var(--ecode-font-sans)',
+              background: '#1C2333',
+              border: '1px solid #ef4444',
+              boxShadow: '0 1px 4px -1px #ef4444',
             }}
+            data-testid="indicator-connection-status"
           >
-            {isConnected ? 'Live' : 'Offline'}
-          </span>
+            <WifiOff className="h-2.5 w-2.5 text-red-500" />
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-red-500" style={{ fontFamily: 'var(--ecode-font-sans)' }}>
+              Offline
+            </span>
+          </div>
         </div>
-
-        <div className="flex items-center gap-2 pointer-events-auto">
-          {badgeCounts.errors && badgeCounts.errors > 0 && (
-            <div
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded-full animate-scale-in"
-              style={{ background: '#1C2333', border: '1px solid #ef4444', boxShadow: '0 2px 8px -2px #ef4444' }}
-              data-testid="indicator-errors"
-            >
-              <AlertCircle className="h-3 w-3 text-red-500" />
-              <span className="text-[11px] font-bold text-red-500" style={{ fontFamily: 'var(--ecode-font-sans)' }}>
-                {badgeCounts.errors}
-              </span>
-            </div>
-          )}
-          {badgeCounts.git && badgeCounts.git > 0 && (
-            <div
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded-full animate-scale-in"
-              style={{ background: '#1C2333', border: '1px solid #3D4455', boxShadow: '0 2px 6px -2px #0E1525' }}
-              data-testid="indicator-git-changes"
-            >
-              <GitBranch className="h-3 w-3 text-[var(--ecode-text-muted)]" />
-              <span className="text-[11px] font-semibold text-[var(--ecode-text-muted)]" style={{ fontFamily: 'var(--ecode-font-sans)' }}>
-                {badgeCounts.git}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       <nav
         className={cn(
