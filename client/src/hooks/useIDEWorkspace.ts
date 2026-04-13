@@ -466,22 +466,22 @@ export function useIDEWorkspace(projectId: string) {
   const handleRunStop = useCallback(async () => {
     if (isRunning) {
       try {
-        await apiRequest('POST', '/api/runtime/stop', { projectId, executionId });
+        await apiRequest('POST', `/api/preview/projects/${projectId}/preview/stop`, {});
       } catch (_) {}
       setIsRunning(false);
       setExecutionId(undefined);
     } else {
       try {
-        const data = await apiRequest<{ success?: boolean; executionId?: string }>(
-          'POST', '/api/runtime/start', { projectId, mainFile: undefined, timeout: 30000 }
-        );
         setIsRunning(true);
+        const data = await apiRequest<{ success?: boolean; url?: string; executionId?: string }>(
+          'POST', `/api/preview/projects/${projectId}/preview/start`, {}
+        );
         if (data?.executionId) setExecutionId(data.executionId);
       } catch (_) {
         setIsRunning(false);
       }
     }
-  }, [isRunning, projectId, executionId, setIsRunning, setExecutionId]);
+  }, [isRunning, projectId, setIsRunning, setExecutionId]);
 
   const handleFileSelect = useCallback((file: { id: string | number; name?: string; filename?: string }) => {
     const fId = String(file.id);
