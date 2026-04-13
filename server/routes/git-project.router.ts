@@ -196,20 +196,27 @@ router.post('/:projectId/commit', ensureAuthenticated, async (req: Request, res:
   }
   try {
     const projectDir = await getProjectDir(projectId);
+    await syncProjectFiles(projectId, projectDir);
     await ensureGitInitialized(projectDir);
     if (files && files.length > 0) {
       await execa('git', ['add', '--', ...files], { cwd: projectDir });
     } else {
-      await execa('git', ['add', '.'], { cwd: projectDir });
+      await execa('git', ['add', '-A'], { cwd: projectDir });
+    }
+    const { stdout: statusOut } = await execa('git', ['status', '--porcelain'], { cwd: projectDir });
+    if (!statusOut.trim()) {
+      return res.json({ success: true, hash: '', message: 'Nothing to commit, working tree clean' });
     }
     const { stdout } = await execa('git', ['commit', '-m', message], { cwd: projectDir });
     const hashRes = await execa('git', ['rev-parse', 'HEAD'], { cwd: projectDir }).catch(() => ({ stdout: '' }));
-    res.json({ success: true, hash: hashRes.stdout.trim().substring(0, 7), message: stdout });
+    const changedCount = statusOut.trim().split('\n').length;
+    res.json({ success: true, hash: hashRes.stdout.trim(), filesChanged: changedCount, message: stdout });
   } catch (error: any) {
-    if (error.message?.includes('nothing to commit')) {
-      return res.json({ success: true, message: 'Nothing to commit' });
+    if (error.stderr?.includes('nothing to commit') || error.message?.includes('nothing to commit')) {
+      return res.json({ success: true, hash: '', message: 'Nothing to commit, working tree clean' });
     }
-    res.status(500).json({ error: error.message });
+    logger.error('Git commit failed:', error.message || error);
+    res.status(500).json({ error: error.message || 'Commit failed' });
   }
 });
 
