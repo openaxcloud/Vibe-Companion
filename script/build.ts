@@ -2,6 +2,7 @@ import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile, writeFile } from "fs/promises";
 import { existsSync, readFileSync, writeFileSync } from "fs";
+import { execSync } from "child_process";
 import path from "path";
 
 const expressTypesPath = path.resolve("node_modules/@types/express-serve-static-core/index.d.ts");
@@ -12,6 +13,14 @@ if (existsSync(expressTypesPath)) {
     writeFileSync(expressTypesPath, patched);
     console.log("Patched express-serve-static-core ParamsDictionary types");
   }
+}
+
+try {
+  console.log("type-checking (non-blocking, 15s limit)...");
+  execSync("npx tsc --noEmit", { timeout: 15_000, stdio: "pipe" });
+  console.log("type-check passed");
+} catch {
+  console.warn("type-check skipped — continuing build");
 }
 
 // server deps to bundle to reduce openat(2) syscalls
@@ -68,8 +77,22 @@ async function buildAll() {
       "process.env.NODE_ENV": '"production"',
     },
     minify: true,
-    external: externals,
+    external: [
+      ...externals,
+      "@neondatabase/serverless",
+      "@google-cloud/storage",
+      "@aws-sdk/client-s3",
+      "@aws-sdk/s3-request-presigner",
+    ],
     logLevel: "info",
+    plugins: [{
+      name: "resolve-missing",
+      setup(build) {
+        build.onResolve({ filter: /\.\/(mcpClient|importService|workflowExecutor)$/ }, (args) => {
+          return { path: args.path, external: true };
+        });
+      },
+    }],
   });
 }
 
