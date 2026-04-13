@@ -825,6 +825,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } catch {}
     return "claude";
   });
+  const [liveModels, setLiveModels] = useState<Array<{id: string; name: string; provider: string; description: string}>>([]);
   const [openrouterModel, setOpenrouterModel] = useState<string>("meta-llama/llama-3.3-70b-instruct");
   const [openrouterModels, setOpenrouterModels] = useState<OpenRouterModel[]>([]);
   const [openrouterSearch, setOpenrouterSearch] = useState("");
@@ -898,6 +899,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             setModel(mapped);
             try { localStorage.setItem("ai-preferred-model", mapped); } catch {}
           }
+        }
+      })
+      .catch(() => {});
+    fetch("/api/models", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.models && Array.isArray(data.models)) {
+          setLiveModels(data.models);
         }
       })
       .catch(() => {});
@@ -4368,38 +4377,48 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                       <ChevronDown className="w-2.5 h-2.5 opacity-60" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
-                    {([
-                      { key: "claude" as AIModel, name: "Claude Sonnet 4", badge: "Anthropic", color: "#7C65CB", icon: Sparkles, isExternal: false },
-                      { key: "gpt" as AIModel, name: "GPT-4.1", badge: "OpenAI", color: "#0CCE6B", icon: Zap, isExternal: false },
-                      { key: "gemini" as AIModel, name: "Gemini 2.5 Flash", badge: "Google", color: "#4285F4", icon: Zap, isExternal: false },
-                      { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe, isExternal: false },
-                      { key: "openhands" as AIModel, name: "OpenHands", badge: "AI Agent", color: "#10B981", icon: Globe, isExternal: true },
-                      { key: "goose" as AIModel, name: "Goose", badge: "AI Agent", color: "#F97316", icon: Terminal, isExternal: true },
-                    ]).map(m => {
-                      const cred = getCredLabel(m.key);
-                      const MdlIcon = m.icon;
-                      const isSelected = displayModel === m.key;
-                      return (
-                        <DropdownMenuItem key={m.key} className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { if (m.isExternal) { setAgentProvider(m.key as "openhands" | "goose"); try { localStorage.setItem("ai-agent-provider", m.key); } catch {} } else { setModel(m.key); setAgentProvider("builtin"); try { localStorage.setItem("ai-preferred-model", m.key); localStorage.setItem("ai-agent-provider", "builtin"); } catch {} if (m.key === "openrouter") setShowOpenrouterPicker(true); } }} data-testid={`model-${m.key}`}>
-                          <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: `${m.color}15` }}>
-                            <MdlIcon className="w-3 h-3" style={{ color: m.color }} />
-                          </div>
-                          <div className="flex flex-col flex-1 min-w-0">
-                            <span className="font-medium">{m.name}</span>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-[var(--ide-text-muted)]">{m.badge}</span>
-                              {projectId && !m.isExternal && (
-                                <span className={`text-[9px] px-1 rounded ${cred.isManaged ? "bg-[#0079F2]/10 text-[#0079F2]" : "bg-[#0CCE6B]/10 text-[#0CCE6B]"}`} data-testid={`cred-label-${m.key}`}>
-                                  {cred.isManaged ? "Vibe Companion managed" : "Your key"}
-                                </span>
-                              )}
+                  <DropdownMenuContent align="start" className="w-72 max-h-[400px] overflow-y-auto bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
+                    {(() => {
+                      const providerMeta: Record<string, { color: string; icon: typeof Sparkles; groupKey: AIModel; isExternal: boolean }> = {
+                        openai: { color: "#0CCE6B", icon: Zap, groupKey: "gpt", isExternal: false },
+                        anthropic: { color: "#7C65CB", icon: Sparkles, groupKey: "claude", isExternal: false },
+                        gemini: { color: "#4285F4", icon: Zap, groupKey: "gemini", isExternal: false },
+                        openhands: { color: "#10B981", icon: Globe, groupKey: "openhands", isExternal: true },
+                        goose: { color: "#F97316", icon: Terminal, groupKey: "goose", isExternal: true },
+                      };
+                      const defaultMeta = { color: "#9CA3AF", icon: Zap, groupKey: "gpt" as AIModel, isExternal: false };
+                      return liveModels.map(lm => {
+                        const meta = providerMeta[lm.provider] || defaultMeta;
+                        const MdlIcon = meta.icon;
+                        const modelKey = meta.isExternal ? meta.groupKey : meta.groupKey;
+                        const isSelected = meta.isExternal ? (agentProvider === lm.provider) : (agentProvider === "builtin" && model === meta.groupKey && (
+                          meta.groupKey === "gpt" ? lm.id.startsWith("gpt") || lm.id.startsWith("o3") || lm.id.startsWith("o4") :
+                          meta.groupKey === "claude" ? lm.id.startsWith("claude") :
+                          meta.groupKey === "gemini" ? lm.id.startsWith("gemini") : false
+                        ));
+                        return (
+                          <DropdownMenuItem key={lm.id} className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => {
+                            if (meta.isExternal) {
+                              setAgentProvider(lm.provider as "openhands" | "goose");
+                              try { localStorage.setItem("ai-agent-provider", lm.provider); } catch {}
+                            } else {
+                              setModel(meta.groupKey);
+                              setAgentProvider("builtin");
+                              try { localStorage.setItem("ai-preferred-model", meta.groupKey); localStorage.setItem("ai-agent-provider", "builtin"); } catch {}
+                            }
+                          }} data-testid={`model-${lm.id}`}>
+                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: `${meta.color}15` }}>
+                              <MdlIcon className="w-3 h-3" style={{ color: meta.color }} />
                             </div>
-                          </div>
-                          {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
-                        </DropdownMenuItem>
-                      );
-                    })}
+                            <div className="flex flex-col flex-1 min-w-0">
+                              <span className="font-medium">{lm.name}</span>
+                              <span className="text-[10px] text-[var(--ide-text-muted)]">{lm.description}</span>
+                            </div>
+                            {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
+                          </DropdownMenuItem>
+                        );
+                      });
+                    })()}
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <div className={`relative rounded-md ${topMode === "plan" ? "p-[1px]" : ""}`}
