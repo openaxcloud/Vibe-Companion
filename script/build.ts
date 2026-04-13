@@ -91,6 +91,29 @@ async function buildAll() {
         build.onResolve({ filter: /\.\/(mcpClient|importService|workflowExecutor)$/ }, (args) => {
           return { path: args.path, external: true };
         });
+        build.onResolve({ filter: /\.\/vite$/ }, (args) => {
+          if (args.importer.includes("server")) {
+            return { path: args.path, namespace: "vite-stub" };
+          }
+        });
+        build.onLoad({ filter: /.*/, namespace: "vite-stub" }, () => {
+          return {
+            contents: `
+              function log(message, source) {
+                source = source || "express";
+                var formattedTime = new Date().toLocaleTimeString("en-US", {
+                  hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true
+                });
+                console.log(formattedTime + " [" + source + "] " + message);
+              }
+              module.exports.log = log;
+              module.exports.setupVite = function() { throw new Error("setupVite not available in production"); };
+              module.exports.serveStatic = require("./static").serveStatic;
+            `,
+            loader: "js",
+            resolveDir: path.resolve("server"),
+          };
+        });
       },
     }],
   });
