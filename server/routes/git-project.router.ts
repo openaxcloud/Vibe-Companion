@@ -23,8 +23,10 @@ async function syncProjectFiles(projectId: string, projectDir: string): Promise<
     const files = await storage.getFilesByProjectId(projectId);
     if (!files || files.length === 0) return;
     for (const file of files) {
-      if (file.isDirectory || !file.content) continue;
-      const filePath = path.join(projectDir, file.path || file.name);
+      const fn = (file as any).filename || (file as any).path || (file as any).name;
+      if (file.isDirectory || !file.content || !fn) continue;
+      const filePath = path.resolve(projectDir, fn);
+      if (!filePath.startsWith(projectDir)) continue;
       const fileDir = path.dirname(filePath);
       await fs.mkdir(fileDir, { recursive: true });
       await fs.writeFile(filePath, file.content || '', 'utf8');

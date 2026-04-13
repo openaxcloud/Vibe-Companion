@@ -100,7 +100,7 @@ async function fetchProjectEnvVars(projectId: string): Promise<Record<string, st
   const vars: Record<string, string> = {};
   try {
     const envVars = await db.query.environmentVariables.findMany({
-      where: eq(environmentVariables.projectId, parseInt(projectId, 10)),
+      where: eq(environmentVariables.projectId, projectId),
     });
     for (const envVar of envVars) {
       if (envVar.key && envVar.value) {
@@ -226,20 +226,22 @@ export class PreviewService {
 
   private async ensureProjectAccess(req: any, res: any, next: any) {
     try {
-      const projectId = parseInt(req.params.projectId);
-      if (isNaN(projectId)) {
+      const projectId = req.params.projectId;
+      if (!projectId || typeof projectId !== 'string' || projectId.trim().length === 0) {
         return res.status(400).json({ error: 'Invalid project ID' });
       }
       const project = await storage.getProject(projectId);
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
       }
-      if (project.ownerId !== req.user?.id) {
-        const collaborators = await storage.getProjectCollaborators?.(String(projectId));
-        const isCollaborator = collaborators?.some((c: any) => c.userId === req.user?.id);
-        if (!isCollaborator) {
-          return res.status(403).json({ error: 'Access denied' });
-        }
+      const userId = req.user?.id;
+      if ((project as any).userId === userId || (project as any).ownerId === userId) {
+        return next();
+      }
+      const collaborators = await storage.getProjectCollaborators?.(projectId);
+      const isCollaborator = collaborators?.some((c: any) => c.userId === userId);
+      if (!isCollaborator) {
+        return res.status(403).json({ error: 'Access denied' });
       }
       next();
     } catch (error) {
@@ -440,7 +442,7 @@ export class PreviewService {
     // Get project files from the database
     let files: any[];
     try {
-      files = await storage.getFilesByProject(projectId);
+      files = await storage.getFiles(projectId);
     } catch (err: any) {
       logger.error(`Failed to read files for project ${projectId}: ${err.message}`);
       const errInstance = this.makeErrorInstance(projectId, runId, `Failed to read project files: ${err.message}`);
@@ -471,7 +473,7 @@ export class PreviewService {
 
       for (const file of files) {
         if (file.isDirectory || file.isFolder) continue;
-        const relPath = file.path || file.name;
+        const relPath = file.path || file.filename || file.name;
         currentPaths.add(relPath);
         const content = file.content || '';
         const hash = contentHash(content);
@@ -668,10 +670,11 @@ export class PreviewService {
   }
 
   private async detectFramework(files: any[], previewPath: string) {
-    const packageJsonFile = files.find(f => f.name === 'package.json');
-    const hasIndexHtml = files.some(f => f.name === 'index.html');
-    const hasPythonFiles = files.some(f => f.name.endsWith('.py'));
-    const hasRequirementsTxt = files.some(f => f.name === 'requirements.txt');
+    const fname = (f: any): string => f.filename || f.name || f.path || '';
+    const packageJsonFile = files.find(f => fname(f) === 'package.json');
+    const hasIndexHtml = files.some(f => fname(f) === 'index.html');
+    const hasPythonFiles = files.some(f => fname(f).endsWith('.py'));
+    const hasRequirementsTxt = files.some(f => fname(f) === 'requirements.txt');
 
     if (packageJsonFile) {
       const packageJson = JSON.parse(packageJsonFile.content || '{}');
@@ -708,12 +711,12 @@ export class PreviewService {
     }
     
     let startCommand: string[] = [];
-    if (frameworkInfo.packageJson.scripts?.dev) {
+    if (frameworkInfo.hasVite) {
+      startCommand = ['npx', 'vite', '--port', port.toString(), '--host', '127.0.0.1'];
+    } else if (frameworkInfo.packageJson.scripts?.dev) {
       startCommand = ['npm', 'run', 'dev'];
     } else if (frameworkInfo.packageJson.scripts?.start) {
       startCommand = ['npm', 'start'];
-    } else if (frameworkInfo.hasVite) {
-      startCommand = ['npx', 'vite', '--port', port.toString(), '--host'];
     } else {
       await this.startStaticServer(preview, previewPath);
       return;
@@ -798,6 +801,7 @@ export class PreviewService {
   }
 
   private async startPythonApplication(preview: PreviewInstance, frameworkInfo: any, previewPath: string, files: any[], projectEnvVars: Record<string, string> = {}) {
+    const fname = (f: any): string => f.filename || f.name || f.path || '';
     const port = preview.primaryPort;
     preview.logs.push('Starting Python application...');
     
@@ -805,12 +809,15 @@ export class PreviewService {
       await this.runCommand('pip', ['install', '-r', 'requirements.txt'], previewPath);
     }
     
-    const mainFile = files.find(f => f.name === 'main.py' || f.name === 'app.py' || f.name === 'server.py');
+    const mainFile = files.find(f => {
+      const n = fname(f);
+      return n === 'main.py' || n === 'app.py' || n === 'server.py';
+    });
     if (!mainFile) {
       throw new Error('No main Python file found (main.py, app.py, or server.py)');
     }
 
-    const pythonProcess = spawn('python', [mainFile.name], {
+    const pythonProcess = spawn('python', [fname(mainFile)], {
       cwd: previewPath,
       env: createSafeEnv({ ...projectEnvVars, PORT: port.toString() })
     });

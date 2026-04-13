@@ -150,34 +150,46 @@ export function getLanguageRecommendations(dependencies: any): string[] {
  */
 export async function startProjectRuntime(req: Request, res: Response) {
   try {
-    const projectId = parseInt(req.params.id);
+    const projectId = req.params.id || req.body.projectId;
     
-    if (isNaN(projectId)) {
+    if (!projectId) {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
     logger.info(`Starting runtime for project ${projectId}`);
     
-    // Get project details
-    const project = await storage.getProject(projectId);
+    const project = await storage.getProject(String(projectId));
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
     }
     
-    // Get project files
-    const files = await storage.getFilesByProject(projectId);
+    const files = await storage.getFiles(String(projectId));
     if (!files.length) {
       return res.status(400).json({ message: 'No files found in project' });
     }
     
-    // Get options from request
+    try {
+      const { previewService } = await import('../preview/preview-service');
+      const preview = await previewService.startPreviewFromProject(String(projectId));
+      
+      return res.json({
+        success: true,
+        executionId: preview.runId,
+        port: preview.primaryPort,
+        url: preview.url,
+        status: preview.status,
+        logs: preview.logs
+      });
+    } catch (previewErr: any) {
+      logger.error(`Preview service failed, falling back to runtime manager: ${previewErr.message}`);
+    }
+    
     const options: runtimeManager.StartProjectOptions = {
       useNix: req.body.useNix === true,
       port: req.body.port,
       environmentVariables: req.body.environmentVariables
     };
     
-    // If Nix is requested, add Nix options
     if (options.useNix && req.body.nixOptions) {
       options.nixOptions = {
         packages: req.body.nixOptions.packages,
@@ -187,7 +199,6 @@ export async function startProjectRuntime(req: Request, res: Response) {
       };
     }
     
-    // Start the project
     const result = await runtimeManager.startProject(project, files, options);
     
     if (!result.success) {
@@ -220,16 +231,21 @@ export async function startProjectRuntime(req: Request, res: Response) {
  */
 export async function stopProjectRuntime(req: Request, res: Response) {
   try {
-    const projectId = parseInt(req.params.id);
+    const projectId = req.params.id || req.body.projectId;
     
-    if (isNaN(projectId)) {
+    if (!projectId) {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
     logger.info(`Stopping runtime for project ${projectId}`);
     
-    // Stop the project
-    const result = await runtimeManager.stopProject(projectId);
+    try {
+      const { previewService } = await import('../preview/preview-service');
+      await previewService.stopPreview(String(projectId));
+    } catch (e: any) {}
+    
+    const numericId = parseInt(String(projectId), 10);
+    const result = isNaN(numericId) ? true : await runtimeManager.stopProject(numericId);
     
     if (!result) {
       return res.status(500).json({
@@ -256,16 +272,18 @@ export async function stopProjectRuntime(req: Request, res: Response) {
  */
 export function getProjectRuntimeStatus(req: Request, res: Response) {
   try {
-    const projectId = parseInt(req.params.id);
+    const projectId = req.params.id;
     
-    if (isNaN(projectId)) {
+    if (!projectId) {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
     logger.info(`Getting runtime status for project ${projectId}`);
     
-    // Get runtime status
-    const status = runtimeManager.getProjectStatus(projectId);
+    const numericId = parseInt(String(projectId), 10);
+    const status = isNaN(numericId) 
+      ? { status: 'stopped', logs: [] }
+      : runtimeManager.getProjectStatus(numericId);
     
     res.json(status);
   } catch (error) {
@@ -284,9 +302,9 @@ export function getProjectRuntimeStatus(req: Request, res: Response) {
  */
 export async function executeProjectCommand(req: Request, res: Response) {
   try {
-    const projectId = parseInt(req.params.id);
+    const projectId = req.params.id;
     
-    if (isNaN(projectId)) {
+    if (!projectId) {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
@@ -298,8 +316,11 @@ export async function executeProjectCommand(req: Request, res: Response) {
     
     logger.info(`Executing command in project ${projectId}: ${command}`);
     
-    // Execute the command
-    const result = await runtimeManager.executeCommand(projectId, command);
+    const numericId = parseInt(String(projectId), 10);
+    if (isNaN(numericId)) {
+      return res.json({ success: false, output: 'Runtime execution not available for this project type' });
+    }
+    const result = await runtimeManager.executeCommand(numericId, command);
     
     res.json(result);
   } catch (error) {
@@ -320,16 +341,18 @@ export async function executeProjectCommand(req: Request, res: Response) {
  */
 export function getProjectRuntimeLogs(req: Request, res: Response) {
   try {
-    const projectId = parseInt(req.params.id);
+    const projectId = req.params.id;
     
-    if (isNaN(projectId)) {
+    if (!projectId) {
       return res.status(400).json({ message: 'Invalid project ID' });
     }
     
     logger.info(`Getting runtime logs for project ${projectId}`);
     
-    // Get runtime status which includes logs
-    const status = runtimeManager.getProjectStatus(projectId);
+    const numericId = parseInt(String(projectId), 10);
+    const status = isNaN(numericId)
+      ? { logs: [] }
+      : runtimeManager.getProjectStatus(numericId);
     
     res.json({
       logs: status.logs || []

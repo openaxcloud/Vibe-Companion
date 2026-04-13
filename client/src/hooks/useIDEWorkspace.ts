@@ -424,19 +424,16 @@ export function useIDEWorkspace(projectId: string) {
     setActiveTab(tabId);
   }, [files, isLoadingFiles, tabs, selectedFileId]);
 
-  // Auto-start runtime
   useEffect(() => {
     if (!runtimeAutoStarted && projectId && project && !isLoadingProject) {
       setRuntimeAutoStarted(true);
-      apiRequest<{ success?: boolean; executionId?: string }>('POST', '/api/runtime/start', {
-        projectId,
-        mainFile: undefined,
-        timeout: 30000
-      }).then((data) => {
-        setIsRunning(true);
-        if (data?.executionId) setExecutionId(data.executionId);
-      }).catch(() => {
-      });
+      apiRequest<{ success?: boolean; executionId?: string; preview?: any }>('POST', `/api/preview/projects/${projectId}/preview/start`, {})
+        .then((data) => {
+          setIsRunning(true);
+          if (data?.executionId) setExecutionId(data.executionId);
+          if (data?.preview?.runId) setExecutionId(data.preview.runId);
+        }).catch(() => {
+        });
     }
   }, [projectId, project, isLoadingProject, runtimeAutoStarted]);
 

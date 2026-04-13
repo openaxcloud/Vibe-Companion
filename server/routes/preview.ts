@@ -310,8 +310,7 @@ router.get('/url', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
     
-    // Check access permissions
-    if (project.ownerId !== userId) {
+    if ((project as any).userId !== userId && (project as any).ownerId !== userId) {
       const collaborators = await storage.getProjectCollaborators(projectId);
       const isCollaborator = collaborators.some((c: any) => c.userId === userId);
       
