@@ -29,8 +29,9 @@ import {
   Timer, DollarSign, Wifi, WifiOff, FileText, Terminal, Info, History,
   ArrowLeft, Shield, Link2, CheckCircle2, Cloud, HardDrive, Monitor,
   Calendar, Settings, Eye, EyeOff, Plus, Minus, ChevronDown, ChevronRight,
-  Database, MapPin, Lock, Unlock, Power, PowerOff,
+  Database, MapPin, Lock, Unlock, Power, PowerOff, QrCode,
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface ReplitDeploymentPanelProps {
   projectId: string;
@@ -297,38 +298,57 @@ export function ReplitDeploymentPanel({
 
   useEffect(() => {
     if (!isDeploying) return;
-    let startedAt: number;
-    try {
-      const ts = sessionStorage.getItem(`deploy-started-${projectId}`);
-      startedAt = ts ? Number(ts) : Date.now();
-    } catch { startedAt = Date.now(); }
 
-    const stages = ['Provisioning...', 'Security scan...', 'Building...', 'Bundling...', 'Promoting...'];
-    const totalDuration = 18000;
-
-    const tick = () => {
-      const elapsed = Date.now() - startedAt;
-      const pct = Math.min(Math.floor((elapsed / totalDuration) * 100), 95);
-      const stageIdx = Math.min(Math.floor(pct / 20), stages.length - 1);
-      setDeployProgress(pct);
-      setDeployStage(stages[stageIdx]);
-
-      if (pct >= 95) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setDeployProgress(100);
-          setDeployStage('Complete!');
-          setIsDeploying(false);
-          setView('overview');
-          setOverviewTab('overview');
-          refetchDeployment();
-        }, 2000);
-      }
+    const STATUS_TO_STAGE: Record<string, { stage: string; progress: number }> = {
+      pending: { stage: 'Provisioning...', progress: 10 },
+      building: { stage: 'Building...', progress: 40 },
+      deploying: { stage: 'Promoting...', progress: 75 },
+      active: { stage: 'Complete!', progress: 100 },
+      deployed: { stage: 'Complete!', progress: 100 },
+      live: { stage: 'Complete!', progress: 100 },
+      failed: { stage: 'Failed', progress: 0 },
     };
 
-    tick();
-    const interval = setInterval(tick, 800);
-    return () => clearInterval(interval);
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/publish/status`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        const deploymentStatus = data.publish?.deployment?.status || data.status || 'pending';
+        const mapped = STATUS_TO_STAGE[deploymentStatus] || { stage: 'Processing...', progress: 20 };
+
+        setDeployProgress(mapped.progress);
+        setDeployStage(mapped.stage);
+
+        if (deploymentStatus === 'active' || deploymentStatus === 'deployed' || deploymentStatus === 'live') {
+          setIsDeploying(false);
+          setDeployProgress(100);
+          setDeployStage('Complete!');
+          refetchDeployment();
+          setTimeout(() => {
+            setView('overview');
+            setOverviewTab('overview');
+          }, 1500);
+          return;
+        }
+
+        if (deploymentStatus === 'failed') {
+          setIsDeploying(false);
+          setDeployStage('Deployment failed');
+          toast({ title: 'Deployment failed', description: 'Check logs for details.', variant: 'destructive' });
+          return;
+        }
+      } catch {}
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [isDeploying]);
 
   const fetchLogsViaHTTP = useCallback(async (id: string) => {
@@ -1130,6 +1150,20 @@ export function ReplitDeploymentPanel({
               </div>
             </div>
           </div>
+
+          {isActive && deployment?.url && (
+            <div className="px-4 py-3 border-t border-[var(--ide-border)]">
+              <div className="flex items-center gap-4">
+                <div className="bg-white p-2 rounded" data-testid="qr-code-container">
+                  <QRCodeSVG value={deployment.url.startsWith('http') ? deployment.url : `https://${deployment.url}`} size={80} level="M" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[11px] font-semibold text-[var(--ide-text)] mb-1">Mobile Access</p>
+                  <p className="text-[10px] text-[var(--ide-text-muted)]">Scan the QR code to open your deployed app on a mobile device.</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <Separator className="border-[var(--ide-border)]" />
 

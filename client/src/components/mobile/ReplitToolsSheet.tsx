@@ -62,9 +62,9 @@ const tools: Tool[] = [
     category: 'tools',
   },
   {
-    id: 'publishing',
-    name: 'Publishing',
-    description: 'Publish a live, stable, public version of your App, unaffected by the changes you make in the workspace',
+    id: 'deploy',
+    name: 'Deploy',
+    description: 'Deploy a live, stable, public version of your App, unaffected by the changes you make in the workspace',
     icon: Rocket,
     category: 'tools',
   },
@@ -258,18 +258,18 @@ export function ReplitToolsSheet({ open, onOpenChange, onToolSelect }: ReplitToo
                         <div className={cn(
                           "flex items-center justify-center h-10 w-10 rounded-lg flex-shrink-0",
                           tool.id === 'agent' && "bg-surface-tertiary-solid",
-                          tool.id === 'publishing' && "bg-surface-solid",
+                          tool.id === 'deploy' && "bg-surface-solid",
                           tool.id === 'database' && "bg-surface-solid",
                           tool.id === 'git' && "bg-surface-solid",
-                          !['agent', 'publishing', 'database', 'git'].includes(tool.id) && "bg-surface-solid"
+                          !['agent', 'deploy', 'database', 'git'].includes(tool.id) && "bg-surface-solid"
                         )}>
                           <Icon className={cn(
                             "h-5 w-5",
                             tool.id === 'agent' && "text-primary",
-                            tool.id === 'publishing' && "text-green-600 dark:text-green-500",
+                            tool.id === 'deploy' && "text-green-600 dark:text-green-500",
                             tool.id === 'database' && "text-blue-600 dark:text-blue-500",
                             tool.id === 'git' && "text-orange-600 dark:text-orange-500",
-                            !['agent', 'publishing', 'database', 'git'].includes(tool.id) && "text-muted-foreground"
+                            !['agent', 'deploy', 'database', 'git'].includes(tool.id) && "text-muted-foreground"
                           )} />
                         </div>
                         <div className="flex-1 min-w-0">

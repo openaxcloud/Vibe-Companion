@@ -117,7 +117,6 @@ import MCPPanel from '@/components/MCPPanel';
 import MergeConflictPanel from '@/components/MergeConflictPanel';
 import MonitoringPanel from '@/components/MonitoringPanel';
 import NetworkingPanel from '@/components/NetworkingPanel';
-import PublishingPanel from '@/components/PublishingPanel';
 import SkillsPanel from '@/components/SkillsPanel';
 import SSHPanel from '@/components/SSHPanel';
 import ThreadsPanel from '@/components/ThreadsPanel';
@@ -419,9 +418,6 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'mcp':
         handleAddTool('mcp');
         break;
-      case 'publishing':
-        handleAddTool('publishing');
-        break;
       case 'ssh':
         handleAddTool('ssh');
         break;
@@ -596,7 +592,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     automations: 'Automations', config: 'Config', feedback: 'Feedback',
     github: 'GitHub', integrations: 'Integrations', mcp: 'MCP',
     'merge-conflicts': 'Merge Conflicts', monitoring: 'Monitoring',
-    networking: 'Networking', publishing: 'Publishing', skills: 'Skills',
+    networking: 'Networking', skills: 'Skills',
     ssh: 'SSH', threads: 'Threads', 'test-runner': 'Test Runner',
     'security-scanner': 'Scanner', backup: 'Backup',
   };
@@ -811,8 +807,6 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MonitoringPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'networking':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><NetworkingPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
-      case 'publishing':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><PublishingPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'skills':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SkillsPanel projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'ssh':
@@ -856,7 +850,6 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             onOpenMergeConflicts={() => handleAddOpenTab('merge-conflicts')}
             onOpenMonitoring={() => handleAddOpenTab('monitoring')}
             onOpenNetworking={() => handleAddOpenTab('networking')}
-            onOpenPublishing={() => handleAddOpenTab('publishing')}
             onOpenSkills={() => handleAddOpenTab('skills')}
             onOpenSSH={() => handleAddOpenTab('ssh')}
             onOpenThreads={() => handleAddOpenTab('threads')}
@@ -1051,9 +1044,6 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     if (currentTab.id === 'networking') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><NetworkingPanel projectId={projectId} onClose={() => handleTabClose('networking')} /></Suspense>;
     }
-    if (currentTab.id === 'publishing') {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><PublishingPanel projectId={projectId} onClose={() => handleTabClose('publishing')} /></Suspense>;
-    }
     if (currentTab.id === 'skills') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><SkillsPanel projectId={projectId} onClose={() => handleTabClose('skills')} /></Suspense>;
     }
@@ -1199,7 +1189,6 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           onOpenMergeConflicts={() => { setShowMobileMoreMenu(false); handleAddOpenTab('merge-conflicts'); }}
           onOpenMonitoring={() => { setShowMobileMoreMenu(false); handleAddOpenTab('monitoring'); }}
           onOpenNetworking={() => { setShowMobileMoreMenu(false); handleAddOpenTab('networking'); }}
-          onOpenPublishing={() => { setShowMobileMoreMenu(false); handleAddOpenTab('publishing'); }}
           onOpenSkills={() => { setShowMobileMoreMenu(false); handleAddOpenTab('skills'); }}
           onOpenSSH={() => { setShowMobileMoreMenu(false); handleAddOpenTab('ssh'); }}
           onOpenThreads={() => { setShowMobileMoreMenu(false); handleAddOpenTab('threads'); }}
@@ -1371,7 +1360,6 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           onOpenMergeConflicts={() => { setShowMobileMoreMenu(false); handleAddOpenTab('merge-conflicts'); }}
           onOpenMonitoring={() => { setShowMobileMoreMenu(false); handleAddOpenTab('monitoring'); }}
           onOpenNetworking={() => { setShowMobileMoreMenu(false); handleAddOpenTab('networking'); }}
-          onOpenPublishing={() => { setShowMobileMoreMenu(false); handleAddOpenTab('publishing'); }}
           onOpenSkills={() => { setShowMobileMoreMenu(false); handleAddOpenTab('skills'); }}
           onOpenSSH={() => { setShowMobileMoreMenu(false); handleAddOpenTab('ssh'); }}
           onOpenThreads={() => { setShowMobileMoreMenu(false); handleAddOpenTab('threads'); }}

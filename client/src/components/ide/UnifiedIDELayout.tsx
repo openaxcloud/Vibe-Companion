@@ -165,7 +165,6 @@ const MCPPanel = instrumentedLazy(() => import('@/components/MCPPanel').then(m =
 const MergeConflictPanel = instrumentedLazy(() => import('@/components/MergeConflictPanel').then(m => m.default ? m : { default: m.MergeConflictPanel || m }), 'MergeConflictPanel');
 const MonitoringPanel = instrumentedLazy(() => import('@/components/MonitoringPanel').then(m => m.default ? m : { default: m.MonitoringPanel || m }), 'MonitoringPanel');
 const NetworkingPanel = instrumentedLazy(() => import('@/components/NetworkingPanel').then(m => m.default ? m : { default: m.NetworkingPanel || m }), 'NetworkingPanel');
-const PublishingPanel = instrumentedLazy(() => import('@/components/PublishingPanel').then(m => m.default ? m : { default: m.PublishingPanel || m }), 'PublishingPanel');
 const SkillsPanel = instrumentedLazy(() => import('@/components/SkillsPanel').then(m => m.default ? m : { default: m.SkillsPanel || m }), 'SkillsPanel');
 const SSHPanel = instrumentedLazy(() => import('@/components/SSHPanel').then(m => m.default ? m : { default: m.SSHPanel || m }), 'SSHPanel');
 const ThreadsPanel = instrumentedLazy(() => import('@/components/ThreadsPanel').then(m => m.default ? m : { default: m.ThreadsPanel || m }), 'ThreadsPanel');
@@ -447,9 +446,6 @@ function UnifiedIDELayout({
       case 'mcp':
         handleAddTool('mcp');
         break;
-      case 'publishing':
-        handleAddTool('publishing');
-        break;
       case 'ssh':
         handleAddTool('ssh');
         break;
@@ -599,7 +595,7 @@ function UnifiedIDELayout({
     automations: 'Automations', config: 'Config', feedback: 'Feedback',
     github: 'GitHub', integrations: 'Integrations', mcp: 'MCP',
     'merge-conflicts': 'Merge Conflicts', monitoring: 'Monitoring',
-    networking: 'Networking', publishing: 'Publishing', skills: 'Skills',
+    networking: 'Networking', skills: 'Skills',
     ssh: 'SSH', threads: 'Threads', 'test-runner': 'Test Runner',
     'security-scanner': 'Scanner', backup: 'Backup',
     actions: 'Actions', tools: 'Tools', 'app-storage': 'App Storage'
@@ -1611,7 +1607,6 @@ function UnifiedIDELayout({
     if (currentTab.id === 'merge-conflicts') return <Suspense fallback={<ECodeLoading size="md" />}><MergeConflictPanel projectId={projectId} conflicts={mergeConflicts || []} resolutions={mergeResolutions || []} onClose={() => handleTabClose('merge-conflicts')} onMergeComplete={() => { setMergeConflicts?.([]); setMergeResolutions?.([]); handleTabClose('merge-conflicts'); }} onAbort={() => { setMergeConflicts?.([]); setMergeResolutions?.([]); handleTabClose('merge-conflicts'); }} onResolutionChange={(updated: any) => setMergeResolutions?.(updated)} /></Suspense>;
     if (currentTab.id === 'monitoring') return <Suspense fallback={<ECodeLoading size="md" />}><MonitoringPanel projectId={projectId} onClose={() => handleTabClose('monitoring')} /></Suspense>;
     if (currentTab.id === 'networking') return <Suspense fallback={<ECodeLoading size="md" />}><NetworkingPanel projectId={projectId} onClose={() => handleTabClose('networking')} /></Suspense>;
-    if (currentTab.id === 'publishing') return <Suspense fallback={<ECodeLoading size="md" />}><PublishingPanel projectId={projectId} onClose={() => handleTabClose('publishing')} /></Suspense>;
     if (currentTab.id === 'skills') return <Suspense fallback={<ECodeLoading size="md" />}><SkillsPanel projectId={projectId} onClose={() => handleTabClose('skills')} /></Suspense>;
     if (currentTab.id === 'ssh') return <Suspense fallback={<ECodeLoading size="md" />}><SSHPanel projectId={projectId} onClose={() => handleTabClose('ssh')} /></Suspense>;
     if (currentTab.id === 'threads') return <Suspense fallback={<ECodeLoading size="md" />}><ThreadsPanel projectId={projectId} onClose={() => handleTabClose('threads')} /></Suspense>;

@@ -11,7 +11,7 @@ export type MobileTab =
   | 'slides' | 'video' | 'animation' | 'design' | 'tests'
   | 'visual-editor' | 'console' | 'resources' | 'logs'
   | 'automations' | 'config' | 'feedback' | 'github' | 'integrations'
-  | 'mcp' | 'merge-conflicts' | 'monitoring' | 'networking' | 'publishing'
+  | 'mcp' | 'merge-conflicts' | 'monitoring' | 'networking'
   | 'skills' | 'ssh' | 'threads' | 'test-runner' | 'security-scanner' | 'backup'
   | 'tasks' | 'code';
 

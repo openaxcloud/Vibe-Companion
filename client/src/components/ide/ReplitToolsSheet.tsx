@@ -54,7 +54,7 @@ const defaultTools: ToolItem[] = [
   { id: 'files', icon: FileText, title: 'Files', description: 'Find a file', section: 'search' },
   { id: 'agent', icon: ReplitAgentIcon, title: 'Agent', description: 'Agent can make changes, review its work, and debug itself automatically.', section: 'tools', iconColor: 'text-[#7C65C1]' },
   { id: 'assistant', icon: Sparkles, title: 'Assistant', description: 'Assistant answers questions, refines code, and makes precise edits.', section: 'tools', iconColor: 'text-amber-500' },
-  { id: 'publishing', icon: Rocket, title: 'Publishing', description: 'Publish a live, stable, public version of your App, unaffected by the changes you make in the workspace', section: 'tools', iconColor: 'text-green-500' },
+  { id: 'deploy', icon: Rocket, title: 'Deploy', description: 'Deploy a live, stable, public version of your App, unaffected by the changes you make in the workspace', section: 'tools', iconColor: 'text-green-500' },
   { id: 'app-storage', icon: HardDrive, title: 'App Storage', description: "App Storage is Replit's built-in object storage that lets your app easily host and save uploads like images, videos, and documents.", section: 'tools' },
   { id: 'auth', icon: UserCheck, title: 'Auth', description: 'Let users log in to your App using a prebuilt login page', section: 'tools', iconColor: 'text-blue-500' },
   { id: 'console', icon: Terminal, title: 'Console', description: 'View the terminal output after running your code', section: 'tools' },

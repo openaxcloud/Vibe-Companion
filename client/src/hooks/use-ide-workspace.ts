@@ -44,7 +44,7 @@ export const availableTools = [
   'testing', 'auth',
   // Re-integrated panels from legacy layout
   'automations', 'config', 'feedback', 'github', 'integrations',
-  'mcp', 'merge-conflicts', 'monitoring', 'networking', 'publishing',
+  'mcp', 'merge-conflicts', 'monitoring', 'networking',
   'skills', 'ssh', 'threads', 'test-runner', 'security-scanner', 'backup',
 ];
 
@@ -1077,7 +1077,7 @@ export function useIDEWorkspace(projectId: string) {
           'checkpoints', 'workflows', 'extensions', 'collaboration',
           'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
           'automations', 'config', 'feedback', 'github', 'integrations',
-          'mcp', 'merge-conflicts', 'monitoring', 'networking', 'publishing',
+          'mcp', 'merge-conflicts', 'monitoring', 'networking',
           'skills', 'ssh', 'threads', 'test-runner', 'security-scanner', 'backup',
           'slides', 'video', 'animation', 'design', 'storage', 'themes',
           'testing', 'auth'].includes(t);
@@ -1118,7 +1118,7 @@ export function useIDEWorkspace(projectId: string) {
         'deployment', 'search', 'debugger', 'settings', 'history', 'tasks', 'checkpoints', 'workflows', 'extensions',
         'collaboration', 'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
         'automations', 'config', 'feedback', 'github', 'integrations', 'mcp', 'merge-conflicts',
-        'monitoring', 'networking', 'publishing', 'skills', 'ssh', 'threads', 'test-runner',
+        'monitoring', 'networking', 'skills', 'ssh', 'threads', 'test-runner',
         'security-scanner', 'backup'].includes(tabId);
 
       if (isFileTab) {
@@ -1163,7 +1163,7 @@ export function useIDEWorkspace(projectId: string) {
       'deployment', 'search', 'debugger', 'settings', 'history', 'tasks', 'checkpoints', 'workflows', 'extensions',
       'collaboration', 'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
       'automations', 'config', 'feedback', 'github', 'integrations', 'mcp', 'merge-conflicts',
-      'monitoring', 'networking', 'publishing', 'skills', 'ssh', 'threads', 'test-runner',
+      'monitoring', 'networking', 'skills', 'ssh', 'threads', 'test-runner',
       'security-scanner', 'backup'].includes(activeFileId);
     return isFile ? `file:${activeFileId}` : activeFileId;
   }, [activeFileId]);

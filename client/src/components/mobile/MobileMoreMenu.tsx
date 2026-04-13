@@ -44,7 +44,6 @@ interface MobileMoreMenuProps {
   onOpenMergeConflicts?: () => void;
   onOpenMonitoring?: () => void;
   onOpenNetworking?: () => void;
-  onOpenPublishing?: () => void;
   onOpenSkills?: () => void;
   onOpenSSH?: () => void;
   onOpenThreads?: () => void;
@@ -81,7 +80,6 @@ export function MobileMoreMenu({ isOpen, inline, onClose, ...handlers }: MobileM
     { label: 'Conflicts', icon: GitMerge, color: '#E54D4D', action: handlers.onOpenMergeConflicts },
     { label: 'Monitoring', icon: Zap, color: '#10B981', action: handlers.onOpenMonitoring },
     { label: 'Networking', icon: Network, color: '#0079F2', action: handlers.onOpenNetworking },
-    { label: 'Publishing', icon: Upload, color: '#0CCE6B', action: handlers.onOpenPublishing },
     { label: 'Skills', icon: Sparkles, color: '#F5A623', action: handlers.onOpenSkills },
     { label: 'SSH', icon: Server, color: '#6B7280', action: handlers.onOpenSSH },
     { label: 'Threads', icon: MessageCircle, color: '#7C65CB', action: handlers.onOpenThreads },

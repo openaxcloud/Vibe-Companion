@@ -52,7 +52,6 @@ export type ActivityItem =
   | 'integrations'
   | 'checkpoints'
   | 'mcp'
-  | 'publishing'
   | 'ssh'
   | 'security-scanner'
   | 'collaboration';
@@ -92,8 +91,7 @@ const defaultItems: ActivityBarItem[] = [
   { id: 'integrations', icon: Plug, label: 'Integrations' },
   { id: 'checkpoints', icon: History, label: 'Checkpoints' },
   { id: 'mcp', icon: Cpu, label: 'MCP' },
-  { id: 'publishing', icon: Globe, label: 'Publishing', separator: true },
-  { id: 'collaboration', icon: Users, label: 'Collaboration' },
+  { id: 'collaboration', icon: Users, label: 'Collaboration', separator: true },
   { id: 'security-scanner', icon: Shield, label: 'Security' },
 ];
 
