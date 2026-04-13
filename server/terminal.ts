@@ -46,6 +46,15 @@ class ChildProcessPty extends EventEmitter implements IPtyLike {
     this.spawnTime = Date.now();
 
     try {
+      if (!fs.existsSync(this.opts.cwd)) {
+        fs.mkdirSync(this.opts.cwd, { recursive: true });
+        log(`[terminal] created missing cwd: ${this.opts.cwd}`, "terminal");
+      }
+    } catch (mkdirErr: any) {
+      log(`[terminal] failed to create cwd ${this.opts.cwd}: ${mkdirErr.message}`, "terminal");
+    }
+
+    try {
       this.proc = spawn(this.shell, this.args, {
         cwd: this.opts.cwd,
         env: { ...this.opts.env, COLUMNS: String(this.opts.cols), LINES: String(this.opts.rows) },
@@ -53,7 +62,7 @@ class ChildProcessPty extends EventEmitter implements IPtyLike {
         shell: false,
       });
     } catch (err: any) {
-      log(`[terminal] spawn failed: ${err.message}`, "terminal");
+      log(`[terminal] spawn failed: ${err.message} (shell=${this.shell}, args=${JSON.stringify(this.args)}, cwd=${this.opts.cwd})`, "terminal");
       this.emit("data", `\r\n\x1b[31mShell spawn failed: ${err.message}\x1b[0m\r\n`);
       this._stopped = true;
       this.emit("exit", { exitCode: 1 });
@@ -61,7 +70,7 @@ class ChildProcessPty extends EventEmitter implements IPtyLike {
     }
 
     this.pid = this.proc.pid || 0;
-    log(`[terminal] bash spawned pid=${this.pid} retry=${this.retryCount}`, "terminal");
+    log(`[terminal] shell spawned pid=${this.pid} shell=${this.shell} args=${JSON.stringify(this.args)} cwd=${this.opts.cwd} retry=${this.retryCount}`, "terminal");
 
     this.proc.stdout?.setEncoding("utf-8");
     this.proc.stderr?.setEncoding("utf-8");
@@ -239,7 +248,7 @@ function sessionKey(projectId: string, userId: string, sessionId: string): strin
 }
 
 function spawnTerminal(shell: string, workspaceDir: string, safeEnv: Record<string, string>): IPtyLike {
-  return new ChildProcessPty(shell, ["--login"], {
+  return new ChildProcessPty(shell, ["-i"], {
     cwd: workspaceDir,
     env: {
       ...safeEnv,

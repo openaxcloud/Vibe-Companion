@@ -116,6 +116,23 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
     return { on: noop, once: noop, emit: noop, end: noop, write: noop, writeHead: noop, setHeader: noop, getHeader: () => undefined, removeHeader: noop, headersSent: false, statusCode: 200 } as any;
   };
 
+  async function getIntegrationEnvVars(projectId: string): Promise<Record<string, string>> {
+    try {
+      const integrations = await storage.getProjectIntegrations(projectId);
+      const envVars: Record<string, string> = {};
+      for (const pi of integrations) {
+        if ((pi.status === "connected" || pi.status === "unverified") && pi.config) {
+          for (const [k, v] of Object.entries(pi.config as Record<string, string>)) {
+            if (v) envVars[k] = v;
+          }
+        }
+      }
+      return envVars;
+    } catch {
+      return {};
+    }
+  }
+
   centralUpgradeDispatcher.register(
     '/ws/project',
     (request: any, socket: any, head: any) => {
@@ -155,6 +172,56 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
       });
     },
     { pathMatch: 'exact', priority: 50 }
+  );
+
+  function handleTerminalUpgrade(request: any, socket: any, head: any) {
+    log(`[ws-upgrade] /ws/terminal handler via central dispatcher`, "websocket");
+    sessionMiddleware(request, fakeRes(), (err?: any) => {
+      if (err) {
+        log(`[ws-upgrade] /ws/terminal session error: ${err.message}`, "websocket");
+        socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+      const url = new URL(request.url || "/", `http://${request.headers.host}`);
+      const projectId = url.searchParams.get("projectId");
+      const sessionId = url.searchParams.get("sessionId") || "default";
+      log(`[ws-upgrade] /ws/terminal session loaded userId=${request.session?.userId} projectId=${projectId}`, "websocket");
+      if (!request.session?.userId || !projectId) {
+        log(`[ws-upgrade] /ws/terminal 401 — no session or projectId`, "websocket");
+        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+      storage.getProject(projectId).then(async (project: any) => {
+        if (!project || !(await canAccessProject(request.session.userId, project))) {
+          log(`[ws-upgrade] /ws/terminal 403 — project access denied`, "websocket");
+          socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        log(`[ws-upgrade] /ws/terminal upgrading socket for project ${projectId}`, "websocket");
+        terminalWss.handleUpgrade(request, socket, head, (ws: any) => {
+          terminalWss.emit("connection", ws, request);
+        });
+      }).catch((e: any) => {
+        log(`[ws-upgrade] /ws/terminal error: ${e?.message}`, "websocket");
+        socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+        socket.destroy();
+      });
+    });
+  }
+
+  centralUpgradeDispatcher.register(
+    '/ws/terminal',
+    handleTerminalUpgrade,
+    { pathMatch: 'exact', priority: 45 }
+  );
+
+  centralUpgradeDispatcher.register(
+    '/terminal',
+    handleTerminalUpgrade,
+    { pathMatch: 'exact', priority: 45 }
   );
 
   httpServer.on("upgrade", (req: any, socket, head) => {
@@ -245,11 +312,12 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
           socket.destroy();
         });
       });
-    } else if (pathname === "/ws/terminal") {
+    } else if (pathname === "/ws/terminal" || pathname === "/terminal") {
       sessionMiddleware(req, fakeRes(), () => {
         const url = new URL(req.url || "/", `http://${req.headers.host}`);
         const projectId = url.searchParams.get("projectId");
         if (!req.session?.userId || !projectId) {
+          log(`[ws-upgrade] ${pathname} 401 — no session (userId=${req.session?.userId})`, "websocket");
           socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
           socket.destroy();
           return;

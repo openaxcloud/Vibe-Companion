@@ -234,6 +234,8 @@ class CentralUpgradeDispatcher {
       '/api/runtime/logs/ws',  // RuntimeLogsService handles its own session auth
       '/api/server/logs/ws',   // ServerLogsService handles its own session auth
       '/ws/project',           // Legacy WebSocket handler does its own session auth
+      '/ws/terminal',          // Terminal handler does its own session auth
+      '/terminal',             // Terminal handler (Replit proxy strips /ws prefix)
     ];
     const publicPaths = [
       '/health', '/api/health',
