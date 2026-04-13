@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json, real } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json, real, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -2598,15 +2598,27 @@ export const agentMessages = pgTable("agent_messages", {
 });
 
 export const agentSessions = pgTable("agent_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  projectId: varchar("project_id").notNull(),
-  userId: varchar("user_id").notNull(),
+  id: serial("id").primaryKey(),
+  projectId: varchar("project_id"),
+  userId: varchar("user_id"),
   claudeSessionId: varchar("claude_session_id", { length: 255 }),
-  mode: text("mode").notNull().default("chat"),
-  status: text("status").notNull().default("active"),
+  sessionToken: text("session_token"),
+  model: text("model"),
+  isActive: boolean("is_active").default(true),
+  autonomousMode: boolean("autonomous_mode").default(false),
+  riskThreshold: text("risk_threshold").default("medium"),
+  autoApproveActions: boolean("auto_approve_actions").default(false),
+  workflowStatus: text("workflow_status").default("idle"),
+  context: json("context"),
+  mode: text("mode").default("chat"),
+  status: text("status").default("active"),
   metadata: json("metadata"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  totalTokensUsed: integer("total_tokens_used").default(0),
+  totalOperations: integer("total_operations").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const agentAuditTrail = pgTable("agent_audit_trail", {

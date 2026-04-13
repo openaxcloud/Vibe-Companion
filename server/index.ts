@@ -380,9 +380,30 @@ async function initTaskTables() {
   }
 }
 
+async function ensureAgentSessionsColumns() {
+  if (!process.env.DATABASE_URL) return;
+  try {
+    const { pool } = await import("./db");
+    await pool.query(`
+      ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS mode text DEFAULT 'chat';
+      ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS status text DEFAULT 'active';
+      ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS metadata json;
+      ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS updated_at timestamp DEFAULT now();
+      ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS started_at timestamp DEFAULT now();
+      ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS ended_at timestamp;
+      ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS total_tokens_used integer DEFAULT 0;
+      ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS total_operations integer DEFAULT 0;
+    `);
+    log("Agent sessions columns ensured", "db");
+  } catch (err: any) {
+    console.error("Failed to ensure agent_sessions columns:", err?.message || err);
+  }
+}
+
 (async () => {
   await initStripe();
   await initTaskTables();
+  await ensureAgentSessionsColumns();
 
   await registerRoutes(httpServer, app);
 

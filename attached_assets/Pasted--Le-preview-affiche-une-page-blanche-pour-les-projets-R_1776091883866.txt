@@ -1,0 +1,25 @@
+"Le preview affiche une page blanche pour les projets React/Vite. Le bouton Run doit fonctionner automatiquement et de manière autonome — quand l'utilisateur crée un projet ou clique Run, TOUT doit se passer sans intervention manuelle :
+
+Matérialiser les fichiers — Copier tous les fichiers du projet depuis la DB vers le filesystem (project-workspaces/${projectId}/)
+Installer les dépendances — Exécuter npm install automatiquement dans le workspace du projet
+Démarrer le dev server — Exécuter npm run dev (ou la commande détectée dans package.json) et détecter le port quand le serveur est prêt
+Servir le preview — Proxier le dev server via /api/preview/${projectId}/ pour que l'iframe preview affiche l'app en live
+Auto-refresh — Quand l'agent ou l'utilisateur modifie un fichier, le dev server Vite fait du HMR automatiquement
+
+Le flow doit être : l'utilisateur tape un prompt → l'agent crée les fichiers → le bouton Run (ou auto-start) lance npm install + npm run dev → le preview affiche l'app en live. ZERO intervention manuelle.
+Le code existe déjà dans server/localWorkspaceManager.ts — il faut le connecter correctement :
+
+startLocalWorkspace(projectId, getFiles) matérialise les fichiers, détecte la commande, spawne le process
+Le proxy /api/preview/:projectId/ existe dans les routes
+Le auto-start est censé se déclencher quand le projet s'ouvre (dans use-ide-workspace.ts)
+
+Le problème actuel : le localWorkspaceManager n'est pas appelé. Quand l'utilisateur clique Run, ça ne fait rien parce que le handler ne trigger pas startLocalWorkspace.
+Fix :
+
+Dans le handler du bouton Run (UnifiedIDELayout.tsx), appeler POST /api/preview/projects/${projectId}/preview/start
+Cet endpoint doit appeler startLocalWorkspace qui fait : matérialiser fichiers → npm install → npm run dev → détecter port → retourner le port
+Le frontend reçoit le port et met à jour livePreviewUrl vers /api/preview/${projectId}/
+Le preview iframe charge cette URL et affiche l'app
+Quand le projet s'ouvre pour la première fois, auto-trigger le start sans attendre que l'utilisateur clique Run
+
+Corrige ça. L'utilisateur ne doit JAMAIS voir une page blanche — soit l'app tourne, soit un spinner avec 'Installing dependencies...' ou 'Starting dev server...' est affiché. Rebuild et redémarre après."
