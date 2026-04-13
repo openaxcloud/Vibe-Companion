@@ -1328,8 +1328,12 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         if (data.conversationId && !activeConversationId) {
           setActiveConversationId(data.conversationId);
         }
+      } else {
+        console.error("[AIPanel] persistMessage failed:", res.status, await res.text().catch(() => ""));
       }
-    } catch {}
+    } catch (err: any) {
+      console.error("[AIPanel] persistMessage error:", err?.message || err);
+    }
   }, [projectId, activeConversationId]);
 
   useEffect(() => {
