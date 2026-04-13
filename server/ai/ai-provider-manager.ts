@@ -15,6 +15,43 @@ import { AI_MODELS, MODELFARM_MODELS, type AIModel } from './models-catalog';
 
 const logger = createLogger('ai-provider-manager');
 
+const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  'gpt-4o': 16384,
+  'gpt-4o-mini': 16384,
+  'gpt-4.1': 16384,
+  'gpt-4.1-mini': 16384,
+  'gpt-4.1-nano': 16384,
+  'gpt-4-turbo': 4096,
+  'gpt-3.5-turbo': 4096,
+  'o1': 32768,
+  'o1-mini': 32768,
+  'o1-preview': 32768,
+  'o3': 32768,
+  'o3-mini': 32768,
+  'o4-mini': 32768,
+  'claude-sonnet-4-20250514': 8192,
+  'claude-3-5-sonnet-20241022': 8192,
+  'claude-3-5-haiku-20241022': 8192,
+  'claude-3-opus-20240229': 4096,
+  'claude-3-haiku-20240307': 4096,
+  'gemini-2.5-flash': 8192,
+  'gemini-2.5-pro': 8192,
+  'gemini-2.0-flash': 8192,
+  'gemini-1.5-flash': 8192,
+  'gemini-1.5-pro': 8192,
+  'grok-3': 16384,
+  'grok-3-mini': 16384,
+  'kimi-k2': 16384,
+  'moonshot-v1-32k': 8192,
+  'moonshot-v1-128k': 16384,
+};
+
+function clampMaxTokens(modelId: string, requested: number): number {
+  const cap = MODEL_MAX_OUTPUT_TOKENS[modelId];
+  if (!cap) return Math.min(requested, 16384);
+  return Math.min(requested, cap);
+}
+
 /**
  * ✅ 40-YEAR ENGINEERING FIX: Provider fallback chain for 99.9% uptime (Fortune 500 requirement)
  * Ordered by reliability, cost, and speed
@@ -565,7 +602,7 @@ export class AIProviderManager {
         model: modelId,
         messages: cachedMessages as any,
         system: cachedSystem as any,
-        max_tokens: options?.max_tokens || 16384,
+        max_tokens: clampMaxTokens(modelId, options?.max_tokens || 8192),
         temperature: options?.temperature || 0.4,
         stream: true,
       });
@@ -641,8 +678,7 @@ export class AIProviderManager {
       completionParams.temperature = options?.temperature || 0.7;
     }
     
-    // Use correct token parameter based on model family (cap at 16384 for API compatibility)
-    const safeMaxTokens = Math.min(options?.max_tokens || 16384, 16384);
+    const safeMaxTokens = clampMaxTokens(modelId, options?.max_tokens || 16384);
     if (isNewGenModel) {
       completionParams.max_completion_tokens = safeMaxTokens;
     } else {
@@ -714,10 +750,9 @@ export class AIProviderManager {
     // ✅ KIMI REQUIREMENT 1: Temperature = 1.0 for thinking models
     const temperature = isThinkingModel ? 1.0 : (options?.temperature ?? 0.7);
     
-    // ✅ KIMI REQUIREMENT 4: max_tokens >= 16000 for thinking models
     const maxTokens = isThinkingModel 
-      ? Math.max(options?.max_tokens || 16384, 16384)
-      : (options?.max_tokens || 16384);
+      ? Math.max(clampMaxTokens(modelId, options?.max_tokens || 16384), 16384)
+      : clampMaxTokens(modelId, options?.max_tokens || 16384);
     
     // ✅ PROMPT CACHING: Cache system prompt for Moonshot
     const systemPrompt = options?.system || messages.find(m => m.role === 'system')?.content;
@@ -846,7 +881,7 @@ export class AIProviderManager {
       model: modelId,
       generationConfig: {
         temperature: options?.temperature || 0.7,
-        maxOutputTokens: options?.max_tokens || 8192,
+        maxOutputTokens: clampMaxTokens(modelId, options?.max_tokens || 8192),
       }
     });
     
