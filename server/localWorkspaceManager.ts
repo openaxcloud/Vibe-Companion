@@ -164,6 +164,11 @@ function detectStartCommand(workspaceDir: string, project: { language?: string }
     }
   }
 
+  // ── Static HTML fallback ─────────────────────────────────────────────────
+  if (fs.existsSync(path.join(workspaceDir, "index.html"))) {
+    return { command: `npx serve -l $PORT -s .`, needsInstall: false, skipHealthCheck: true };
+  }
+
   return null;
 }
 
@@ -316,6 +321,7 @@ async function _runStartupSequence(
         /compiled successfully/i,
         /webpack compiled/i,
         /started server on/i,
+        /Accepting connections/i,
       ];
       const text = lines.join(" ");
       if (portPatterns.some(p => p.test(text))) {
@@ -345,6 +351,7 @@ async function _runStartupSequence(
         /started server on/i,
         /Application is running/i,
         /Listening at/i,
+        /Accepting connections/i,
       ];
       if (portPatterns.some(p => p.test(text))) {
         setStatus(ws, "running");
