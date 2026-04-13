@@ -601,7 +601,7 @@ router.post('/projects/:id/preview/start', requireAuth, ensureProjectAccess, asy
       preview = await previewService.startPreview(projectId, { port, runId });
     } else {
       // Auto mode: read files from DB, detect framework, spawn server
-      preview = await previewService.startPreviewFromProject(projectId);
+      preview = await previewService.startPreviewFromProject(projectId, req.session?.userId ? String(req.session.userId) : undefined);
     }
     
     res.json({

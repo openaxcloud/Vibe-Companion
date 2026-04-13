@@ -170,7 +170,7 @@ export async function startProjectRuntime(req: Request, res: Response) {
     
     try {
       const { previewService } = await import('../preview/preview-service');
-      const preview = await previewService.startPreviewFromProject(String(projectId));
+      const preview = await previewService.startPreviewFromProject(String(projectId), req.session?.userId ? String(req.session.userId) : undefined);
       
       return res.json({
         success: true,

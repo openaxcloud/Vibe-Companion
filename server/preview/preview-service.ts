@@ -96,40 +96,24 @@ function createSafeEnv(additionalVars: Record<string, string> = {}): Record<stri
   return { ...safeEnv, ...additionalVars };
 }
 
-async function fetchProjectEnvVars(projectId: string): Promise<Record<string, string>> {
-  const vars: Record<string, string> = {};
+async function fetchProjectEnvVars(projectId: string, userId?: string): Promise<Record<string, string>> {
   try {
-    const envVars = await db.query.environmentVariables.findMany({
-      where: eq(environmentVariables.projectId, projectId),
-    });
-    for (const envVar of envVars) {
-      if (envVar.key && envVar.value) {
-        if (envVar.isSecret) {
-          try {
-            const { RealSecretManagementService } = await import('../services/real-secret-management');
-            const secretService = new RealSecretManagementService();
-            const encryptedData = JSON.parse(envVar.value) as { iv: string; encryptedData: string; authTag: string };
-            vars[envVar.key] = secretService.decryptValue(encryptedData);
-          } catch (err: any) { console.error("[catch]", err?.message || err);
-            logger.warn(`Failed to decrypt secret ${envVar.key} for project ${projectId}`);
-          }
-        } else {
-          vars[envVar.key] = envVar.value;
-        }
-      }
-    }
+    const { fetchAllProjectSecrets } = await import('../utils/secrets');
+    const vars = await fetchAllProjectSecrets(projectId, userId);
     if (Object.keys(vars).length > 0) {
       logger.info(`Injecting ${Object.keys(vars).length} env vars into preview for project ${projectId}`);
     }
+    return vars;
   } catch (err: any) {
     logger.warn(`Failed to fetch env vars for project ${projectId}: ${err.message}`);
+    return {};
   }
-  return vars;
 }
 
 interface PreviewInstance {
   projectId: string;
   runId: string;
+  userId?: string;
   ports: number[];  // Support multiple ports
   primaryPort: number;
   processes: Map<number, any>;  // Map port to process
@@ -413,7 +397,7 @@ export class PreviewService {
    * disk, detecting the framework, and spawning the appropriate server process.
    * This is the primary path used when the user opens a project — no port needed.
    */
-  async startPreviewFromProject(projectId: string): Promise<PreviewInstance> {
+  async startPreviewFromProject(projectId: string, userId?: string): Promise<PreviewInstance> {
     const existing = this.previews.get(projectId);
     if (existing) {
       existing.status = 'stopped';
@@ -543,6 +527,7 @@ export class PreviewService {
     const preview: PreviewInstance = {
       projectId,
       runId,
+      userId,
       ports: [],
       primaryPort: port,
       processes: new Map(),
@@ -581,7 +566,7 @@ export class PreviewService {
   private async bootPreviewServer(preview: PreviewInstance, files: any[], previewPath: string, port: number) {
     const projectId = preview.projectId;
 
-    const projectEnvVars = await fetchProjectEnvVars(projectId);
+    const projectEnvVars = await fetchProjectEnvVars(projectId, preview.userId);
 
     const frameworkInfo = await this.detectFramework(files, previewPath);
     preview.frameworkType = frameworkInfo.type as any;

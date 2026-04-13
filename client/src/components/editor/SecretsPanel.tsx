@@ -29,7 +29,11 @@ import {
   RefreshCw,
   Loader2,
   Save,
-  X
+  X,
+  Link2,
+  Unlink,
+  Globe,
+  User
 } from 'lucide-react';
 import {
   Dialog,
@@ -45,11 +49,13 @@ import { useToast } from '@/hooks/use-toast';
 
 interface Secret {
   id: string;
-  projectId: number;
+  projectId?: number | string;
   key: string;
   value: string;
-  environment: string;
+  environment?: string;
   isSecret: boolean;
+  scope?: 'project' | 'account';
+  linked?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -64,6 +70,7 @@ interface SecretsPanelProps {
 }
 
 type Environment = 'all' | 'development' | 'staging' | 'production';
+type SecretTab = 'project' | 'account';
 
 const ENVIRONMENTS: { value: Environment; label: string }[] = [
   { value: 'all', label: 'All Environments' },
@@ -90,6 +97,7 @@ function ShimmerSkeleton({ className }: { className?: string }) {
 }
 
 export function SecretsPanel({ projectId, className }: SecretsPanelProps) {
+  const [activeTab, setActiveTab] = useState<SecretTab>('project');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -117,6 +125,63 @@ export function SecretsPanel({ projectId, className }: SecretsPanelProps) {
     },
     enabled: !!projectId,
     staleTime: 30000,
+  });
+
+  const accountQueryKey = ['/api/projects', projectId, 'secrets', 'account'];
+  const { data: accountSecretsData, isLoading: accountLoading, refetch: refetchAccount } = useQuery<SecretsResponse>({
+    queryKey: accountQueryKey,
+    queryFn: async () => {
+      if (!projectId) throw new Error('Project ID required');
+      const response = await fetch(`/api/projects/${projectId}/secrets/account`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch account secrets');
+      return response.json();
+    },
+    enabled: !!projectId && activeTab === 'account',
+    staleTime: 30000,
+  });
+
+  const linkMutation = useMutation({
+    mutationFn: async ({ accountSecretId, action }: { accountSecretId: string; action: 'link' | 'unlink' }) => {
+      if (action === 'link') {
+        return apiRequest('POST', `/api/projects/${projectId}/secrets/account/${accountSecretId}/link`);
+      }
+      return apiRequest('DELETE', `/api/projects/${projectId}/secrets/account/${accountSecretId}/link`);
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Account secret link updated' });
+      queryClient.invalidateQueries({ queryKey: accountQueryKey });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to update link', variant: 'destructive' });
+    }
+  });
+
+  const createAccountMutation = useMutation({
+    mutationFn: async (data: { key: string; value: string }) => {
+      return apiRequest('POST', `/api/projects/${projectId}/secrets/account`, data);
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Account secret created' });
+      queryClient.invalidateQueries({ queryKey: accountQueryKey });
+      resetForm();
+      setShowAddDialog(false);
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to create account secret', variant: 'destructive' });
+    }
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('DELETE', `/api/projects/${projectId}/secrets/account/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Account secret deleted' });
+      queryClient.invalidateQueries({ queryKey: accountQueryKey });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to delete account secret', variant: 'destructive' });
+    }
   });
 
   const createMutation = useMutation({
@@ -264,7 +329,7 @@ export function SecretsPanel({ projectId, className }: SecretsPanelProps) {
           <Shield className="w-3.5 h-3.5 text-[var(--ecode-text-muted)]" />
           <span className="text-xs font-medium text-[var(--ecode-text)]" data-testid="text-secrets-title">Secrets</span>
           <Badge className="h-4 px-1 text-[9px] bg-[var(--ecode-sidebar-hover)] text-[var(--ecode-text-muted)] rounded" data-testid="text-secrets-count">
-            {secrets.length}
+            {activeTab === 'project' ? secrets.length : (accountSecretsData?.secrets?.length || 0)}
           </Badge>
         </div>
         <div className="flex items-center gap-0.5">
@@ -272,11 +337,11 @@ export function SecretsPanel({ projectId, className }: SecretsPanelProps) {
             variant="ghost"
             size="icon"
             className="h-7 w-7 rounded-md text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)] hover:bg-[var(--ecode-sidebar-hover)]"
-            onClick={() => refetch()}
-            disabled={isLoading}
+            onClick={() => activeTab === 'project' ? refetch() : refetchAccount()}
+            disabled={isLoading || accountLoading}
             data-testid="button-refresh-secrets"
           >
-            <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+            <RefreshCw className={cn("w-3.5 h-3.5", (isLoading || accountLoading) && "animate-spin")} />
           </Button>
           <Button
             variant="ghost"
@@ -288,6 +353,35 @@ export function SecretsPanel({ projectId, className }: SecretsPanelProps) {
             <Plus className="w-3.5 h-3.5" />
           </Button>
         </div>
+      </div>
+
+      <div className="flex border-b border-[var(--ecode-border)] shrink-0">
+        <button
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
+            activeTab === 'project'
+              ? "text-[var(--ecode-text)] border-b-2 border-[hsl(142,72%,42%)]"
+              : "text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)]"
+          )}
+          onClick={() => setActiveTab('project')}
+          data-testid="tab-project-secrets"
+        >
+          <Globe className="w-3 h-3" />
+          App Secrets
+        </button>
+        <button
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
+            activeTab === 'account'
+              ? "text-[var(--ecode-text)] border-b-2 border-[hsl(220,72%,52%)]"
+              : "text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)]"
+          )}
+          onClick={() => setActiveTab('account')}
+          data-testid="tab-account-secrets"
+        >
+          <User className="w-3 h-3" />
+          Account Secrets
+        </button>
       </div>
 
       <div className="px-2.5 py-1.5 border-b border-[var(--ecode-border)] shrink-0">
@@ -302,164 +396,269 @@ export function SecretsPanel({ projectId, className }: SecretsPanelProps) {
               data-testid="input-search-secrets"
             />
           </div>
-          <Select
-            value={selectedEnvironment}
-            onValueChange={(v) => setSelectedEnvironment(v as Environment)}
-          >
-            <SelectTrigger className="w-24 h-7 text-xs bg-[var(--ecode-sidebar-hover)] border-[var(--ecode-border)]" data-testid="select-environment-filter">
-              <SelectValue placeholder="Env" />
-            </SelectTrigger>
-            <SelectContent>
-              {ENVIRONMENTS.map(env => (
-                <SelectItem key={env.value} value={env.value}>
-                  {env.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {activeTab === 'project' && (
+            <Select
+              value={selectedEnvironment}
+              onValueChange={(v) => setSelectedEnvironment(v as Environment)}
+            >
+              <SelectTrigger className="w-24 h-7 text-xs bg-[var(--ecode-sidebar-hover)] border-[var(--ecode-border)]" data-testid="select-environment-filter">
+                <SelectValue placeholder="Env" />
+              </SelectTrigger>
+              <SelectContent>
+                {ENVIRONMENTS.map(env => (
+                  <SelectItem key={env.value} value={env.value}>
+                    {env.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
       <ScrollArea className="flex-1">
         <div className="p-3 sm:p-4 space-y-2">
-          {isLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map(i => (
-                <ShimmerSkeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <AlertCircle className="w-12 h-12 mb-3 text-destructive opacity-40" />
-              <p className="text-[13px] text-muted-foreground">Failed to load secrets</p>
-              <Button variant="link" className="mt-2" onClick={() => refetch()}>
-                Try again
-              </Button>
-            </div>
-          ) : filteredSecrets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Lock className="w-12 h-12 mb-4 text-muted-foreground opacity-40" />
-              <h4 className="text-base font-medium mb-2">
-                {searchQuery ? 'No matching secrets' : 'No secrets configured'}
-              </h4>
-              <p className="text-[13px] text-muted-foreground mb-4">
-                {searchQuery 
-                  ? 'Try adjusting your search query' 
-                  : 'Store sensitive data like API keys and tokens securely'}
-              </p>
-              {!searchQuery && (
-                <Button onClick={() => setShowAddDialog(true)}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add your first secret
-                </Button>
-              )}
-            </div>
-          ) : (
-            filteredSecrets.map((secret) => (
-              <div
-                key={secret.id}
-                className="p-3 rounded-lg border bg-card transition-colors hover:bg-accent/50"
-                data-testid={`secret-item-${secret.key}`}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {secret.isSecret ? (
-                        <Lock className="w-4 h-4 shrink-0 text-amber-500" />
-                      ) : (
-                        <Key className="w-4 h-4 shrink-0 text-muted-foreground" />
-                      )}
-                      <span 
-                        className="font-mono text-[13px] font-medium truncate"
-                        data-testid={`text-secret-key-${secret.key}`}
-                      >
-                        {secret.key}
-                      </span>
-                      <Badge 
-                        variant="outline" 
-                        className={cn("text-[10px] uppercase", ENV_COLORS[secret.environment])}
-                        data-testid={`badge-env-${secret.key}`}
-                      >
-                        {secret.environment}
-                      </Badge>
-                      {secret.isSecret && (
-                        <Badge variant="outline" className="text-[10px] uppercase text-amber-500 border-amber-500/50">
-                          encrypted
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <code className="text-[11px] font-mono px-2 py-1 rounded bg-muted max-w-[200px] sm:max-w-[300px] truncate">
-                        {revealedSecrets[secret.id] || secret.value}
-                      </code>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    {secret.isSecret && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleToggleReveal(secret)}
-                        disabled={revealMutation.isPending}
-                        data-testid={`button-reveal-${secret.key}`}
-                      >
-                        {revealMutation.isPending && revealMutation.variables === secret.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : revealedSecrets[secret.id] ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleCopyValue(secret)}
-                      data-testid={`button-copy-${secret.key}`}
-                    >
-                      {copiedId === secret.id ? (
-                        <Check className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => {
-                        setEditingSecret(secret);
-                        setNewKey(secret.key);
-                        setNewValue('');
-                        setNewEnvironment(secret.environment as 'development' | 'staging' | 'production');
-                        setIsSecretToggle(secret.isSecret);
-                      }}
-                      data-testid={`button-edit-${secret.key}`}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => deleteMutation.mutate(secret.id)}
-                      disabled={deleteMutation.isPending}
-                      data-testid={`button-delete-${secret.key}`}
-                    >
-                      {deleteMutation.isPending && deleteMutation.variables === secret.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
+          {activeTab === 'project' ? (
+            <>
+              {isLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <ShimmerSkeleton key={i} className="h-16 w-full" />
+                  ))}
                 </div>
-              </div>
-            ))
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <AlertCircle className="w-12 h-12 mb-3 text-destructive opacity-40" />
+                  <p className="text-[13px] text-muted-foreground">Failed to load secrets</p>
+                  <Button variant="link" className="mt-2" onClick={() => refetch()}>
+                    Try again
+                  </Button>
+                </div>
+              ) : filteredSecrets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Lock className="w-12 h-12 mb-4 text-muted-foreground opacity-40" />
+                  <h4 className="text-base font-medium mb-2">
+                    {searchQuery ? 'No matching secrets' : 'No app secrets configured'}
+                  </h4>
+                  <p className="text-[13px] text-muted-foreground mb-4">
+                    {searchQuery 
+                      ? 'Try adjusting your search query' 
+                      : 'Store project-specific API keys and tokens securely'}
+                  </p>
+                  {!searchQuery && (
+                    <Button onClick={() => setShowAddDialog(true)} data-testid="button-add-first-secret">
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add your first secret
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                filteredSecrets.map((secret) => (
+                  <div
+                    key={secret.id}
+                    className="p-3 rounded-lg border bg-card transition-colors hover:bg-accent/50"
+                    data-testid={`secret-item-${secret.key}`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {secret.isSecret ? (
+                            <Lock className="w-4 h-4 shrink-0 text-amber-500" />
+                          ) : (
+                            <Key className="w-4 h-4 shrink-0 text-muted-foreground" />
+                          )}
+                          <span 
+                            className="font-mono text-[13px] font-medium truncate"
+                            data-testid={`text-secret-key-${secret.key}`}
+                          >
+                            {secret.key}
+                          </span>
+                          {secret.environment && (
+                            <Badge 
+                              variant="outline" 
+                              className={cn("text-[10px] uppercase", ENV_COLORS[secret.environment])}
+                              data-testid={`badge-env-${secret.key}`}
+                            >
+                              {secret.environment}
+                            </Badge>
+                          )}
+                          {secret.isSecret && (
+                            <Badge variant="outline" className="text-[10px] uppercase text-amber-500 border-amber-500/50">
+                              encrypted
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <code className="text-[11px] font-mono px-2 py-1 rounded bg-muted max-w-[200px] sm:max-w-[300px] truncate">
+                            {revealedSecrets[secret.id] || secret.value}
+                          </code>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {secret.isSecret && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleToggleReveal(secret)}
+                            disabled={revealMutation.isPending}
+                            data-testid={`button-reveal-${secret.key}`}
+                          >
+                            {revealMutation.isPending && revealMutation.variables === secret.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : revealedSecrets[secret.id] ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleCopyValue(secret)}
+                          data-testid={`button-copy-${secret.key}`}
+                        >
+                          {copiedId === secret.id ? (
+                            <Check className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            setEditingSecret(secret);
+                            setNewKey(secret.key);
+                            setNewValue('');
+                            setNewEnvironment((secret.environment || 'development') as 'development' | 'staging' | 'production');
+                            setIsSecretToggle(secret.isSecret);
+                          }}
+                          data-testid={`button-edit-${secret.key}`}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => deleteMutation.mutate(secret.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-${secret.key}`}
+                        >
+                          {deleteMutation.isPending && deleteMutation.variables === secret.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </>
+          ) : (
+            <>
+              {accountLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <ShimmerSkeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : (accountSecretsData?.secrets || []).filter(s => s.key.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <User className="w-12 h-12 mb-4 text-muted-foreground opacity-40" />
+                  <h4 className="text-base font-medium mb-2">
+                    {searchQuery ? 'No matching account secrets' : 'No account secrets'}
+                  </h4>
+                  <p className="text-[13px] text-muted-foreground mb-4">
+                    {searchQuery 
+                      ? 'Try adjusting your search query' 
+                      : 'Account secrets are shared across all your projects. Link them to make them available.'}
+                  </p>
+                  {!searchQuery && (
+                    <Button onClick={() => setShowAddDialog(true)} data-testid="button-add-first-account-secret">
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add account secret
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                (accountSecretsData?.secrets || [])
+                  .filter(s => s.key.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((secret) => (
+                    <div
+                      key={secret.id}
+                      className="p-3 rounded-lg border bg-card transition-colors hover:bg-accent/50"
+                      data-testid={`account-secret-item-${secret.key}`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Lock className="w-4 h-4 shrink-0 text-blue-500" />
+                            <span className="font-mono text-[13px] font-medium truncate" data-testid={`text-account-secret-key-${secret.key}`}>
+                              {secret.key}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] uppercase text-blue-500 border-blue-500/50">
+                              account
+                            </Badge>
+                            {secret.linked && (
+                              <Badge variant="outline" className="text-[10px] uppercase text-green-500 border-green-500/50">
+                                linked
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <code className="text-[11px] font-mono px-2 py-1 rounded bg-muted max-w-[200px] sm:max-w-[300px] truncate">
+                              {secret.value}
+                            </code>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn("h-8 w-8", secret.linked ? "text-green-500" : "text-muted-foreground")}
+                            onClick={() => linkMutation.mutate({ 
+                              accountSecretId: secret.id, 
+                              action: secret.linked ? 'unlink' : 'link' 
+                            })}
+                            disabled={linkMutation.isPending}
+                            title={secret.linked ? 'Unlink from this project' : 'Link to this project'}
+                            data-testid={`button-link-${secret.key}`}
+                          >
+                            {linkMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : secret.linked ? (
+                              <Unlink className="w-4 h-4" />
+                            ) : (
+                              <Link2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => deleteAccountMutation.mutate(secret.id)}
+                            disabled={deleteAccountMutation.isPending}
+                            data-testid={`button-delete-account-${secret.key}`}
+                          >
+                            {deleteAccountMutation.isPending && deleteAccountMutation.variables === secret.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </>
           )}
         </div>
       </ScrollArea>
@@ -467,9 +666,11 @@ export function SecretsPanel({ projectId, className }: SecretsPanelProps) {
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Secret</DialogTitle>
+            <DialogTitle>{activeTab === 'project' ? 'Add App Secret' : 'Add Account Secret'}</DialogTitle>
             <DialogDescription>
-              Add a new secret or environment variable to your project.
+              {activeTab === 'project' 
+                ? 'Add a new secret or environment variable to this project.' 
+                : 'Add a secret to your account. It can be linked to any of your projects.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -492,32 +693,36 @@ export function SecretsPanel({ projectId, className }: SecretsPanelProps) {
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
                 placeholder="Enter value..."
-                type={isSecretToggle ? 'password' : 'text'}
+                type="password"
                 data-testid="input-new-value"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Environment</Label>
-              <Select value={newEnvironment} onValueChange={(v) => setNewEnvironment(v as any)}>
-                <SelectTrigger data-testid="select-new-environment">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="development">Development</SelectItem>
-                  <SelectItem value="staging">Staging</SelectItem>
-                  <SelectItem value="production">Production</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="isSecret">Encrypt as secret</Label>
-              <Switch
-                id="isSecret"
-                checked={isSecretToggle}
-                onCheckedChange={setIsSecretToggle}
-                data-testid="switch-is-secret"
-              />
-            </div>
+            {activeTab === 'project' && (
+              <>
+                <div className="space-y-2">
+                  <Label>Environment</Label>
+                  <Select value={newEnvironment} onValueChange={(v) => setNewEnvironment(v as any)}>
+                    <SelectTrigger data-testid="select-new-environment">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="development">Development</SelectItem>
+                      <SelectItem value="staging">Staging</SelectItem>
+                      <SelectItem value="production">Production</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="isSecret">Encrypt as secret</Label>
+                  <Switch
+                    id="isSecret"
+                    checked={isSecretToggle}
+                    onCheckedChange={setIsSecretToggle}
+                    data-testid="switch-is-secret"
+                  />
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
             <Button 
@@ -527,16 +732,22 @@ export function SecretsPanel({ projectId, className }: SecretsPanelProps) {
               Cancel
             </Button>
             <Button
-              onClick={() => createMutation.mutate({ 
-                key: newKey, 
-                value: newValue, 
-                environment: newEnvironment,
-                isSecret: isSecretToggle 
-              })}
-              disabled={!newKey || !newValue || createMutation.isPending}
+              onClick={() => {
+                if (activeTab === 'account') {
+                  createAccountMutation.mutate({ key: newKey, value: newValue });
+                } else {
+                  createMutation.mutate({ 
+                    key: newKey, 
+                    value: newValue, 
+                    environment: newEnvironment,
+                    isSecret: isSecretToggle 
+                  });
+                }
+              }}
+              disabled={!newKey || !newValue || createMutation.isPending || createAccountMutation.isPending}
               data-testid="button-save-secret"
             >
-              {createMutation.isPending ? (
+              {(createMutation.isPending || createAccountMutation.isPending) ? (
                 <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving...</>
               ) : (
                 <><Save className="w-4 h-4 mr-1" /> Save</>

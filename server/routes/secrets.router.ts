@@ -35,7 +35,7 @@ const updateSecretSchema = z.object({
 
 router.get('/', async (req, res) => {
   try {
-    const projectId = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const userId = req.user?.id;
     const environment = req.query.environment as string | undefined;
     const search = req.query.search as string | undefined;
@@ -44,7 +44,7 @@ router.get('/', async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    if (isNaN(projectId) || projectId <= 0) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
@@ -82,7 +82,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const projectId = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const userId = req.user?.id;
     const data = createSecretSchema.parse(req.body);
     
@@ -90,7 +90,7 @@ router.post('/', async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    if (isNaN(projectId) || projectId <= 0) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
@@ -142,10 +142,170 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.get('/account', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { db } = await import('../db');
+    const { accountEnvVars, accountEnvVarLinks } = await import('@shared/schema');
+    const { eq } = await import('drizzle-orm');
+
+    const projectId = req.params.projectId;
+
+    const accountVars = await db.select().from(accountEnvVars).where(eq(accountEnvVars.userId, String(userId)));
+
+    let linkedIds = new Set<string>();
+    if (projectId) {
+      const links = await db.select().from(accountEnvVarLinks).where(eq(accountEnvVarLinks.projectId, projectId));
+      linkedIds = new Set(links.map(l => l.accountEnvVarId));
+    }
+
+    const secrets = accountVars.map(v => {
+      return {
+        id: v.id,
+        key: v.key,
+        value: '********',
+        isSecret: true,
+        scope: 'account' as const,
+        linked: projectId ? linkedIds.has(v.id) : undefined,
+        createdAt: v.createdAt,
+      };
+    });
+
+    res.json({ secrets });
+  } catch (error: any) {
+    logger.error('Failed to list account secrets:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/account', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const data = z.object({
+      key: z.string().min(1).max(255).regex(/^[A-Z][A-Z0-9_]*$/),
+      value: z.string().max(10000),
+    }).parse(req.body);
+
+    const { db } = await import('../db');
+    const { accountEnvVars } = await import('@shared/schema');
+    const { eq, and } = await import('drizzle-orm');
+    const { encrypt } = await import('../encryption');
+
+    const existing = await db.select().from(accountEnvVars)
+      .where(and(eq(accountEnvVars.userId, String(userId)), eq(accountEnvVars.key, data.key)));
+    if (existing.length > 0) {
+      return res.status(409).json({ error: `Account secret "${data.key}" already exists` });
+    }
+
+    const [created] = await db.insert(accountEnvVars).values({
+      userId: String(userId),
+      key: data.key,
+      encryptedValue: encrypt(data.value),
+    }).returning();
+
+    res.status(201).json({ id: created.id, key: created.key });
+  } catch (error: any) {
+    if (error.name === 'ZodError') return res.status(400).json({ error: error.errors });
+    logger.error('Failed to create account secret:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/account/:accountSecretId', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { accountSecretId } = req.params;
+    const { db } = await import('../db');
+    const { accountEnvVars, accountEnvVarLinks } = await import('@shared/schema');
+    const { eq, and } = await import('drizzle-orm');
+
+    const [existing] = await db.select().from(accountEnvVars)
+      .where(and(eq(accountEnvVars.id, accountSecretId), eq(accountEnvVars.userId, String(userId))));
+    if (!existing) return res.status(404).json({ error: 'Account secret not found' });
+
+    await db.delete(accountEnvVarLinks).where(eq(accountEnvVarLinks.accountEnvVarId, accountSecretId));
+    await db.delete(accountEnvVars).where(eq(accountEnvVars.id, accountSecretId));
+
+    res.json({ message: 'Account secret deleted' });
+  } catch (error: any) {
+    logger.error('Failed to delete account secret:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/account/:accountSecretId/link', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { accountSecretId } = req.params;
+    const projectId = req.params.projectId;
+    if (!projectId) return res.status(400).json({ error: 'Project ID required' });
+
+    const { db } = await import('../db');
+    const { accountEnvVars, accountEnvVarLinks, projects } = await import('@shared/schema');
+    const { eq, and } = await import('drizzle-orm');
+
+    const [project] = await db.select({ id: projects.id, userId: projects.userId }).from(projects).where(eq(projects.id, projectId));
+    if (!project || String(project.userId) !== String(userId)) {
+      return res.status(403).json({ error: 'Access denied to this project' });
+    }
+
+    const [existing] = await db.select().from(accountEnvVars)
+      .where(and(eq(accountEnvVars.id, accountSecretId), eq(accountEnvVars.userId, String(userId))));
+    if (!existing) return res.status(404).json({ error: 'Account secret not found' });
+
+    await db.insert(accountEnvVarLinks).values({
+      accountEnvVarId: accountSecretId,
+      projectId,
+    }).onConflictDoNothing();
+
+    res.json({ message: 'Linked to project' });
+  } catch (error: any) {
+    logger.error('Failed to link account secret:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/account/:accountSecretId/link', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { accountSecretId } = req.params;
+    const projectId = req.params.projectId;
+    if (!projectId) return res.status(400).json({ error: 'Project ID required' });
+
+    const { db } = await import('../db');
+    const { accountEnvVarLinks, projects } = await import('@shared/schema');
+    const { eq, and } = await import('drizzle-orm');
+
+    const [project] = await db.select({ id: projects.id, userId: projects.userId }).from(projects).where(eq(projects.id, projectId));
+    if (!project || String(project.userId) !== String(userId)) {
+      return res.status(403).json({ error: 'Access denied to this project' });
+    }
+
+    await db.delete(accountEnvVarLinks).where(
+      and(eq(accountEnvVarLinks.accountEnvVarId, accountSecretId), eq(accountEnvVarLinks.projectId, projectId))
+    );
+
+    res.json({ message: 'Unlinked from project' });
+  } catch (error: any) {
+    logger.error('Failed to unlink account secret:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const projectId = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const userId = req.user?.id;
     const updates = updateSecretSchema.parse(req.body);
     
@@ -153,7 +313,7 @@ router.patch('/:id', async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (isNaN(projectId) || projectId <= 0) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
@@ -224,14 +384,14 @@ router.patch('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const projectId = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const userId = req.user?.id;
     
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (isNaN(projectId) || projectId <= 0) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 
@@ -265,14 +425,14 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/reveal', async (req, res) => {
   try {
     const { id } = req.params;
-    const projectId = parseInt(req.params.projectId, 10);
+    const projectId = req.params.projectId;
     const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (isNaN(projectId) || projectId <= 0) {
+    if (!projectId) {
       return res.status(400).json({ error: 'Invalid project ID' });
     }
 

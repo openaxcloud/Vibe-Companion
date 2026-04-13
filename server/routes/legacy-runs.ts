@@ -202,20 +202,10 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
 
     const codeHash = crypto.createHash("sha256").update(resolvedCode).digest("hex").slice(0, 16);
 
-    const projectEnvVarsList = await storage.getProjectEnvVars(project.id);
-    const envVarsMap: Record<string, string> = {};
-    for (const ev of projectEnvVarsList) {
-      envVarsMap[ev.key] = decrypt(ev.encryptedValue);
-    }
+    const { fetchAllProjectSecrets } = await import("../utils/secrets");
+    const envVarsMap: Record<string, string> = await fetchAllProjectSecrets(project.id, userId);
     const integrationEnvVars = await getIntegrationEnvVars(project.id);
     Object.assign(envVarsMap, integrationEnvVars);
-
-    const linkedAccountVars = await storage.getAccountEnvVarLinks(project.id);
-    for (const link of linkedAccountVars) {
-      if (!(link.key in envVarsMap)) {
-        envVarsMap[link.key] = decrypt(link.encryptedValue);
-      }
-    }
 
     envVarsMap["REPLIT_DOMAINS"] = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "localhost";
     const user = await storage.getUser(userId);
@@ -399,23 +389,25 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
     }
 
     const { spawn } = await import("child_process");
+    const { fetchAllProjectSecrets } = await import("../utils/secrets");
+    const projectSecrets = await fetchAllProjectSecrets(project.id, String(req.session.userId));
     let proc;
     if (isPython) {
       proc = spawn("python3", ["-u", entryFilename], {
         cwd: sandboxDir,
-        env: { ...process.env },
+        env: { ...process.env, ...projectSecrets },
         stdio: ["pipe", "pipe", "pipe"],
       });
     } else if (isTS) {
       proc = spawn("node", [`--inspect=0.0.0.0:${inspectPort}`, "--import", "tsx/esm", entryFilename], {
         cwd: sandboxDir,
-        env: { ...process.env, NODE_ENV: "development" },
+        env: { ...process.env, NODE_ENV: "development", ...projectSecrets },
         stdio: ["pipe", "pipe", "pipe"],
       });
     } else {
       proc = spawn("node", [`--inspect=0.0.0.0:${inspectPort}`, entryFilename], {
         cwd: sandboxDir,
-        env: { ...process.env, NODE_ENV: "development" },
+        env: { ...process.env, NODE_ENV: "development", ...projectSecrets },
         stdio: ["pipe", "pipe", "pipe"],
       });
     }

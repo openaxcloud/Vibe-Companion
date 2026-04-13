@@ -282,3 +282,84 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   secretManager.clearSecrets();
 });
+
+export async function fetchAllProjectSecrets(projectId: string, userId?: string): Promise<Record<string, string>> {
+  const vars: Record<string, string> = {};
+  try {
+    const { db } = await import('../db');
+    const { environmentVariables, projectEnvVars, accountEnvVars, accountEnvVarLinks } = await import('@shared/schema');
+    const { eq } = await import('drizzle-orm');
+    const { decrypt } = await import('../encryption');
+
+    try {
+      const links = await db
+        .select({ key: accountEnvVars.key, encryptedValue: accountEnvVars.encryptedValue })
+        .from(accountEnvVarLinks)
+        .innerJoin(accountEnvVars, eq(accountEnvVarLinks.accountEnvVarId, accountEnvVars.id))
+        .where(eq(accountEnvVarLinks.projectId, projectId));
+      for (const link of links) {
+        if (link.key && link.encryptedValue) {
+          try { vars[link.key] = decrypt(link.encryptedValue); } catch {}
+        }
+      }
+    } catch {}
+
+    try {
+      const projVars = await db.select().from(projectEnvVars).where(eq(projectEnvVars.projectId, projectId));
+      for (const pv of projVars) {
+        if (pv.key && pv.encryptedValue) {
+          try { vars[pv.key] = decrypt(pv.encryptedValue); } catch {}
+        }
+      }
+    } catch {}
+
+    try {
+      const envVarRows = await db.select().from(environmentVariables).where(eq(environmentVariables.projectId, projectId));
+      for (const ev of envVarRows) {
+        if (!ev.key || !ev.value) continue;
+        if (ev.isSecret) {
+          try {
+            const { RealSecretManagementService } = await import('../services/real-secret-management');
+            const svc = new RealSecretManagementService();
+            const enc = JSON.parse(ev.value) as { iv: string; encryptedData: string; authTag: string };
+            vars[ev.key] = svc.decryptValue(enc);
+          } catch {}
+        } else {
+          vars[ev.key] = ev.value;
+        }
+      }
+    } catch {}
+  } catch (err: any) {
+    logger.warn(`fetchAllProjectSecrets failed for ${projectId}: ${err.message}`);
+  }
+  return vars;
+}
+
+export async function getProjectSecretNames(projectId: string, userId?: string): Promise<string[]> {
+  const names = new Set<string>();
+  try {
+    const { db } = await import('../db');
+    const { environmentVariables, projectEnvVars, accountEnvVars, accountEnvVarLinks } = await import('@shared/schema');
+    const { eq } = await import('drizzle-orm');
+
+    try {
+      const projVars = await db.select({ key: projectEnvVars.key }).from(projectEnvVars).where(eq(projectEnvVars.projectId, projectId));
+      for (const pv of projVars) if (pv.key) names.add(pv.key);
+    } catch {}
+
+    try {
+      const envVarRows = await db.select({ key: environmentVariables.key }).from(environmentVariables).where(eq(environmentVariables.projectId, projectId));
+      for (const ev of envVarRows) if (ev.key) names.add(ev.key);
+    } catch {}
+
+    try {
+      const links = await db
+        .select({ key: accountEnvVars.key })
+        .from(accountEnvVarLinks)
+        .innerJoin(accountEnvVars, eq(accountEnvVarLinks.accountEnvVarId, accountEnvVars.id))
+        .where(eq(accountEnvVarLinks.projectId, projectId));
+      for (const link of links) if (link.key) names.add(link.key);
+    } catch {}
+  } catch {}
+  return Array.from(names);
+}
