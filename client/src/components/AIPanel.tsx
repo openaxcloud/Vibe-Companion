@@ -20,6 +20,7 @@ import {
   Volume2, VolumeX, Download, Square, RefreshCw, Server, Terminal,
   SquarePen, History, ExternalLink
 } from "lucide-react";
+import { OpenAILogo, AnthropicLogo, GeminiLogo, OpenHandsLogo, ClaudeAgentLogo, GooseLogo, AI_PROVIDER_LOGOS } from "@/components/icons/AIProviderLogos";
 import ArtifactTypeCarousel, { ArtifactTypePill } from "./ArtifactTypeCarousel";
 import FigmaDesignCard, { FigmaLinkIndicator, detectFigmaUrl } from "./FigmaDesignCard";
 import {
@@ -186,16 +187,16 @@ interface AgentToolsConfig {
   turbo: boolean;
 }
 
-const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string; icon: typeof Sparkles }> = {
-  claude: { name: "Claude Sonnet 4", badge: "Anthropic", color: "text-[#7C65CB] bg-[#7C65CB]/10", icon: Sparkles },
-  gpt: { name: "GPT-4.1", badge: "OpenAI", color: "text-[#0CCE6B] bg-[#0CCE6B]/10", icon: Zap },
-  gemini: { name: "Gemini 2.5 Flash", badge: "Google", color: "text-[#4285F4] bg-[#4285F4]/10", icon: Zap },
+const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
+  claude: { name: "Claude Sonnet 4", badge: "Anthropic", color: "text-[#D4A27F] bg-[#D4A27F]/10", icon: AnthropicLogo },
+  gpt: { name: "GPT-4.1", badge: "OpenAI", color: "text-[#10A37F] bg-[#10A37F]/10", icon: OpenAILogo },
+  gemini: { name: "Gemini 2.5 Flash", badge: "Google", color: "text-[#4285F4] bg-[#4285F4]/10", icon: GeminiLogo },
   openrouter: { name: "OpenRouter", badge: "200+ Models", color: "text-[#E44D26] bg-[#E44D26]/10", icon: Globe },
   perplexity: { name: "Perplexity", badge: "Search AI", color: "text-[#20808D] bg-[#20808D]/10", icon: Search },
   mistral: { name: "Mistral", badge: "Mistral AI", color: "text-[#FF7000] bg-[#FF7000]/10", icon: Zap },
-  openhands: { name: "OpenHands", badge: "Agent", color: "text-[#10B981] bg-[#10B981]/10", icon: Globe },
-  goose: { name: "Goose", badge: "Agent", color: "text-[#F97316] bg-[#F97316]/10", icon: Terminal },
-  "claude-agent": { name: "Claude Agent", badge: "Agent SDK", color: "text-[#D97F06] bg-[#D97F06]/10", icon: Bot },
+  openhands: { name: "OpenHands", badge: "Agent", color: "text-[#10B981] bg-[#10B981]/10", icon: OpenHandsLogo },
+  goose: { name: "Goose", badge: "Agent", color: "text-[#F97316] bg-[#F97316]/10", icon: GooseLogo },
+  "claude-agent": { name: "Claude Agent", badge: "Agent SDK", color: "text-[#D97F06] bg-[#D97F06]/10", icon: ClaudeAgentLogo },
 };
 
 const TOP_AGENT_MODE_LABELS: Record<TopAgentMode, { name: string; icon: typeof Zap; color: string; bg: string; description: string }> = {
@@ -4467,13 +4468,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-72 max-h-[400px] overflow-y-auto bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
                     {(() => {
-                      const providerMeta: Record<string, { color: string; icon: typeof Sparkles; groupKey: AIModel; isExternal: boolean }> = {
-                        openai: { color: "#0CCE6B", icon: Zap, groupKey: "gpt", isExternal: false },
-                        anthropic: { color: "#7C65CB", icon: Sparkles, groupKey: "claude", isExternal: false },
-                        gemini: { color: "#4285F4", icon: Zap, groupKey: "gemini", isExternal: false },
-                        openhands: { color: "#10B981", icon: Globe, groupKey: "openhands", isExternal: true },
-                        goose: { color: "#F97316", icon: Terminal, groupKey: "goose", isExternal: true },
-                        "claude-agent": { color: "#D97F06", icon: Bot, groupKey: "claude-agent" as AIModel, isExternal: true },
+                      const providerMeta: Record<string, { color: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; groupKey: AIModel; isExternal: boolean }> = {
+                        openai: { color: "#10A37F", icon: OpenAILogo, groupKey: "gpt", isExternal: false },
+                        anthropic: { color: "#D4A27F", icon: AnthropicLogo, groupKey: "claude", isExternal: false },
+                        gemini: { color: "#4285F4", icon: GeminiLogo, groupKey: "gemini", isExternal: false },
+                        openhands: { color: "#10B981", icon: OpenHandsLogo, groupKey: "openhands", isExternal: true },
+                        goose: { color: "#F97316", icon: GooseLogo, groupKey: "goose", isExternal: true },
+                        "claude-agent": { color: "#D4A27F", icon: ClaudeAgentLogo, groupKey: "claude-agent" as AIModel, isExternal: true },
                       };
                       const defaultMeta = { color: "#9CA3AF", icon: Zap, groupKey: "gpt" as AIModel, isExternal: false };
                       return liveModels.map(lm => {

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Send, Mic, Paperclip, ChevronDown, MessageSquare, Bot, Zap, Gauge, Rocket, Flame, Wrench, Globe, TestTube, Sparkles, Code2, MicOff, X, FileText, Image as ImageIcon, File as FileIcon, Brain, Cpu, Terminal, Check } from 'lucide-react';
+import { OpenAILogo, AnthropicLogo, GeminiLogo, OpenHandsLogo, ClaudeAgentLogo, GooseLogo } from '@/components/icons/AIProviderLogos';
 
 type AIMode = 'chat' | 'agent' | 'plan';
 type AgentMode = 'economy' | 'power' | 'turbo';
@@ -18,13 +19,13 @@ const AGENT_MODE_CONFIG = {
   turbo: { label: 'Trb', icon: Flame, color: '#FF6B35', desc: '5 cr' },
 };
 
-const PROVIDER_META: Record<string, { color: string; icon: typeof Sparkles; groupKey: AIModel; isExternal: boolean; shortName: string }> = {
-  openai:          { color: '#0CCE6B', icon: Zap,      groupKey: 'gpt',           isExternal: false, shortName: 'GPT' },
-  anthropic:       { color: '#7C65CB', icon: Sparkles,  groupKey: 'claude',        isExternal: false, shortName: 'Claude' },
-  gemini:          { color: '#4285F4', icon: Zap,        groupKey: 'gemini',        isExternal: false, shortName: 'Gemini' },
-  openhands:       { color: '#10B981', icon: Globe,      groupKey: 'openhands',     isExternal: true,  shortName: 'OpenHands' },
-  goose:           { color: '#F97316', icon: Terminal,    groupKey: 'goose',         isExternal: true,  shortName: 'Goose' },
-  'claude-agent':  { color: '#D97F06', icon: Bot,        groupKey: 'claude-agent' as AIModel, isExternal: true,  shortName: 'Agent SDK' },
+const PROVIDER_META: Record<string, { color: string; icon: React.ComponentType<{ className?: string }>; groupKey: AIModel; isExternal: boolean; shortName: string }> = {
+  openai:          { color: '#10A37F', icon: OpenAILogo,      groupKey: 'gpt',           isExternal: false, shortName: 'GPT' },
+  anthropic:       { color: '#D4A27F', icon: AnthropicLogo,   groupKey: 'claude',        isExternal: false, shortName: 'Claude' },
+  gemini:          { color: '#4285F4', icon: GeminiLogo,      groupKey: 'gemini',        isExternal: false, shortName: 'Gemini' },
+  openhands:       { color: '#10B981', icon: OpenHandsLogo,   groupKey: 'openhands',     isExternal: true,  shortName: 'OpenHands' },
+  goose:           { color: '#F97316', icon: GooseLogo,       groupKey: 'goose',         isExternal: true,  shortName: 'Goose' },
+  'claude-agent':  { color: '#D4A27F', icon: ClaudeAgentLogo, groupKey: 'claude-agent' as AIModel, isExternal: true,  shortName: 'Agent SDK' },
 };
 
 interface AgentToolsConfig {
