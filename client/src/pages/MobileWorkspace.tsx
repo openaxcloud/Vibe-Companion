@@ -123,11 +123,11 @@ export default function MobileWorkspace() {
       case 'agent':
       case 'more':
         return (
-          <div className="flex-1 flex flex-col bg-background pb-16">
+          <div className="flex-1 flex flex-col min-h-0 bg-background">
             <AgentPanelErrorBoundary>
               <ReplitAgentPanelV3 
                 projectId={projectId}
-                className="h-full"
+                className="flex-1 min-h-0"
               />
             </AgentPanelErrorBoundary>
           </div>
@@ -180,7 +180,7 @@ export default function MobileWorkspace() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background md:hidden">
+    <div className="flex flex-col bg-background md:hidden overflow-hidden" style={{ height: '100dvh', paddingBottom: 'calc(var(--mobile-nav-height, 52px) + env(safe-area-inset-bottom, 0px))' }}>
 
       {/* ── Top Navigation Bar ── hidden when in full preview tab (preview has its own header) */}
       {!isPreviewTab && (
@@ -233,7 +233,7 @@ export default function MobileWorkspace() {
       )}
 
       {/* ── Tab Content ── */}
-      <div className={cn('flex-1 flex flex-col overflow-hidden relative', isPreviewTab && 'pb-16')}>
+      <div className="flex-1 flex flex-col overflow-hidden relative min-h-0">
         {renderTabContent()}
 
         {/* ── Floating Preview Overlay (split-view mode) ── */}

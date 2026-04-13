@@ -71,20 +71,23 @@ export function MobilePreviewPanel({ projectId }: MobilePreviewPanelProps) {
         )}
       </div>
 
-      <div className="flex-1 flex items-center justify-center overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {previewUrl ? (
           <iframe
             key={refreshKey}
             src={previewUrl}
-            className="w-full h-full border-0 bg-white dark:bg-gray-900"
+            className="w-full h-full border-0"
+            style={{ background: '#0d1117' }}
             onLoad={() => setLoaded(true)}
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
             data-testid="iframe-mobile-preview"
           />
         ) : (
-          <div className="text-center">
-            <Globe className="w-8 h-8 text-[var(--ide-text-muted)]/30 mx-auto mb-2" />
-            <p className="text-[11px] text-[var(--ide-text-muted)]" data-testid="text-no-mobile-preview">Run your app to see the preview</p>
+          <div className="flex items-center justify-center h-full text-center">
+            <div>
+              <Globe className="w-8 h-8 text-[var(--ide-text-muted)]/30 mx-auto mb-2" />
+              <p className="text-[11px] text-[var(--ide-text-muted)]" data-testid="text-no-mobile-preview">Run your app to see the preview</p>
+            </div>
           </div>
         )}
       </div>
