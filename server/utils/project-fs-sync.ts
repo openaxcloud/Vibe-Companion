@@ -4,7 +4,7 @@ import { createLogger } from './logger';
 
 const logger = createLogger('project-fs-sync');
 
-const PROJECTS_BASE_DIR = '/tmp/projects';
+const PROJECTS_BASE_DIR = path.join(process.cwd(), 'project-workspaces');
 
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 

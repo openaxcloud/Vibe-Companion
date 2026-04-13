@@ -75,7 +75,7 @@ async function resolveProjectDirectory(projectId: string): Promise<string | null
     return null;
   }
   
-  const projectsDir = path.join(process.cwd(), 'projects');
+  const projectsDir = path.join(process.cwd(), 'project-workspaces');
   
   // SECURITY: Use safePath to prevent path traversal
   const projectDir = safePath(projectsDir, projectId);

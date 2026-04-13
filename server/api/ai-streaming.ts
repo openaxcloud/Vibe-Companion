@@ -396,7 +396,7 @@ Focus on planning, design, and collaboration - not implementation.`
               if (!searchQuery) return '';
 
               if (projectId) {
-                const projectPath = path.join(process.cwd(), 'projects', String(projectId));
+                const projectPath = path.join(process.cwd(), 'project-workspaces', String(projectId));
                 const engine = getOrCreateEngine(Number(projectId), projectPath);
                 const maxTokens = Math.min((ragConfig?.maxContextTokens || 8000), 12000);
                 const searchMode = ragConfig?.searchMode || 'hybrid';
@@ -460,7 +460,7 @@ Focus on planning, design, and collaboration - not implementation.`
           (async () => {
             if (!projectId) return '';
             try {
-              const projectBasePath = path.join(process.cwd(), 'projects', String(projectId));
+              const projectBasePath = path.join(process.cwd(), 'project-workspaces', String(projectId));
               memoryBankService.setProjectBasePath(Number(projectId), projectBasePath);
               const context = await Promise.race([
                 memoryBankService.getContextForAgent(projectId),
@@ -672,7 +672,7 @@ ${ragContextPrompt}`
             const projectIdNum = Number(projectId);
             
             // Compute project base path (relative to cwd where projects are stored)
-            const projectBasePath = path.join(process.cwd(), 'projects', String(projectIdNum));
+            const projectBasePath = path.join(process.cwd(), 'project-workspaces', String(projectIdNum));
             
             // Capture actual file state from the project directory
             const snapshot = await workspaceSnapshotService.captureFileState(

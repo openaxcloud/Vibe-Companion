@@ -627,7 +627,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
 export class SpeculativeScaffoldService {
   private projectsRoot: string;
 
-  constructor(projectsRoot: string = path.join(process.cwd(), 'projects')) {
+  constructor(projectsRoot: string = path.join(process.cwd(), 'project-workspaces')) {
     this.projectsRoot = projectsRoot;
   }
 

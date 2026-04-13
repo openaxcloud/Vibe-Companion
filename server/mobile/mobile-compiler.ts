@@ -408,7 +408,7 @@ export class MobileCompiler {
   }
 
   private async copyProjectFiles(projectId: number, buildDir: string): Promise<void> {
-    const projectDir = path.join(process.cwd(), 'projects', String(projectId));
+    const projectDir = path.join(process.cwd(), 'project-workspaces', String(projectId));
     await this.copyDirectory(projectDir, buildDir);
   }
 

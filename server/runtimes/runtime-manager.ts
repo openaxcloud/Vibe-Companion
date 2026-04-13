@@ -577,7 +577,7 @@ export async function checkRuntimeDependencies(): Promise<{
  * Create a project directory with all files
  */
 async function createProjectDir(project: Project, files: File[]): Promise<string> {
-  const projectDir = path.join(process.cwd(), 'projects', `project-${project.id}`);
+  const projectDir = path.join(process.cwd(), 'project-workspaces', String(project.id));
   
   logger.info(`Creating project directory for project ${project.id}`);
   

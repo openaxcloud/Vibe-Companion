@@ -152,7 +152,7 @@ export class ResourceMonitor {
 
   // Get project storage usage
   private async getProjectStorageUsage(projectId: number): Promise<number> {
-    const projectPath = path.join(process.cwd(), 'projects', projectId.toString());
+    const projectPath = path.join(process.cwd(), 'project-workspaces', projectId.toString());
     
     try {
       const { stdout } = await execAsync(`du -sb "${projectPath}" 2>/dev/null || echo "0"`);

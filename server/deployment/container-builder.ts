@@ -22,7 +22,7 @@ export class ContainerBuilder {
       throw new Error('Project not found');
     }
 
-    const projectDir = path.join(process.cwd(), 'projects', String(config.projectId));
+    const projectDir = path.join(process.cwd(), 'project-workspaces', String(config.projectId));
     const imageName = `${this.registryUrl}/${config.projectName.toLowerCase().replace(/\s+/g, '-')}-${config.deploymentId}:latest`;
 
     // Create Dockerfile based on language

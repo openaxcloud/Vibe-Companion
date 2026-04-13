@@ -227,7 +227,7 @@ export class DataProvisioningService {
    * Create data fixtures for testing
    */
   async createFixtures(projectId: number, fixtureName: string): Promise<void> {
-    const fixturesPath = path.join(process.cwd(), 'projects', projectId.toString(), 'fixtures');
+    const fixturesPath = path.join(process.cwd(), 'project-workspaces', projectId.toString(), 'fixtures');
     await fs.mkdir(fixturesPath, { recursive: true });
 
     const fixtures: Record<string, any> = {
@@ -353,7 +353,7 @@ export class DataProvisioningService {
    */
   private async importCSV(config: DataProvisioningConfig): Promise<any> {
     const { projectId, options } = config;
-    const filePath = path.join(process.cwd(), 'projects', projectId.toString(), options?.filePath);
+    const filePath = path.join(process.cwd(), 'project-workspaces', projectId.toString(), options?.filePath);
     
     const fileContent = await fs.readFile(filePath, 'utf-8');
     const records: any[] = [];
@@ -374,7 +374,7 @@ export class DataProvisioningService {
    */
   private async importJSON(config: DataProvisioningConfig): Promise<any> {
     const { projectId, options } = config;
-    const filePath = path.join(process.cwd(), 'projects', projectId.toString(), options?.filePath);
+    const filePath = path.join(process.cwd(), 'project-workspaces', projectId.toString(), options?.filePath);
     
     const fileContent = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(fileContent);
@@ -385,7 +385,7 @@ export class DataProvisioningService {
    */
   private async importSQL(config: DataProvisioningConfig): Promise<any> {
     const { projectId, options } = config;
-    const filePath = path.join(process.cwd(), 'projects', projectId.toString(), options?.filePath);
+    const filePath = path.join(process.cwd(), 'project-workspaces', projectId.toString(), options?.filePath);
     
     const sqlContent = await fs.readFile(filePath, 'utf-8');
     

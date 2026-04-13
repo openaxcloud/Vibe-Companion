@@ -251,7 +251,7 @@ export class AutoGradingService {
   ): Promise<any> {
     // Create test file
     const testFileName = `test_${Date.now()}.${this.getFileExtension(language)}`;
-    const projectPath = `/tmp/projects/${project.id}`;
+    const projectPath = path.join(process.cwd(), 'project-workspaces', String(project.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
     const testFilePath = path.join(projectPath, testFileName);
 
     // Ensure project directory exists

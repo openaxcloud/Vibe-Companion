@@ -748,7 +748,7 @@ ${plan.components.map((c: string) => `.${c.toLowerCase()} {
     };
     
     // Get project path
-    const projectPath = path.join(process.cwd(), 'projects', context.projectId.toString());
+    const projectPath = path.join(process.cwd(), 'project-workspaces', context.projectId.toString());
     
     // First, create all files and folders using MCP tools
     for (const action of actions) {
@@ -1005,7 +1005,7 @@ ${plan.components.map((c: string) => `.${c.toLowerCase()} {
       
       return new Promise((resolve) => {
         // Execute in project directory
-        const projectPath = path.join(process.cwd(), 'projects', projectId.toString());
+        const projectPath = path.join(process.cwd(), 'project-workspaces', projectId.toString());
         const childProcess = spawn(command, {
           shell: true,
           cwd: projectPath,

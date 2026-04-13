@@ -3,6 +3,7 @@ import { Server as HttpServer } from 'http';
 import { storage } from '../storage';
 import { spawn } from 'child_process';
 import jwt from 'jsonwebtoken';
+import * as path from 'path';
 import { createLogger } from '../utils/logger';
 import { wsMetrics } from './ws-metrics';
 
@@ -271,7 +272,7 @@ export class MobileWebSocketService {
 
     return new Promise((resolve) => {
       const child = spawn(cmd, args, {
-        cwd: `/tmp/projects/${projectId}`,
+        cwd: path.join(process.cwd(), 'project-workspaces', String(projectId).replace(/[^a-zA-Z0-9_-]/g, '_')),
         shell: false,
         timeout: 5000
       });

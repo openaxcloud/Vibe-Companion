@@ -216,7 +216,7 @@ export class StatusPageService {
         
         case 'Project Hosting':
           // Check if project directory is accessible
-          return fs.existsSync('./projects');
+          return fs.existsSync('./project-workspaces');
         
         case 'Database':
           // Check database connectivity

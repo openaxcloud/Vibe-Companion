@@ -111,7 +111,7 @@ export class ProjectExporter {
 
     // Add git history if requested and available
     if (includeGitHistory) {
-      const gitPath = path.join(process.cwd(), 'projects', `project-${projectId}`, '.git');
+      const gitPath = path.join(process.cwd(), 'project-workspaces', String(projectId), '.git');
       try {
         const gitExists = await fs.access(gitPath).then(() => true).catch(() => false);
         if (gitExists) {

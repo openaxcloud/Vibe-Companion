@@ -38,7 +38,7 @@ export class HistoryService {
     const files = await this.storage.getProjectFiles(projectId);
     
     // Create Git commit
-    const projectPath = `./projects/${projectId}`;
+    const projectPath = `./project-workspaces/${projectId}`;
     const commitHash = await this.gitManager.commit(projectPath, message);
     
     // Calculate metadata
@@ -95,7 +95,7 @@ export class HistoryService {
     }
     
     // Git checkout
-    const projectPath = `./projects/${projectId}`;
+    const projectPath = `./project-workspaces/${projectId}`;
     await this.gitManager.checkout(projectPath, snapshot.commitHash);
     
     // Log rollback
@@ -170,7 +170,7 @@ export class HistoryService {
   }
 
   async getFileDiff(projectId: number, filePath: string, fromCommit?: string, toCommit?: string): Promise<string> {
-    const projectPath = `./projects/${projectId}`;
+    const projectPath = `./project-workspaces/${projectId}`;
     return this.gitManager.getFileDiff(projectPath, filePath, fromCommit, toCommit);
   }
 }

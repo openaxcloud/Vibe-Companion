@@ -67,7 +67,7 @@ export class ExportService {
     try {
       await this.storage.updateExportJob(jobId, { status: 'processing' });
       
-      const projectPath = `./projects/${project.id}`;
+      const projectPath = `./project-workspaces/${project.id}`;
       
       // Create GitHub repository using API
       const createRepoCmd = `curl -H "Authorization: token ${data.githubToken}" \
@@ -133,7 +133,7 @@ export class ExportService {
     try {
       await this.storage.updateExportJob(jobId, { status: 'processing' });
       
-      const projectPath = `./projects/${project.id}`;
+      const projectPath = `./project-workspaces/${project.id}`;
       const dockerfile = this.generateDockerfile(project, data);
       
       // Write Dockerfile
@@ -235,7 +235,7 @@ export class ExportService {
     try {
       await this.storage.updateExportJob(jobId, { status: 'processing' });
       
-      const projectPath = `./projects/${project.id}`;
+      const projectPath = `./project-workspaces/${project.id}`;
       const outputPath = `./exports/${jobId}-export.zip`;
       
       // Create zip archive

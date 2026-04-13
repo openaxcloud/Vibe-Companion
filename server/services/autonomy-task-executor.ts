@@ -210,7 +210,7 @@ export class AutonomyTaskExecutor {
     this.aiProvider = new AIProviderManager();
     this.checkpointService = options.checkpointService;
     this.testingService = options.testingService;
-    this.projectBasePath = path.join(process.cwd(), 'projects', `project-${options.projectId}`);
+    this.projectBasePath = path.join(process.cwd(), 'project-workspaces', String(options.projectId));
     
     logger.info(`AutonomyTaskExecutor initialized for session ${options.sessionId}`);
   }

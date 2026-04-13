@@ -272,7 +272,7 @@ export class GitBackend {
       throw new Error('Project not found');
     }
     
-    const projectDir = path.join(process.cwd(), 'projects', String(projectId));
+    const projectDir = path.join(process.cwd(), 'project-workspaces', String(projectId));
     const repoPath = this.getRepoPath(projectId);
     
     // Copy files from project to repo (excluding .git)

@@ -27,7 +27,7 @@ export class SimpleDeployer {
   
   async deploy(config: DeploymentConfig): Promise<DeploymentResult> {
     const deploymentId = `dep-${config.projectId}-${Date.now()}`;
-    const projectDir = path.join(process.cwd(), 'projects', config.projectId);
+    const projectDir = path.join(process.cwd(), 'project-workspaces', config.projectId);
     
     // Initialize deployment
     const deployment: DeploymentResult = {

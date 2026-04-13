@@ -942,7 +942,7 @@ router.get('/context/:projectId', ensureAdmin, async (req, res) => {
   try {
     const { projectId } = req.params;
     const projectPath = projectId ? 
-      `./projects/${projectId}` : 
+      `./project-workspaces/${projectId}` : 
       process.cwd();
 
     const context = await agentOrchestrator.getProjectContext(projectPath);

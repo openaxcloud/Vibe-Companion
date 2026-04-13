@@ -33,7 +33,7 @@ async function verifyProjectAccess(projectId: number, userId: number): Promise<{
  * This ensures each project has its Memory Bank in projects/${projectId}/.ecode/memory-bank/
  */
 function ensureProjectBasePath(projectId: number): void {
-  const projectBasePath = path.join(process.cwd(), 'projects', String(projectId));
+  const projectBasePath = path.join(process.cwd(), 'project-workspaces', String(projectId));
   memoryBankService.setProjectBasePath(projectId, projectBasePath);
 }
 

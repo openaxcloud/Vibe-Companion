@@ -403,7 +403,7 @@ export class AgentOrchestratorService extends EventEmitter {
     const startTime = Date.now();
     const sessionToken = this.generateSessionToken();
     const workingDirectory = projectId ? 
-      path.join(process.cwd(), 'projects', projectId) : 
+      path.join(process.cwd(), 'project-workspaces', projectId) : 
       process.cwd();
 
     try {
@@ -2475,7 +2475,7 @@ I'm fully functional and operating at 100% capacity. Let me know how I can help 
       logger.info(`[Autonomous] Step types: ${workflowSteps.map((s: any) => s.type).join(', ')}`, { sessionId });
       
       // 5. Execute workflow with event wiring
-      const workingDirectory = path.join(process.cwd(), 'projects', projectId);
+      const workingDirectory = path.join(process.cwd(), 'project-workspaces', projectId);
       
       logger.info(`[Autonomous] Working directory: ${workingDirectory}`, { sessionId });
       

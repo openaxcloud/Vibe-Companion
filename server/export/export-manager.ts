@@ -55,7 +55,7 @@ interface FileEntry {
 }
 
 export class ExportManager {
-  private projectsDir = './projects';
+  private projectsDir = './project-workspaces';
   private exportsDir = './temp/exports';
 
   constructor() {

@@ -31,7 +31,7 @@ export class GitManager {
   private projectsPath: string;
 
   constructor() {
-    this.projectsPath = path.join(process.cwd(), 'projects');
+    this.projectsPath = path.join(process.cwd(), 'project-workspaces');
   }
 
   async initRepository(projectId: number): Promise<boolean> {
@@ -351,7 +351,7 @@ temp/
 
   private async getProjectPath(projectId: number): Promise<string> {
     await fs.mkdir(this.projectsPath, { recursive: true });
-    return path.join(this.projectsPath, `project-${projectId}`);
+    return path.join(this.projectsPath, String(projectId));
   }
 
   private execGit(args: string[], cwd: string): Promise<string> {

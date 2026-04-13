@@ -80,7 +80,7 @@ export class DeploymentPipeline {
     
     try {
       // Get project path
-      const projectPath = path.join(process.cwd(), 'projects', config.projectId.toString());
+      const projectPath = path.join(process.cwd(), 'project-workspaces', config.projectId.toString());
       
       // Phase 1: Build
       pipeline.logs.push('Starting build phase...');

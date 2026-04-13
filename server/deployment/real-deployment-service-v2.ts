@@ -110,7 +110,7 @@ export class RealDeploymentServiceV2 {
       const project = await storage.getProject(config.projectId);
       if (!project) throw new Error('Project not found');
 
-      const projectPath = path.join(process.cwd(), '.projects', `project-${config.projectId}`);
+      const projectPath = path.join(process.cwd(), 'project-workspaces', String(config.projectId));
       
       const buildConfig: BuildConfig = {
         projectId: config.projectId,

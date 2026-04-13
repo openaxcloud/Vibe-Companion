@@ -115,7 +115,7 @@ export class SimpleWorkflowRunner {
   }
   
   private async executeWorkflow(run: WorkflowRun, workflow: WorkflowConfig, projectId: string) {
-    const projectDir = path.join(process.cwd(), 'projects', projectId);
+    const projectDir = path.join(process.cwd(), 'project-workspaces', projectId);
     
     try {
       for (const step of workflow.steps) {

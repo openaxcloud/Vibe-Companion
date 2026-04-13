@@ -252,7 +252,7 @@ export class SimplePaymentProcessor {
     let storageUsed = 0;
     
     for (const project of projects) {
-      const projectPath = path.join(process.cwd(), 'projects', project.id.toString());
+      const projectPath = path.join(process.cwd(), 'project-workspaces', project.id.toString());
       try {
         const stats = await this.getDirectorySize(projectPath);
         storageUsed += stats;

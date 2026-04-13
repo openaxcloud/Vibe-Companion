@@ -169,7 +169,7 @@ export class ScalabilityOrchestrator extends EventEmitter {
       
       // In Replit, we simulate containers as isolated processes
       // In production, this would use actual Docker/Kubernetes
-      const projectPath = path.join(process.cwd(), 'projects', container.projectId);
+      const projectPath = path.join(process.cwd(), 'project-workspaces', container.projectId);
       
       // Ensure project directory exists
       await fs.mkdir(projectPath, { recursive: true });

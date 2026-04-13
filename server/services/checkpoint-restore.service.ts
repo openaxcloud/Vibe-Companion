@@ -46,7 +46,7 @@ export class CheckpointRestoreService extends EventEmitter {
    * Get project base path for file operations
    */
   private getProjectBasePath(projectId: number): string {
-    return path.join(process.cwd(), 'projects', String(projectId));
+    return path.join(process.cwd(), 'project-workspaces', String(projectId));
   }
 
   /**

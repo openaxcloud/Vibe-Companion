@@ -245,8 +245,8 @@ export class PackageInstaller {
   }
 
   private async getProjectDirectory(projectId: number): Promise<string> {
-    const baseDir = path.join(process.cwd(), 'projects');
-    const projectDir = path.join(baseDir, `project-${projectId}`);
+    const baseDir = path.join(process.cwd(), 'project-workspaces');
+    const projectDir = path.join(baseDir, String(projectId));
     
     // Ensure directory exists
     await fs.mkdir(projectDir, { recursive: true });

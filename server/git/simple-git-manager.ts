@@ -25,7 +25,7 @@ export interface GitCommit {
 
 export class SimpleGitManager {
   private async getProjectDir(projectId: string): Promise<string> {
-    return path.join(process.cwd(), 'projects', projectId);
+    return path.join(process.cwd(), 'project-workspaces', projectId);
   }
   
   async initRepository(projectId: string): Promise<void> {

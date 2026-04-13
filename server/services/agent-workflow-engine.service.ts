@@ -515,7 +515,7 @@ export class AgentWorkflowEngineService extends EventEmitter {
         // Fall back to the standard project directory pattern
         const projectId = session.projectId || state.variables?.projectId;
         if (projectId) {
-          projectPath = path.join(process.cwd(), 'projects', String(projectId));
+          projectPath = path.join(process.cwd(), 'project-workspaces', String(projectId));
         } else {
           projectPath = '.';
         }

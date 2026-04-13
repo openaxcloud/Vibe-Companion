@@ -15,7 +15,7 @@ const router = Router();
 const logger = createLogger('rag-router');
 
 function getProjectPath(projectId: number | string): string {
-  return path.join(process.cwd(), 'projects', String(projectId));
+  return path.join(process.cwd(), 'project-workspaces', String(projectId));
 }
 
 router.get('/stats', async (req, res) => {
