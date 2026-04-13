@@ -432,24 +432,18 @@ export function useIDEWorkspace(projectId: string) {
   // ═══════════════════════════════════════════════
   const runMutation = useMutation({
     mutationFn: async () => {
-      // Save dirty file before run
       if (activeFileId && dirtyFiles.has(activeFileId)) {
         await apiRequest('PATCH', `/api/files/${activeFileId}`, { content: fileContents[activeFileId] });
         setDirtyFiles(prev => { const n = new Set(prev); n.delete(activeFileId!); return n; });
       }
-      const code = activeFileId ? (fileContents[activeFileId] ?? '') : '';
-      const activeFile = Array.isArray(filesQuery.data) ? filesQuery.data.find(f => f.id === activeFileId) : undefined;
-      const fileName = activeFile?.filename;
-      const ext = fileName?.split('.').pop()?.toLowerCase();
-      const langMap: Record<string, string> = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', py: 'python', html: 'javascript', css: 'javascript' };
-      const language = (ext ? langMap[ext] : undefined) || project?.language || 'javascript';
-      const res = await apiRequest('POST', `/api/projects/${projectId}/run`, { code, language, fileName: fileName || undefined });
+      const res = await apiRequest('POST', `/api/preview/projects/${projectId}/preview/start`, {});
       return res.json();
     },
     onSuccess: (data: any) => {
       setIsRunning(true);
-      setWsStatus('starting');
-      if (data?.consoleRunId) setCurrentConsoleRunId(data.consoleRunId);
+      if (data?.status === 'running' || data?.status === 'starting' || data?.status === 'installing') {
+        setWsStatus(data.status);
+      }
       setTerminalVisible(true);
     },
     onError: (err: any) => {
@@ -460,12 +454,8 @@ export function useIDEWorkspace(projectId: string) {
   const handleRunStop = useCallback(() => {
     if (isRunning) {
       setIsRunning(false);
-      // Send stop request
-      fetch(`/api/projects/${projectId}/stop`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(getCsrfToken() ? { 'X-CSRF-Token': getCsrfToken()! } : {}) },
-        credentials: 'include',
-      }).catch(() => {});
+      setWsStatus('stopped');
+      apiRequest('POST', `/api/preview/projects/${projectId}/preview/stop`, {}).catch(() => {});
       return;
     }
     const timestamp = new Date().toLocaleTimeString();
