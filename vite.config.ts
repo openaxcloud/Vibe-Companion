@@ -5,12 +5,28 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { metaImagesPlugin } from "./vite-plugin-meta-images";
 
+function buildTimestampPlugin(): Plugin {
+  return {
+    name: 'build-timestamp',
+    transformIndexHtml() {
+      return [
+        {
+          tag: 'meta',
+          attrs: { name: 'build-time', content: new Date().toISOString() },
+          injectTo: 'head',
+        },
+      ];
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
     runtimeErrorOverlay(),
     tailwindcss(),
     metaImagesPlugin(),
+    buildTimestampPlugin(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
@@ -40,8 +56,12 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
     sourcemap: true,
+    manifest: true,
     rollupOptions: {
       output: {
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]',
         manualChunks(id) {
           if (id.includes("@xterm")) {
             return "xterm";
