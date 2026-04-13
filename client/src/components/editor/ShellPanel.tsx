@@ -46,7 +46,7 @@ export const ShellPanel = forwardRef<WorkspaceTerminalHandle, ShellPanelProps>(
     const effectiveWsUrl = externalWsUrl || autoWsUrl;
 
     return (
-      <div className="h-full bg-black">
+      <div className="h-full">
         <WorkspaceTerminal
           ref={ref}
           wsUrl={effectiveWsUrl}

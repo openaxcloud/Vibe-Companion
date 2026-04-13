@@ -2,10 +2,74 @@ let pty: any = null;
 try { pty = require("node-pty"); } catch { /* node-pty not available, using child_process fallback */ }
 import * as fs from "fs";
 import * as path from "path";
+import { spawn, type ChildProcess } from "child_process";
+import { EventEmitter } from "events";
 import { log } from "./index";
 
+interface IPtyLike {
+  pid: number;
+  onData: (cb: (data: string) => void) => { dispose: () => void };
+  onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { dispose: () => void };
+  write: (data: string) => void;
+  resize: (cols: number, rows: number) => void;
+  kill: (signal?: string) => void;
+}
+
+class ChildProcessPty extends EventEmitter implements IPtyLike {
+  private proc: ChildProcess;
+  pid: number;
+
+  constructor(shell: string, args: string[], opts: { cwd: string; env: Record<string, string>; cols?: number; rows?: number }) {
+    super();
+    this.proc = spawn(shell, args, {
+      cwd: opts.cwd,
+      env: { ...opts.env, COLUMNS: String(opts.cols || 80), LINES: String(opts.rows || 24) },
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: false,
+    });
+    this.pid = this.proc.pid || 0;
+
+    this.proc.stdout?.setEncoding("utf-8");
+    this.proc.stderr?.setEncoding("utf-8");
+    this.proc.stdout?.on("data", (data: string) => this.emit("data", data));
+    this.proc.stderr?.on("data", (data: string) => this.emit("data", data));
+    this.proc.on("exit", (code, signal) => {
+      this.emit("exit", { exitCode: code ?? 0, signal: signal ? 1 : undefined });
+    });
+    this.proc.on("error", (err) => {
+      this.emit("data", `\r\n\x1b[31mShell error: ${err.message}\x1b[0m\r\n`);
+      this.emit("exit", { exitCode: 1 });
+    });
+  }
+
+  onData(cb: (data: string) => void) {
+    this.on("data", cb);
+    return { dispose: () => this.removeListener("data", cb) };
+  }
+
+  onExit(cb: (e: { exitCode: number; signal?: number }) => void) {
+    this.on("exit", cb);
+    return { dispose: () => this.removeListener("exit", cb) };
+  }
+
+  write(data: string) {
+    try {
+      this.proc.stdin?.write(data);
+    } catch {}
+  }
+
+  resize(_cols: number, _rows: number) {
+  }
+
+  kill(signal?: string) {
+    try {
+      this.proc.kill(signal as NodeJS.Signals || "SIGTERM");
+    } catch {}
+  }
+}
+
 interface TerminalSession {
-  pty: pty.IPty;
+  pty: IPtyLike;
   projectId: string;
   userId: string;
   sessionId: string;
@@ -110,13 +174,32 @@ function sessionKey(projectId: string, userId: string, sessionId: string): strin
   return `${projectId}:${userId}:${sessionId}`;
 }
 
+function spawnTerminal(shell: string, workspaceDir: string, safeEnv: Record<string, string>): IPtyLike {
+  if (pty) {
+    return pty.spawn(shell, [], {
+      name: "xterm-256color",
+      cols: 80,
+      rows: 24,
+      cwd: workspaceDir,
+      env: safeEnv,
+    });
+  }
+  log("node-pty not available, using child_process fallback for terminal", "terminal");
+  return new ChildProcessPty(shell, ["-i"], {
+    cwd: workspaceDir,
+    env: safeEnv,
+    cols: 80,
+    rows: 24,
+  });
+}
+
 export function createTerminalSession(
   projectId: string,
   userId: string,
   sessionId: string,
   workspaceDir: string,
   projectEnvVars?: Record<string, string>,
-): pty.IPty {
+): IPtyLike {
   const key = sessionKey(projectId, userId, sessionId);
   const existing = sessions.get(key);
   if (existing) {
@@ -164,13 +247,7 @@ export function createTerminalSession(
   const shell = "/bin/bash";
   const safeEnv = buildSafeEnv(projectId, workspaceDir, projectEnvVars);
 
-  const term = pty.spawn(shell, [], {
-    name: "xterm-256color",
-    cols: 80,
-    rows: 24,
-    cwd: workspaceDir,
-    env: safeEnv,
-  });
+  const term = spawnTerminal(shell, workspaceDir, safeEnv);
 
   const session: TerminalSession = {
     pty: term,
@@ -201,7 +278,7 @@ export function getOrCreateTerminal(
   userId: string,
   workspaceDir: string,
   projectEnvVars?: Record<string, string>,
-): pty.IPty {
+): IPtyLike {
   return createTerminalSession(projectId, userId, "default", workspaceDir, projectEnvVars);
 }
 

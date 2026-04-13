@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle, useMemo, useState } from "react";
 import { Terminal as XTerminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -13,6 +13,7 @@ interface WorkspaceTerminalProps {
   onLastCommand?: (command: string) => void;
   shellBell?: boolean;
   accessibleTerminal?: boolean;
+  theme?: "dark" | "light";
 }
 
 export interface WorkspaceTerminalHandle {
@@ -21,11 +22,13 @@ export interface WorkspaceTerminalHandle {
   clearSearch: () => void;
 }
 
-const THEME = {
-  background: "#1C2333",
+const DARK_THEME = {
+  background: "#0E1525",
   foreground: "#F5F9FC",
   cursor: "#0079F2",
+  cursorAccent: "#0E1525",
   selectionBackground: "#0079F233",
+  selectionForeground: "#F5F9FC",
   black: "#676D7E",
   red: "#ff7b72",
   green: "#0CCE6B",
@@ -44,9 +47,47 @@ const THEME = {
   brightWhite: "#f0f6fc",
 };
 
+const LIGHT_THEME = {
+  background: "#FFFFFF",
+  foreground: "#1E1E1E",
+  cursor: "#0079F2",
+  cursorAccent: "#FFFFFF",
+  selectionBackground: "#0079F230",
+  selectionForeground: "#1E1E1E",
+  black: "#1E1E1E",
+  red: "#CD3131",
+  green: "#00BC7C",
+  yellow: "#949800",
+  blue: "#0451A5",
+  magenta: "#BC05BC",
+  cyan: "#0598BC",
+  white: "#F5F5F5",
+  brightBlack: "#666666",
+  brightRed: "#E74856",
+  brightGreen: "#16C60C",
+  brightYellow: "#C19C00",
+  brightBlue: "#3B78FF",
+  brightMagenta: "#B4009E",
+  brightCyan: "#61D6D6",
+  brightWhite: "#FFFFFF",
+};
+
 const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalProps>(
-  function WorkspaceTerminal({ wsUrl, runnerOffline, visible, onLastCommand, shellBell = false, accessibleTerminal = false }, ref) {
+  function WorkspaceTerminal({ wsUrl, runnerOffline, visible, onLastCommand, shellBell = false, accessibleTerminal = false, theme: themeProp }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [htmlDark, setHtmlDark] = useState(() =>
+    typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+  );
+  useEffect(() => {
+    const el = document.documentElement;
+    const observer = new MutationObserver(() => {
+      setHtmlDark(el.classList.contains("dark"));
+    });
+    observer.observe(el, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  const resolvedTheme = themeProp || (htmlDark ? "dark" : "light");
+  const xtermTheme = resolvedTheme === "light" ? LIGHT_THEME : DARK_THEME;
   const termRef = useRef<XTerminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
@@ -82,7 +123,7 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
       cursorBlink: true,
       fontSize: 13,
       fontFamily: "'JetBrains Mono', monospace",
-      theme: THEME,
+      theme: xtermTheme,
       allowProposedApi: true,
       scrollback: 5000,
       screenReaderMode: accessibleTerminal,
@@ -114,7 +155,7 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
         socketRef.current.send(JSON.stringify({ type: "resize", cols, rows }));
       }
     });
-  }, [accessibleTerminal, shellBell]);
+  }, [accessibleTerminal, shellBell, xtermTheme]);
 
   const closeSocket = useCallback((intentional: boolean) => {
     if (retryTimeoutRef.current) {
@@ -184,6 +225,12 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
   }, [initTerminal]);
 
   useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.theme = xtermTheme;
+    }
+  }, [xtermTheme]);
+
+  useEffect(() => {
     if (wsUrl) {
       if (!termRef.current) initTerminal();
       if (connectedUrlRef.current === wsUrl && socketRef.current?.readyState === WebSocket.OPEN) return;
@@ -232,7 +279,7 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
   const showPlaceholder = runnerOffline || !wsUrl;
 
   return (
-    <div className="w-full h-full relative bg-[#1C2333]">
+    <div className="w-full h-full relative" style={{ backgroundColor: xtermTheme.background }}>
       <div
         ref={containerRef}
         className="w-full h-full"
@@ -240,15 +287,15 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
         data-testid="workspace-terminal"
       />
       {runnerOffline && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-[#676D7E] gap-2">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ color: xtermTheme.brightBlack }}>
           <WifiOff className="w-8 h-8 text-orange-400/60" />
           <p className="text-xs text-orange-400/80">Terminal unavailable (runner offline)</p>
         </div>
       )}
       {!runnerOffline && !wsUrl && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-[#676D7E] gap-2">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ color: xtermTheme.brightBlack }}>
           <Terminal className="w-8 h-8" />
-          <p className="text-xs">Start the workspace to access the terminal</p>
+          <p className="text-xs">Connecting to terminal...</p>
         </div>
       )}
     </div>
