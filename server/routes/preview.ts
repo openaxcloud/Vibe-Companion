@@ -468,17 +468,20 @@ router.get('/projects/:id/preview/', requireAuth, ensureProjectAccess, async (re
     // Find index.html - first at root, then in common subdirectories
     const searchPaths = [
       'index.html',
+      'dist/index.html',
+      'build/index.html',
+      'out/index.html',
+      'public/index.html',
+      'client/dist/index.html',
+      '.output/public/index.html',
       'client/index.html',
       'client/public/index.html',
-      'public/index.html',
       'src/index.html',
       'frontend/index.html',
       'frontend/public/index.html',
       'app/index.html',
       'web/index.html',
       'www/index.html',
-      'dist/index.html',
-      'build/index.html',
     ];
 
     let indexFile: any = null;
@@ -704,6 +707,15 @@ router.get('/projects/:id/preview/{*filepath}', requireAuth, ensureProjectAccess
     // Try to find the file by exact path
     let file = findFileByPath(files, normalizedPath);
     
+    // If not found, try common build output subdirectories
+    if (!file) {
+      const buildDirs = ['dist', 'build', 'public', 'out', 'client/dist', '.output/public', '.next/static', 'www'];
+      for (const dir of buildDirs) {
+        file = findFileByPath(files, `${dir}/${normalizedPath}`);
+        if (file) break;
+      }
+    }
+    
     // If not found and no extension, it might be a directory - try to find its index.html
     if (!file && !path.extname(normalizedPath)) {
       const indexFile = findIndexInDirectory(files, normalizedPath);
@@ -712,6 +724,27 @@ router.get('/projects/:id/preview/{*filepath}', requireAuth, ensureProjectAccess
         const modifiedContent = content ? injectPreviewScripts(content, projectId) : '';
         res.type('html').send(modifiedContent);
         return;
+      }
+    }
+    
+    // SPA fallback: if nothing matched and path has no file extension,
+    // serve the project's index.html (supports client-side routing)
+    if (!file && !path.extname(normalizedPath)) {
+      const spaSearchPaths = ['dist/index.html', 'build/index.html', 'out/index.html', 'public/index.html', '.output/public/index.html', 'client/dist/index.html', 'index.html'];
+      for (const sp of spaSearchPaths) {
+        const spaIndex = findFileByPath(files, sp);
+        if (spaIndex && spaIndex.content) {
+          const basePath = sp.includes('/') ? sp.substring(0, sp.lastIndexOf('/')) : '';
+          let modifiedContent = injectPreviewScripts(spaIndex.content, projectId);
+          if (basePath) {
+            modifiedContent = modifiedContent.replace(
+              /<head([^>]*)>/i,
+              `<head$1><base href="/api/preview/projects/${projectId}/preview/${basePath}/">`
+            );
+          }
+          res.type('html').send(modifiedContent);
+          return;
+        }
       }
     }
     
