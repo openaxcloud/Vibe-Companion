@@ -24,12 +24,20 @@ import {
   Gamepad2,
   BarChart
 } from 'lucide-react';
+import {
+  JavaScriptLogo, PythonLogo, TypeScriptLogo, JavaLogo, GoLogo, RustLogo,
+  CppLogo, RubyLogo, PhpLogo, CSharpLogo, SwiftLogo, KotlinLogo, DartLogo,
+  RLangLogo, SqlLogo, HtmlCssLogo, BashLogo, LuaLogo, HaskellLogo, ElixirLogo,
+  CLangLogo, ScalaLogo, JuliaLogo, PerlLogo, ClojureLogo, FSharpLogo, OCamlLogo,
+  AssemblyLogo, MatlabLogo, ProcessingLogo, FortranLogo, CobolLogo, ErlangLogo,
+  NimLogo, CrystalLogo, ZigLogo
+} from '@/components/icons/LanguageLogos';
 import { Link } from 'wouter';
 
 const languages = [
   {
     name: 'JavaScript',
-    icon: <Globe className="h-8 w-8 text-yellow-500" />,
+    icon: <JavaScriptLogo className="h-8 w-8" />,
     category: 'web',
     popularity: 'Most Popular',
     description: 'Dynamic language for web development',
@@ -40,7 +48,7 @@ const languages = [
   },
   {
     name: 'Python',
-    icon: <Code className="h-8 w-8 text-blue-500" />,
+    icon: <PythonLogo className="h-8 w-8" />,
     category: 'general',
     popularity: 'Most Popular',
     description: 'Versatile language for AI, data science, and web',
@@ -51,7 +59,7 @@ const languages = [
   },
   {
     name: 'TypeScript',
-    icon: <Code className="h-8 w-8 text-blue-600" />,
+    icon: <TypeScriptLogo className="h-8 w-8" />,
     category: 'web',
     popularity: 'Popular',
     description: 'JavaScript with static typing',
@@ -62,7 +70,7 @@ const languages = [
   },
   {
     name: 'Java',
-    icon: <Coffee className="h-8 w-8 text-red-600" />,
+    icon: <JavaLogo className="h-8 w-8" />,
     category: 'general',
     popularity: 'Popular',
     description: 'Enterprise and Android development',
@@ -73,7 +81,7 @@ const languages = [
   },
   {
     name: 'Go',
-    icon: <Zap className="h-8 w-8 text-cyan-500" />,
+    icon: <GoLogo className="h-8 w-8" />,
     category: 'backend',
     popularity: 'Popular',
     description: 'Fast and efficient systems programming',
@@ -84,7 +92,7 @@ const languages = [
   },
   {
     name: 'Rust',
-    icon: <Cpu className="h-8 w-8 text-orange-600" />,
+    icon: <RustLogo className="h-8 w-8" />,
     category: 'systems',
     popularity: 'Growing',
     description: 'Memory-safe systems programming',
@@ -95,7 +103,7 @@ const languages = [
   },
   {
     name: 'C++',
-    icon: <Cpu className="h-8 w-8 text-blue-700" />,
+    icon: <CppLogo className="h-8 w-8" />,
     category: 'systems',
     popularity: 'Popular',
     description: 'High-performance systems and game development',
@@ -106,7 +114,7 @@ const languages = [
   },
   {
     name: 'Ruby',
-    icon: <Sparkles className="h-8 w-8 text-red-500" />,
+    icon: <RubyLogo className="h-8 w-8" />,
     category: 'web',
     popularity: 'Stable',
     description: 'Elegant language for web development',
@@ -117,7 +125,7 @@ const languages = [
   },
   {
     name: 'PHP',
-    icon: <Globe className="h-8 w-8 text-purple-600" />,
+    icon: <PhpLogo className="h-8 w-8" />,
     category: 'web',
     popularity: 'Popular',
     description: 'Server-side web development',
@@ -128,7 +136,7 @@ const languages = [
   },
   {
     name: 'C#',
-    icon: <Terminal className="h-8 w-8 text-purple-700" />,
+    icon: <CSharpLogo className="h-8 w-8" />,
     category: 'general',
     popularity: 'Popular',
     description: '.NET ecosystem and game development',
@@ -139,7 +147,7 @@ const languages = [
   },
   {
     name: 'Swift',
-    icon: <Smartphone className="h-8 w-8 text-orange-500" />,
+    icon: <SwiftLogo className="h-8 w-8" />,
     category: 'mobile',
     popularity: 'Popular',
     description: 'iOS and macOS development',
@@ -150,7 +158,7 @@ const languages = [
   },
   {
     name: 'Kotlin',
-    icon: <Smartphone className="h-8 w-8 text-purple-500" />,
+    icon: <KotlinLogo className="h-8 w-8" />,
     category: 'mobile',
     popularity: 'Growing',
     description: 'Modern Android development',
@@ -161,7 +169,7 @@ const languages = [
   },
   {
     name: 'Dart',
-    icon: <Smartphone className="h-8 w-8 text-blue-400" />,
+    icon: <DartLogo className="h-8 w-8" />,
     category: 'mobile',
     popularity: 'Growing',
     description: 'Flutter for cross-platform apps',
@@ -172,7 +180,7 @@ const languages = [
   },
   {
     name: 'R',
-    icon: <BarChart className="h-8 w-8 text-blue-500" />,
+    icon: <RLangLogo className="h-8 w-8" />,
     category: 'data',
     popularity: 'Specialized',
     description: 'Statistical computing and graphics',
@@ -183,7 +191,7 @@ const languages = [
   },
   {
     name: 'SQL',
-    icon: <Database className="h-8 w-8 text-green-600" />,
+    icon: <SqlLogo className="h-8 w-8" />,
     category: 'data',
     popularity: 'Essential',
     description: 'Database query language',
@@ -194,7 +202,7 @@ const languages = [
   },
   {
     name: 'HTML/CSS',
-    icon: <Globe className="h-8 w-8 text-orange-400" />,
+    icon: <HtmlCssLogo className="h-8 w-8" />,
     category: 'web',
     popularity: 'Essential',
     description: 'Web structure and styling',
@@ -205,7 +213,7 @@ const languages = [
   },
   {
     name: 'Bash',
-    icon: <Terminal className="h-8 w-8 text-gray-600 dark:text-gray-400" />,
+    icon: <BashLogo className="h-8 w-8" />,
     category: 'scripting',
     popularity: 'Essential',
     description: 'Shell scripting and automation',
@@ -216,7 +224,7 @@ const languages = [
   },
   {
     name: 'Lua',
-    icon: <Gamepad2 className="h-8 w-8 text-blue-600" />,
+    icon: <LuaLogo className="h-8 w-8" />,
     category: 'scripting',
     popularity: 'Specialized',
     description: 'Embedded scripting and game development',
@@ -227,7 +235,7 @@ const languages = [
   },
   {
     name: 'Haskell',
-    icon: <Code className="h-8 w-8 text-purple-800" />,
+    icon: <HaskellLogo className="h-8 w-8" />,
     category: 'functional',
     popularity: 'Niche',
     description: 'Pure functional programming',
@@ -238,7 +246,7 @@ const languages = [
   },
   {
     name: 'Elixir',
-    icon: <Cloud className="h-8 w-8 text-purple-600" />,
+    icon: <ElixirLogo className="h-8 w-8" />,
     category: 'backend',
     popularity: 'Growing',
     description: 'Scalable and fault-tolerant applications',
@@ -249,7 +257,7 @@ const languages = [
   },
   {
     name: 'C',
-    icon: <Cpu className="h-8 w-8 text-gray-700 dark:text-gray-300" />,
+    icon: <CLangLogo className="h-8 w-8" />,
     category: 'systems',
     popularity: 'Essential',
     description: 'Low-level systems programming',
@@ -260,7 +268,7 @@ const languages = [
   },
   {
     name: 'Scala',
-    icon: <Code className="h-8 w-8 text-red-700" />,
+    icon: <ScalaLogo className="h-8 w-8" />,
     category: 'general',
     popularity: 'Stable',
     description: 'JVM language for scalable applications',
@@ -271,7 +279,7 @@ const languages = [
   },
   {
     name: 'Julia',
-    icon: <BarChart className="h-8 w-8 text-purple-500" />,
+    icon: <JuliaLogo className="h-8 w-8" />,
     category: 'data',
     popularity: 'Growing',
     description: 'High-performance scientific computing',
@@ -282,7 +290,7 @@ const languages = [
   },
   {
     name: 'Perl',
-    icon: <Terminal className="h-8 w-8 text-blue-800" />,
+    icon: <PerlLogo className="h-8 w-8" />,
     category: 'scripting',
     popularity: 'Stable',
     description: 'Text processing and system administration',
@@ -293,7 +301,7 @@ const languages = [
   },
   {
     name: 'Clojure',
-    icon: <Code className="h-8 w-8 text-green-700" />,
+    icon: <ClojureLogo className="h-8 w-8" />,
     category: 'functional',
     popularity: 'Niche',
     description: 'Functional programming on the JVM',
@@ -304,7 +312,7 @@ const languages = [
   },
   {
     name: 'F#',
-    icon: <Code className="h-8 w-8 text-blue-900" />,
+    icon: <FSharpLogo className="h-8 w-8" />,
     category: 'functional',
     popularity: 'Niche',
     description: 'Functional-first .NET language',
@@ -315,7 +323,7 @@ const languages = [
   },
   {
     name: 'OCaml',
-    icon: <Code className="h-8 w-8 text-orange-700" />,
+    icon: <OCamlLogo className="h-8 w-8" />,
     category: 'functional',
     popularity: 'Niche',
     description: 'Industrial-strength functional language',
@@ -326,7 +334,7 @@ const languages = [
   },
   {
     name: 'Assembly',
-    icon: <Cpu className="h-8 w-8 text-red-900" />,
+    icon: <AssemblyLogo className="h-8 w-8" />,
     category: 'systems',
     popularity: 'Specialized',
     description: 'Machine-level programming',
@@ -337,7 +345,7 @@ const languages = [
   },
   {
     name: 'MATLAB',
-    icon: <BarChart className="h-8 w-8 text-orange-600" />,
+    icon: <MatlabLogo className="h-8 w-8" />,
     category: 'data',
     popularity: 'Specialized',
     description: 'Numerical computing and engineering',
@@ -348,7 +356,7 @@ const languages = [
   },
   {
     name: 'Processing',
-    icon: <Gamepad2 className="h-8 w-8 text-teal-600" />,
+    icon: <ProcessingLogo className="h-8 w-8" />,
     category: 'creative',
     popularity: 'Specialized',
     description: 'Creative coding and visual arts',
@@ -359,7 +367,7 @@ const languages = [
   },
   {
     name: 'Fortran',
-    icon: <Cpu className="h-8 w-8 text-blue-700" />,
+    icon: <FortranLogo className="h-8 w-8" />,
     category: 'scientific',
     popularity: 'Specialized',
     description: 'High-performance scientific computing',
@@ -370,7 +378,7 @@ const languages = [
   },
   {
     name: 'COBOL',
-    icon: <Database className="h-8 w-8 text-green-800" />,
+    icon: <CobolLogo className="h-8 w-8" />,
     category: 'legacy',
     popularity: 'Legacy',
     description: 'Business and financial systems',
@@ -381,7 +389,7 @@ const languages = [
   },
   {
     name: 'Erlang',
-    icon: <Cloud className="h-8 w-8 text-red-600" />,
+    icon: <ErlangLogo className="h-8 w-8" />,
     category: 'backend',
     popularity: 'Specialized',
     description: 'Concurrent and distributed systems',
@@ -392,7 +400,7 @@ const languages = [
   },
   {
     name: 'Nim',
-    icon: <Zap className="h-8 w-8 text-yellow-600" />,
+    icon: <NimLogo className="h-8 w-8" />,
     category: 'systems',
     popularity: 'Growing',
     description: 'Efficient and expressive systems language',
@@ -403,7 +411,7 @@ const languages = [
   },
   {
     name: 'Crystal',
-    icon: <Sparkles className="h-8 w-8 text-black" />,
+    icon: <CrystalLogo className="h-8 w-8" />,
     category: 'web',
     popularity: 'Growing',
     description: 'Ruby-like syntax with C performance',
@@ -414,7 +422,7 @@ const languages = [
   },
   {
     name: 'Zig',
-    icon: <Cpu className="h-8 w-8 text-orange-500" />,
+    icon: <ZigLogo className="h-8 w-8" />,
     category: 'systems',
     popularity: 'Growing',
     description: 'Modern systems programming',
