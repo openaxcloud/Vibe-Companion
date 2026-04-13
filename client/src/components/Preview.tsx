@@ -133,7 +133,7 @@ const Preview = ({ openFiles, projectId }: PreviewProps) => {
       if (data.success && data.preview) {
         const preview = data.preview;
         setPreviewStatus({
-          status: 'running',
+          status: preview.status === 'running' ? 'running' : 'starting',
           runId: preview.runId,
           ports: preview.ports,
           primaryPort: preview.primaryPort,
@@ -141,23 +141,35 @@ const Preview = ({ openFiles, projectId }: PreviewProps) => {
           frameworkType: preview.frameworkType
         });
         
-        // Set initial port selection
         const targetPort = selectedPort && preview.ports.includes(selectedPort) 
           ? selectedPort 
           : preview.primaryPort;
-        
         setSelectedPort(targetPort);
-        // Use the API preview route for serving project content
-        setPreviewUrl(`/api/preview/render/${projectId}`);
-        
-        toast({
-          title: "Preview Started",
-          description: `${preview.frameworkType || 'Application'} server is running on ${preview.ports.length} port(s)`,
-        });
-        
-        // Auto-inject dev tools if enabled
-        if (devToolsEnabled) {
-          setTimeout(injectDevTools, 1000);
+
+        if (preview.status === 'running') {
+          setPreviewUrl(`/api/preview/projects/${projectId}/preview/`);
+          toast({
+            title: "Preview Started",
+            description: `${preview.frameworkType || 'Application'} server is running`,
+          });
+          if (devToolsEnabled) setTimeout(injectDevTools, 1000);
+        } else {
+          const poll = setInterval(async () => {
+            try {
+              const s: any = await apiRequest('GET', `/api/preview/projects/${projectId}/preview/status`);
+              if (s?.status === 'running') {
+                clearInterval(poll);
+                setPreviewStatus(prev => ({ ...prev, status: 'running' }));
+                setPreviewUrl(`/api/preview/projects/${projectId}/preview/`);
+                toast({ title: "Preview Ready", description: `${preview.frameworkType || 'Application'} is now live` });
+                if (devToolsEnabled) setTimeout(injectDevTools, 1000);
+              } else if (s?.status === 'error') {
+                clearInterval(poll);
+                setPreviewStatus(prev => ({ ...prev, status: 'error' }));
+              }
+            } catch { /* ignore */ }
+          }, 1500);
+          setTimeout(() => clearInterval(poll), 180000);
         }
       } else {
         throw new Error(data.error || 'Failed to start preview');
@@ -227,7 +239,7 @@ const Preview = ({ openFiles, projectId }: PreviewProps) => {
     onSuccess: (data, port) => {
       if (data.success) {
         setSelectedPort(port);
-        setPreviewUrl(`/api/preview/render/${projectId}`);
+        setPreviewUrl(`/api/preview/projects/${projectId}/preview/`);
         savePreference('port', port.toString());
         
         setPreviewStatus(prev => ({
@@ -381,11 +393,10 @@ const Preview = ({ openFiles, projectId }: PreviewProps) => {
             services: data.services
           }));
           
-          // Set URL for current or primary port
           const targetPort = selectedPort && data.ports.includes(selectedPort) 
             ? selectedPort 
             : data.primaryPort;
-          setPreviewUrl(`http://localhost:${targetPort}`);
+          setPreviewUrl(`/api/preview/projects/${projectId}/preview/`);
           setSelectedPort(targetPort);
           break;
           
@@ -440,7 +451,7 @@ const Preview = ({ openFiles, projectId }: PreviewProps) => {
             const targetPort = selectedPort && data.ports.includes(selectedPort) 
               ? selectedPort 
               : data.primaryPort;
-            setPreviewUrl(`http://localhost:${targetPort}`);
+            setPreviewUrl(`/api/preview/projects/${projectId}/preview/`);
             setSelectedPort(targetPort);
           }
           break;
@@ -552,8 +563,7 @@ const Preview = ({ openFiles, projectId }: PreviewProps) => {
           const targetPort = selectedPort && data.ports.includes(selectedPort) 
             ? selectedPort 
             : data.primaryPort;
-          // Use the API preview route for serving project content
-          setPreviewUrl(`/api/preview/render/${projectId}`);
+          setPreviewUrl(`/api/preview/projects/${projectId}/preview/`);
           setSelectedPort(targetPort);
         }
       }

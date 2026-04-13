@@ -460,21 +460,60 @@ export function useIDEWorkspace(projectId: string) {
   // ═══════════════════════════════════════════════
   // RUN / STOP
   // ═══════════════════════════════════════════════
+  const previewPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPreviewPolling = useCallback(() => {
+    if (previewPollRef.current) {
+      clearInterval(previewPollRef.current);
+      previewPollRef.current = null;
+    }
+  }, []);
+
+  const startPreviewPolling = useCallback((pid: string) => {
+    stopPreviewPolling();
+    let attempts = 0;
+    previewPollRef.current = setInterval(async () => {
+      attempts++;
+      if (attempts > 120) { stopPreviewPolling(); return; }
+      try {
+        const status: any = await apiRequest('GET', `/api/preview/projects/${pid}/preview/status`);
+        if (status?.status === 'running') {
+          stopPreviewPolling();
+          setWsStatus('running');
+          setLivePreviewUrl(`/api/preview/projects/${pid}/preview/`);
+        } else if (status?.status === 'error') {
+          stopPreviewPolling();
+          setWsStatus('error');
+        }
+      } catch { /* ignore */ }
+    }, 1500);
+  }, [stopPreviewPolling]);
+
   const runMutation = useMutation({
     mutationFn: async () => {
       if (activeFileId && dirtyFiles.has(activeFileId)) {
         await apiRequest('PATCH', `/api/files/${activeFileId}`, { content: fileContents[activeFileId] });
         setDirtyFiles(prev => { const n = new Set(prev); n.delete(activeFileId!); return n; });
       }
-      const res = await apiRequest('POST', `/api/preview/projects/${projectId}/preview/start`, {});
-      return res.json();
+      const res: any = await apiRequest('POST', `/api/preview/projects/${projectId}/preview/start`, {});
+      return res;
     },
     onSuccess: (data: any) => {
       setIsRunning(true);
-      if (data?.status === 'running' || data?.status === 'starting' || data?.status === 'installing') {
-        setWsStatus(data.status);
-      }
       setTerminalVisible(true);
+      const preview = data?.preview || data;
+      const status = preview?.status;
+      if (status === 'running') {
+        setWsStatus('running');
+        setLivePreviewUrl(`/api/preview/projects/${projectId}/preview/`);
+      } else if (status === 'error') {
+        setWsStatus('error');
+        setIsRunning(false);
+        toast({ title: 'Preview failed', description: preview?.logs?.[0] || 'Server could not start', variant: 'destructive' });
+      } else {
+        setWsStatus('starting');
+        startPreviewPolling(projectId);
+      }
     },
     onError: (err: any) => {
       toast({ title: 'Run failed', description: err.message, variant: 'destructive' });
@@ -485,6 +524,8 @@ export function useIDEWorkspace(projectId: string) {
     if (isRunning) {
       setIsRunning(false);
       setWsStatus('stopped');
+      setLivePreviewUrl(null);
+      stopPreviewPolling();
       apiRequest('POST', `/api/preview/projects/${projectId}/preview/stop`, {}).catch(() => {});
       return;
     }

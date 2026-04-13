@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import http from 'http';
 import { storage } from '../storage';
 import { previewEvents } from '../preview/preview-websocket';
 
@@ -427,10 +428,53 @@ function setCacheHeaders(res: any): void {
   res.set('Expires', '0');
 }
 
-// Live preview for HTML/CSS/JS projects - root path (serves index.html)
-// Supports ?file=path/to/file.html query param for specific file selection
-// Note: This route handles /api/preview/projects/:id/preview/
-router.get('/projects/:id/preview/', requireAuth, ensureProjectAccess, async (req, res) => {
+async function proxyToLivePreview(req: Request, res: Response, next: NextFunction) {
+  const projectId = req.params.id;
+  try {
+    const { previewService } = await import('../preview/preview-service');
+    const preview = previewService.getPreview(projectId);
+    if (!preview || preview.status !== 'running' || !preview.primaryPort) {
+      return next();
+    }
+    const relativePath = req.originalUrl.replace(
+      new RegExp(`/api/preview/projects/${projectId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/preview`),
+      ''
+    ) || '/';
+    const options: http.RequestOptions = {
+      hostname: '127.0.0.1',
+      port: preview.primaryPort,
+      path: relativePath,
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: `127.0.0.1:${preview.primaryPort}`,
+      },
+    };
+    const proxyReq = http.request(options, (proxyRes) => {
+      const headers = { ...proxyRes.headers };
+      delete headers['transfer-encoding'];
+      res.writeHead(proxyRes.statusCode || 502, headers);
+      proxyRes.pipe(res, { end: true });
+    });
+    proxyReq.on('error', () => {
+      next();
+    });
+    if (req.readable) {
+      req.pipe(proxyReq, { end: true });
+    } else {
+      proxyReq.end();
+    }
+  } catch {
+    next();
+  }
+}
+
+router.all('/projects/:id/preview/{*proxyAll}', requireAuth, ensureProjectAccess, (req, res, next) => {
+  if (req.method === 'GET') return next('route');
+  proxyToLivePreview(req, res, next);
+});
+
+router.get('/projects/:id/preview/', requireAuth, ensureProjectAccess, proxyToLivePreview, async (req, res) => {
   try {
     const projectId = req.params.id;
     
@@ -673,7 +717,7 @@ router.post('/projects/:id/preview/switch-port', requireAuth, ensureProjectAcces
 // - Directory paths: /api/preview/projects/:id/preview/public/ (serves public/index.html)
 // - Nested index.html: /api/preview/projects/:id/preview/public/index.html
 // Note: This route handles /api/preview/projects/:id/preview/:filepath
-router.get('/projects/:id/preview/{*filepath}', requireAuth, ensureProjectAccess, async (req, res) => {
+router.get('/projects/:id/preview/{*filepath}', requireAuth, ensureProjectAccess, proxyToLivePreview, async (req, res) => {
   try {
     const projectId = req.params.id;
     const rawFilepath = req.params.filepath;
