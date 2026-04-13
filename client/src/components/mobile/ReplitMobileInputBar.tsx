@@ -19,11 +19,12 @@ const AGENT_MODE_CONFIG = {
 };
 
 const PROVIDER_META: Record<string, { color: string; icon: typeof Sparkles; groupKey: AIModel; isExternal: boolean; shortName: string }> = {
-  openai:    { color: '#0CCE6B', icon: Zap,      groupKey: 'gpt',       isExternal: false, shortName: 'GPT' },
-  anthropic: { color: '#7C65CB', icon: Sparkles,  groupKey: 'claude',    isExternal: false, shortName: 'Claude' },
-  gemini:    { color: '#4285F4', icon: Zap,        groupKey: 'gemini',    isExternal: false, shortName: 'Gemini' },
-  openhands: { color: '#10B981', icon: Globe,      groupKey: 'openhands', isExternal: true,  shortName: 'OpenHands' },
-  goose:     { color: '#F97316', icon: Terminal,    groupKey: 'goose',     isExternal: true,  shortName: 'Goose' },
+  openai:          { color: '#0CCE6B', icon: Zap,      groupKey: 'gpt',           isExternal: false, shortName: 'GPT' },
+  anthropic:       { color: '#7C65CB', icon: Sparkles,  groupKey: 'claude',        isExternal: false, shortName: 'Claude' },
+  gemini:          { color: '#4285F4', icon: Zap,        groupKey: 'gemini',        isExternal: false, shortName: 'Gemini' },
+  openhands:       { color: '#10B981', icon: Globe,      groupKey: 'openhands',     isExternal: true,  shortName: 'OpenHands' },
+  goose:           { color: '#F97316', icon: Terminal,    groupKey: 'goose',         isExternal: true,  shortName: 'Goose' },
+  'claude-agent':  { color: '#D97F06', icon: Bot,        groupKey: 'claude-agent' as AIModel, isExternal: true,  shortName: 'Agent SDK' },
 };
 
 interface AgentToolsConfig {
@@ -175,9 +176,14 @@ export function ReplitMobileInputBar({
   const CurrentAgentIcon = currentAgentMode.icon;
 
   const currentProviderDisplay = (() => {
-    if (agentProvider === 'claude-agent') return { color: '#D97F06', icon: Bot, name: 'Agent SDK' };
-    if (agentProvider === 'openhands') return { color: '#10B981', icon: Globe, name: 'OpenHands' };
-    if (agentProvider === 'goose') return { color: '#F97316', icon: Terminal, name: 'Goose' };
+    if (agentProvider !== 'builtin') {
+      const extMeta: Record<string, { color: string; icon: typeof Sparkles; name: string }> = {
+        'claude-agent': { color: '#D97F06', icon: Bot, name: 'Agent SDK' },
+        openhands: { color: '#10B981', icon: Globe, name: 'OpenHands' },
+        goose: { color: '#F97316', icon: Terminal, name: 'Goose' },
+      };
+      return extMeta[agentProvider] || { color: '#9CA3AF', icon: Cpu, name: agentProvider };
+    }
     const modelMeta: Record<string, { color: string; icon: typeof Sparkles; name: string }> = {
       claude: { color: '#7C65CB', icon: Sparkles, name: 'Claude' },
       gpt: { color: '#0CCE6B', icon: Zap, name: 'GPT' },
@@ -314,7 +320,7 @@ export function ReplitMobileInputBar({
                         key={lm.id}
                         onClick={() => {
                           if (meta.isExternal) {
-                            setAgentProvider(lm.provider as 'openhands' | 'goose');
+                            setAgentProvider(lm.provider as 'openhands' | 'goose' | 'claude-agent');
                             try { localStorage.setItem('ai-agent-provider', lm.provider); } catch {}
                           } else {
                             setSelectedModel(meta.groupKey);
@@ -340,27 +346,6 @@ export function ReplitMobileInputBar({
                       </button>
                     );
                   })}
-                  <button
-                    onClick={() => {
-                      setAgentProvider('claude-agent');
-                      try { localStorage.setItem('ai-agent-provider', 'claude-agent'); } catch {}
-                      setShowProviderDropdown(false);
-                    }}
-                    className={cn(
-                      "flex items-center gap-2.5 w-full px-3 py-2 text-[11px] transition-colors border-t border-[var(--ide-border)]",
-                      agentProvider === 'claude-agent' ? "bg-[var(--ide-surface)]" : "hover:bg-[var(--ide-surface)]/50"
-                    )}
-                    data-testid="mobile-model-claude-agent-sdk"
-                  >
-                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: '#D97F0615' }}>
-                      <Bot className="w-3 h-3" style={{ color: '#D97F06' }} />
-                    </div>
-                    <div className="flex flex-col flex-1 min-w-0 text-left">
-                      <span className="font-medium text-[var(--ide-text)]">Claude Agent SDK</span>
-                      <span className="text-[9px] text-[var(--ide-text-muted)]">Full autonomous agent</span>
-                    </div>
-                    {agentProvider === 'claude-agent' && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
-                  </button>
                 </div>
               )}
             </div>

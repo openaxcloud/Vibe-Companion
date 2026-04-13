@@ -1827,6 +1827,11 @@ export async function registerRoutes(
         { id: "openhands", name: "OpenHands Agent", provider: "openhands", description: "Autonomous AI software engineer — runs code, edits files, browses web", maxTokens: 200000, supportsStreaming: true, costPer1kTokens: 0, available: true },
       );
     }
+    if (process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) {
+      models.push(
+        { id: "claude-agent-sdk", name: "Claude Agent SDK", provider: "claude-agent", description: "Full autonomous agent — sandbox environment with tool use", maxTokens: 200000, supportsStreaming: true, costPer1kTokens: 0.003, available: true },
+      );
+    }
     return models;
   }
 

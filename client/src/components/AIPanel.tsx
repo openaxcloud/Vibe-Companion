@@ -160,7 +160,7 @@ interface AIPanelProps {
   } | null) => void;
 }
 
-type AIModel = "claude" | "gpt" | "gemini" | "openrouter" | "perplexity" | "mistral" | "openhands" | "goose";
+type AIModel = "claude" | "gpt" | "gemini" | "openrouter" | "perplexity" | "mistral" | "openhands" | "goose" | "claude-agent";
 type AIMode = "chat" | "agent" | "plan";
 type TopMode = "plan" | "build";
 type AgentMode = "economy" | "power" | "turbo";
@@ -195,6 +195,7 @@ const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string
   mistral: { name: "Mistral", badge: "Mistral AI", color: "text-[#FF7000] bg-[#FF7000]/10", icon: Zap },
   openhands: { name: "OpenHands", badge: "Agent", color: "text-[#10B981] bg-[#10B981]/10", icon: Globe },
   goose: { name: "Goose", badge: "Agent", color: "text-[#F97316] bg-[#F97316]/10", icon: Terminal },
+  "claude-agent": { name: "Claude Agent", badge: "Agent SDK", color: "text-[#D97F06] bg-[#D97F06]/10", icon: Bot },
 };
 
 const TOP_AGENT_MODE_LABELS: Record<TopAgentMode, { name: string; icon: typeof Zap; color: string; bg: string; description: string }> = {
@@ -2149,7 +2150,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     persistMessage("user", userMsg.content);
 
     const assistantId = (Date.now() + 1).toString();
-    const effectiveModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : agentProvider === "claude-agent" ? "claude" : model;
+    const effectiveModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : agentProvider === "claude-agent" ? "claude-agent" : model;
     setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model: effectiveModel }]);
 
     abortRef.current = new AbortController();
@@ -2512,7 +2513,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const cleaned = prev.slice(0, -2);
       const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: retryInput };
       const assistantId = (Date.now() + 1).toString();
-      const retryEffectiveModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : agentProvider === "claude-agent" ? "claude" : model;
+      const retryEffectiveModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : agentProvider === "claude-agent" ? "claude-agent" : model;
       const updatedMessages = [...cleaned, userMsg, { id: assistantId, role: "assistant" as const, content: "", model: retryEffectiveModel }];
       setIsStreaming(true);
       abortRef.current = new AbortController();
@@ -3523,7 +3524,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } catch {}
   };
 
-  const displayModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : agentProvider === "claude-agent" ? "claude" : model;
+  const displayModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : agentProvider === "claude-agent" ? "claude-agent" : model;
   const modelInfo = MODEL_LABELS[displayModel];
   const ModelIcon = modelInfo.icon;
 
@@ -4472,6 +4473,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         gemini: { color: "#4285F4", icon: Zap, groupKey: "gemini", isExternal: false },
                         openhands: { color: "#10B981", icon: Globe, groupKey: "openhands", isExternal: true },
                         goose: { color: "#F97316", icon: Terminal, groupKey: "goose", isExternal: true },
+                        "claude-agent": { color: "#D97F06", icon: Bot, groupKey: "claude-agent" as AIModel, isExternal: true },
                       };
                       const defaultMeta = { color: "#9CA3AF", icon: Zap, groupKey: "gpt" as AIModel, isExternal: false };
                       return liveModels.map(lm => {
@@ -4486,7 +4488,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         return (
                           <DropdownMenuItem key={lm.id} className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => {
                             if (meta.isExternal) {
-                              setAgentProvider(lm.provider as "openhands" | "goose");
+                              setAgentProvider(lm.provider as "openhands" | "goose" | "claude-agent");
                               try { localStorage.setItem("ai-agent-provider", lm.provider); } catch {}
                             } else {
                               setModel(meta.groupKey);
@@ -4506,23 +4508,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         );
                       });
                     })()}
-                    <DropdownMenuItem
-                      className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5 border-t border-[var(--ide-border)] mt-1 pt-1.5"
-                      onClick={() => {
-                        setAgentProvider("claude-agent");
-                        try { localStorage.setItem("ai-agent-provider", "claude-agent"); } catch {}
-                      }}
-                      data-testid="model-claude-agent-sdk"
-                    >
-                      <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: "#D97F0615" }}>
-                        <Bot className="w-3 h-3" style={{ color: "#D97F06" }} />
-                      </div>
-                      <div className="flex flex-col flex-1 min-w-0">
-                        <span className="font-medium">Claude Agent SDK</span>
-                        <span className="text-[10px] text-[var(--ide-text-muted)]">Full autonomous agent with sandbox environment</span>
-                      </div>
-                      {agentProvider === "claude-agent" && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
-                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
