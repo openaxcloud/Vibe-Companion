@@ -206,6 +206,8 @@ export class MainRouter {
       projectAuthMod,
       projectTasksMod,
       phantomPanelsMod,
+      publishMod,
+      sshInfoMod,
     ] = await Promise.all([
       safeImport("placeholder", () => import("./placeholder.router")),
       safeImport("logs", () => import("./logs.router")),
@@ -302,6 +304,8 @@ export class MainRouter {
       safeImport("project-auth", () => import("./project-auth.router")),
       safeImport("project-tasks", () => import("./project-tasks.router")),
       safeImport("phantom-panels", () => import("./phantom-panels.router")),
+      safeImport("publish", () => import("./publish.router")),
+      safeImport("ssh-info", () => import("./ssh-info.router")),
     ]);
 
     const [openhandsMod, gooseMod, agentProvidersMod] = await Promise.all([
@@ -445,6 +449,8 @@ export class MainRouter {
     mount(app, '/api/project-auth', tierLimiters.api, def(projectAuthMod));
     mount(app, '/api/projects', tierLimiters.api, def(projectTasksMod));
     mount(app, '/api', tierLimiters.api, def(phantomPanelsMod));
+    mount(app, '/api', tierLimiters.api, def(publishMod));
+    mount(app, '/api', tierLimiters.api, def(sshInfoMod));
 
     mount(app, '/api/openhands', tierLimiters.api, def(openhandsMod));
     mount(app, '/api/goose', tierLimiters.api, def(gooseMod));
