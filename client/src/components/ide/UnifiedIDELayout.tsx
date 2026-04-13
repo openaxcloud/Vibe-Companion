@@ -1574,7 +1574,7 @@ function UnifiedIDELayout({
           className="flex-1 overflow-hidden"
           {...((mobileActiveTab === 'preview' || mobileActiveTab === 'agent') ? mobileSwipeHandlers : {})}
           data-testid="mobile-swipe-area"
-          style={{ paddingBottom: mobileActiveTab === 'agent' ? '7.5rem' : '3rem' }}
+          style={{ paddingBottom: mobileActiveTab === 'agent' ? '7.5rem' : '0' }}
         >
           <PageTransition
             key={mobileActiveTab}

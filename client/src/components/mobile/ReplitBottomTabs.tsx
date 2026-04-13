@@ -150,7 +150,7 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
 
       <nav
         className={cn(
-          "relative flex items-center px-4 mx-3 mb-2",
+          "relative flex items-center px-4 mx-3 mb-0",
           needsScroll ? "overflow-x-auto gap-0.5 scrollbar-none" : "justify-around"
         )}
         style={{ height: 'var(--mobile-nav-height)' }}
@@ -171,7 +171,7 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
               className={cn(
                 "relative flex flex-col items-center justify-center cursor-pointer",
                 needsScroll ? "min-w-[56px] px-1.5" : "flex-1",
-                "min-w-[48px] max-w-[72px] min-h-[52px]",
+                "min-w-[48px] max-w-[72px] min-h-[44px]",
                 "rounded-[var(--mobile-nav-item-radius)]",
                 "touch-manipulation select-none",
                 "transition-transform duration-100",
