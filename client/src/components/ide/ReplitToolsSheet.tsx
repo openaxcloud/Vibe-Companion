@@ -24,7 +24,6 @@ import {
   ChevronRight,
   X,
   ListChecks,
-  Upload,
 } from 'lucide-react';
 
 const ReplitAgentIcon = memo(({ className }: { className?: string }) => (
@@ -72,7 +71,6 @@ const defaultTools: ToolItem[] = [
   { id: 'settings', icon: Settings, title: 'User Settings', description: 'Configure personal editor preferences and workspace settings which apply to all Apps', section: 'tools' },
   { id: 'workflows', icon: Zap, title: 'Workflows', description: 'Configure different ways to run your App', section: 'tools' },
   { id: 'tasks', icon: ListChecks, title: 'Tasks', description: 'Manage and track project tasks with Kanban board', section: 'tools', iconColor: 'text-violet-500' },
-  { id: 'deployment', icon: Upload, title: 'Deploy', description: 'Deploy your app to production with custom domains and SSL', section: 'tools', iconColor: 'text-emerald-500' },
 ];
 
 interface ReplitToolsSheetProps {
