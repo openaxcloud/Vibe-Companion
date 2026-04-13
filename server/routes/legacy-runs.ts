@@ -348,6 +348,8 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
     }
   });
 
+  const debugProcesses = new Map<string, any>();
+
   app.post("/api/projects/:projectId/debug-run", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
@@ -363,7 +365,7 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
       || files.find((f: any) => fn(f).endsWith(".js") && !f.isDirectory)
       || files.find((f: any) => fn(f).endsWith(".py") && !f.isDirectory);
 
-    if (!entryFile) return res.status(400).json({ message: "No debuggable file found (JS, TS, or Python)" });
+    if (!entryFile) return res.status(400).json({ message: "No debuggable file found. Your project needs a JavaScript, TypeScript, or Python entry file (e.g. index.ts, main.js, app.py)." });
 
     const entryFilename = fn(entryFile);
     const isTS = entryFilename.endsWith(".ts") || entryFilename.endsWith(".tsx");
@@ -372,12 +374,15 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
     const sandboxDir = `/tmp/sandbox/${project.id}`;
     try {
       const { mkdir: mkdirP, writeFile: writeF } = await import("fs/promises");
+      const path = await import("path");
       await mkdirP(sandboxDir, { recursive: true });
       for (const f of files) {
         if (f.content !== null && f.content !== undefined) {
           const fName = fn(f);
-          const filePath = `${sandboxDir}/${fName}`;
-          const dir = filePath.substring(0, filePath.lastIndexOf("/"));
+          if (!fName) continue;
+          const filePath = path.resolve(sandboxDir, fName);
+          if (!filePath.startsWith(sandboxDir + path.sep) && filePath !== sandboxDir) continue;
+          const dir = path.dirname(filePath);
           if (dir !== sandboxDir) await mkdirP(dir, { recursive: true });
           await writeF(filePath, f.content);
         }
@@ -387,6 +392,11 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
     }
 
     killInteractiveProcess(project.id);
+    const existingProc = debugProcesses.get(project.id);
+    if (existingProc) {
+      try { existingProc.kill("SIGTERM"); } catch {}
+      debugProcesses.delete(project.id);
+    }
 
     const { spawn } = await import("child_process");
     let proc;
@@ -410,11 +420,51 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
       });
     }
 
-    proc.on("close", () => {
-      log(`Debug process exited for project ${project.id}`, "debugger");
+    debugProcesses.set(project.id, proc);
+
+    proc.on("close", (code: number | null) => {
+      log(`Debug process exited for project ${project.id} (code ${code})`, "debugger");
+      debugProcesses.delete(project.id);
     });
 
-    res.json({ status: "started", inspectPort, entryFile: entryFilename });
+    if (isPython) {
+      res.json({ status: "started", inspectPort: null, entryFile: entryFilename, language: "python" });
+      return;
+    }
+
+    let responded = false;
+    const waitForDebugger = new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        if (!responded) {
+          responded = true;
+          res.status(500).json({ message: "Debug session failed to start. Make sure your project has a valid entry point." });
+        }
+        resolve();
+      }, 10000);
+
+      let stderrData = "";
+      proc.stderr.on("data", (chunk: Buffer) => {
+        stderrData += chunk.toString();
+        if (stderrData.includes("Debugger listening") && !responded) {
+          responded = true;
+          clearTimeout(timeout);
+          res.json({ status: "started", inspectPort, entryFile: entryFilename });
+          resolve();
+        }
+      });
+
+      proc.on("close", (code: number | null) => {
+        if (!responded) {
+          responded = true;
+          clearTimeout(timeout);
+          const errMsg = stderrData.trim().split("\n").slice(-3).join(" ") || `Process exited with code ${code}`;
+          res.status(500).json({ message: `Debug process failed: ${errMsg}` });
+        }
+        resolve();
+      });
+    });
+
+    await waitForDebugger;
   });
 
   app.get("/api/projects/:projectId/runs", requireAuth, async (req: Request, res: Response) => {

@@ -57,6 +57,7 @@ export function ReplitDebuggerPanel({ projectId }: { projectId: string }) {
   const [showAddBp, setShowAddBp] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
   const consoleEndRef = useRef<HTMLDivElement>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const connect = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
@@ -65,6 +66,21 @@ export function ReplitDebuggerPanel({ projectId }: { projectId: string }) {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws/debugger?projectId=${projectId}`);
     wsRef.current = ws;
+
+    if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
+    connectTimeoutRef.current = setTimeout(() => {
+      setStatus((current) => {
+        if (current === "connecting") {
+          setConsoleEntries(prev => [...prev.slice(-200), { type: "error", text: "Debug session failed to start. Make sure your project has a valid entry point.", timestamp: Date.now() }]);
+          if (wsRef.current) {
+            wsRef.current.close();
+            wsRef.current = null;
+          }
+          return "disconnected";
+        }
+        return current;
+      });
+    }, 10000);
 
     ws.onopen = () => {
       setStatus("connecting");
@@ -75,12 +91,14 @@ export function ReplitDebuggerPanel({ projectId }: { projectId: string }) {
         const msg = JSON.parse(event.data);
         switch (msg.type) {
           case "connected":
+            if (connectTimeoutRef.current) { clearTimeout(connectTimeoutRef.current); connectTimeoutRef.current = null; }
             setStatus("connected");
             addConsole("info", "Debugger attached to process");
             break;
           case "notRunning":
+            if (connectTimeoutRef.current) { clearTimeout(connectTimeoutRef.current); connectTimeoutRef.current = null; }
             setStatus("disconnected");
-            addConsole("info", msg.message || "No debuggable process found");
+            addConsole("error", msg.message || "No debuggable process found. Click 'Start Debug Session' to launch your project in debug mode.");
             break;
           case "paused":
             setStatus("paused");
@@ -158,24 +176,38 @@ export function ReplitDebuggerPanel({ projectId }: { projectId: string }) {
   }, []);
 
   const debugRunMutation = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/projects/${projectId}/debug-run`),
-    onSuccess: () => {
-      addConsole("info", "Starting debug session...");
-      setTimeout(() => {
-        if (wsRef.current) {
-          send({ type: "reconnect" });
-        } else {
-          connect();
-        }
-      }, 1500);
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/projects/${projectId}/debug-run`);
+    },
+    onSuccess: (data: any) => {
+      if (data.status === "started" && data.inspectPort) {
+        addConsole("info", `Debug session started (${data.entryFile}) — connecting to inspector on port ${data.inspectPort}...`);
+        setTimeout(() => {
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            send({ type: "reconnect" });
+          } else {
+            connect();
+          }
+        }, 300);
+      } else if (data.language === "python") {
+        addConsole("info", `Python debug session started (${data.entryFile}). Note: Python debugging uses print-based output.`);
+        setStatus("connected");
+      } else {
+        addConsole("error", data.message || "Debug session could not start.");
+        setStatus("disconnected");
+      }
     },
     onError: (err: any) => {
-      toast({ title: "Debug Error", description: err.message, variant: "destructive" });
+      const msg = err?.message || "Debug session failed to start. Make sure your project has a valid entry point.";
+      addConsole("error", msg);
+      toast({ title: "Debug Error", description: msg, variant: "destructive" });
+      setStatus("disconnected");
     },
   });
 
   useEffect(() => {
     return () => {
+      if (connectTimeoutRef.current) { clearTimeout(connectTimeoutRef.current); connectTimeoutRef.current = null; }
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;

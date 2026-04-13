@@ -101,71 +101,82 @@ export async function connectToInspector(
   session: DebugSession,
   inspectPort: number
 ): Promise<boolean> {
-  try {
-    const listUrl = `http://127.0.0.1:${inspectPort}/json`;
-    const resp = await fetch(listUrl);
-    const targets = await resp.json() as any[];
+  const maxRetries = 10;
+  const retryDelay = 800;
 
-    if (!targets || targets.length === 0) {
-      log("No debug targets found", "debugger");
-      return false;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const listUrl = `http://127.0.0.1:${inspectPort}/json`;
+      const resp = await fetch(listUrl);
+      const targets = await resp.json() as any[];
+
+      if (!targets || targets.length === 0) {
+        log(`No debug targets found (attempt ${attempt + 1}/${maxRetries})`, "debugger");
+        await new Promise(r => setTimeout(r, retryDelay));
+        continue;
+      }
+
+      const target = targets[0];
+      const wsUrl = target.webSocketDebuggerUrl;
+      if (!wsUrl) {
+        log("No webSocketDebuggerUrl in target", "debugger");
+        return false;
+      }
+
+      session.inspectorUrl = wsUrl;
+
+      return new Promise((resolve) => {
+        const ws = new WebSocket(wsUrl);
+        session.inspectorWs = ws;
+
+        const timeout = setTimeout(() => {
+          ws.close();
+          resolve(false);
+        }, 5000);
+
+        ws.on("open", () => {
+          clearTimeout(timeout);
+          log(`Connected to inspector at ${wsUrl}`, "debugger");
+
+          sendToInspector(session, "Debugger.enable", {});
+          sendToInspector(session, "Runtime.enable", {});
+          sendToInspector(session, "Runtime.runIfWaitingForDebugger", {});
+
+          resolve(true);
+        });
+
+        ws.on("message", (data: Buffer) => {
+          try {
+            const msg = JSON.parse(data.toString());
+            handleInspectorMessage(session, msg);
+          } catch (e) {
+            log(`Inspector message parse error: ${e}`, "debugger");
+          }
+        });
+
+        ws.on("close", () => {
+          log("Inspector connection closed", "debugger");
+          session.inspectorWs = null;
+          session.paused = false;
+          notifyClient(session, { type: "disconnected" });
+        });
+
+        ws.on("error", (err) => {
+          clearTimeout(timeout);
+          log(`Inspector connection error: ${err.message}`, "debugger");
+          resolve(false);
+        });
+      });
+    } catch (err: any) {
+      log(`Inspector fetch failed (attempt ${attempt + 1}/${maxRetries}): ${err.message}`, "debugger");
+      if (attempt < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, retryDelay));
+      }
     }
-
-    const target = targets[0];
-    const wsUrl = target.webSocketDebuggerUrl;
-    if (!wsUrl) {
-      log("No webSocketDebuggerUrl in target", "debugger");
-      return false;
-    }
-
-    session.inspectorUrl = wsUrl;
-
-    return new Promise((resolve) => {
-      const ws = new WebSocket(wsUrl);
-      session.inspectorWs = ws;
-
-      const timeout = setTimeout(() => {
-        ws.close();
-        resolve(false);
-      }, 5000);
-
-      ws.on("open", () => {
-        clearTimeout(timeout);
-        log(`Connected to inspector at ${wsUrl}`, "debugger");
-
-        sendToInspector(session, "Debugger.enable", {});
-        sendToInspector(session, "Runtime.enable", {});
-        sendToInspector(session, "Runtime.runIfWaitingForDebugger", {});
-
-        resolve(true);
-      });
-
-      ws.on("message", (data: Buffer) => {
-        try {
-          const msg = JSON.parse(data.toString());
-          handleInspectorMessage(session, msg);
-        } catch (e) {
-          log(`Inspector message parse error: ${e}`, "debugger");
-        }
-      });
-
-      ws.on("close", () => {
-        log("Inspector connection closed", "debugger");
-        session.inspectorWs = null;
-        session.paused = false;
-        notifyClient(session, { type: "disconnected" });
-      });
-
-      ws.on("error", (err) => {
-        clearTimeout(timeout);
-        log(`Inspector connection error: ${err.message}`, "debugger");
-        resolve(false);
-      });
-    });
-  } catch (err: any) {
-    log(`Failed to connect to inspector: ${err.message}`, "debugger");
-    return false;
   }
+
+  log("Failed to connect to inspector after all retries", "debugger");
+  return false;
 }
 
 function sendToInspector(
