@@ -159,7 +159,7 @@ interface AIPanelProps {
   } | null) => void;
 }
 
-type AIModel = "claude" | "gpt" | "gemini" | "openrouter" | "perplexity" | "mistral";
+type AIModel = "claude" | "gpt" | "gemini" | "openrouter" | "perplexity" | "mistral" | "openhands" | "goose";
 type AIMode = "chat" | "agent" | "plan";
 type TopMode = "plan" | "build";
 type AgentMode = "economy" | "power" | "turbo";
@@ -192,6 +192,8 @@ const MODEL_LABELS: Record<AIModel, { name: string; badge: string; color: string
   openrouter: { name: "OpenRouter", badge: "200+ Models", color: "text-[#E44D26] bg-[#E44D26]/10", icon: Globe },
   perplexity: { name: "Perplexity", badge: "Search AI", color: "text-[#20808D] bg-[#20808D]/10", icon: Search },
   mistral: { name: "Mistral", badge: "Mistral AI", color: "text-[#FF7000] bg-[#FF7000]/10", icon: Zap },
+  openhands: { name: "OpenHands", badge: "Agent", color: "text-[#10B981] bg-[#10B981]/10", icon: Globe },
+  goose: { name: "Goose", badge: "Agent", color: "text-[#F97316] bg-[#F97316]/10", icon: Terminal },
 };
 
 const TOP_AGENT_MODE_LABELS: Record<TopAgentMode, { name: string; icon: typeof Zap; color: string; bg: string; description: string }> = {
@@ -1942,8 +1944,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     persistMessage("user", userMsg.content);
 
     const assistantId = (Date.now() + 1).toString();
-    const providerLabel = agentProvider === "openhands" ? "OpenHands" : agentProvider === "goose" ? "Goose" : undefined;
-    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model, ...(providerLabel ? { providerLabel } : {}) }]);
+    const effectiveModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : model;
+    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model: effectiveModel }]);
 
     abortRef.current = new AbortController();
 
@@ -1961,7 +1963,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         });
 
         if (extractedContent) {
-          persistMessage("assistant", extractedContent, model);
+          persistMessage("assistant", extractedContent, effectiveModel);
         }
 
         return true;
@@ -3267,7 +3269,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } catch {}
   };
 
-  const modelInfo = MODEL_LABELS[model];
+  const displayModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : model;
+  const modelInfo = MODEL_LABELS[displayModel];
   const ModelIcon = modelInfo.icon;
 
   const defaultChatSuggestions = [
@@ -4361,21 +4364,24 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   <DropdownMenuTrigger asChild>
                     <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
                       <ModelIcon className="w-2.5 h-2.5" />
-                      {model === "openrouter" ? (openrouterModels.find(m => m.id === openrouterModel)?.name || openrouterModel.split("/").pop() || "OpenRouter") : modelInfo.name}
+                      {displayModel === "openrouter" ? (openrouterModels.find(m => m.id === openrouterModel)?.name || openrouterModel.split("/").pop() || "OpenRouter") : modelInfo.name}
                       <ChevronDown className="w-2.5 h-2.5 opacity-60" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-52 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
                     {([
-                      { key: "claude" as AIModel, name: "Claude Sonnet 4", badge: "Anthropic", color: "#7C65CB", icon: Sparkles },
-                      { key: "gpt" as AIModel, name: "GPT-4.1", badge: "OpenAI", color: "#0CCE6B", icon: Zap },
-                      { key: "gemini" as AIModel, name: "Gemini 2.5 Flash", badge: "Google", color: "#4285F4", icon: Zap },
-                      { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe },
+                      { key: "claude" as AIModel, name: "Claude Sonnet 4", badge: "Anthropic", color: "#7C65CB", icon: Sparkles, isExternal: false },
+                      { key: "gpt" as AIModel, name: "GPT-4.1", badge: "OpenAI", color: "#0CCE6B", icon: Zap, isExternal: false },
+                      { key: "gemini" as AIModel, name: "Gemini 2.5 Flash", badge: "Google", color: "#4285F4", icon: Zap, isExternal: false },
+                      { key: "openrouter" as AIModel, name: "OpenRouter", badge: "200+ Models", color: "#E44D26", icon: Globe, isExternal: false },
+                      { key: "openhands" as AIModel, name: "OpenHands", badge: "AI Agent", color: "#10B981", icon: Globe, isExternal: true },
+                      { key: "goose" as AIModel, name: "Goose", badge: "AI Agent", color: "#F97316", icon: Terminal, isExternal: true },
                     ]).map(m => {
                       const cred = getCredLabel(m.key);
                       const MdlIcon = m.icon;
+                      const isSelected = displayModel === m.key;
                       return (
-                        <DropdownMenuItem key={m.key} className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { setModel(m.key); try { localStorage.setItem("ai-preferred-model", m.key); } catch {} if (m.key === "openrouter") setShowOpenrouterPicker(true); }} data-testid={`model-${m.key}`}>
+                        <DropdownMenuItem key={m.key} className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => { if (m.isExternal) { setAgentProvider(m.key as "openhands" | "goose"); try { localStorage.setItem("ai-agent-provider", m.key); } catch {} } else { setModel(m.key); setAgentProvider("builtin"); try { localStorage.setItem("ai-preferred-model", m.key); localStorage.setItem("ai-agent-provider", "builtin"); } catch {} if (m.key === "openrouter") setShowOpenrouterPicker(true); } }} data-testid={`model-${m.key}`}>
                           <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: `${m.color}15` }}>
                             <MdlIcon className="w-3 h-3" style={{ color: m.color }} />
                           </div>
@@ -4383,14 +4389,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                             <span className="font-medium">{m.name}</span>
                             <div className="flex items-center gap-1">
                               <span className="text-[10px] text-[var(--ide-text-muted)]">{m.badge}</span>
-                              {projectId && (
+                              {projectId && !m.isExternal && (
                                 <span className={`text-[9px] px-1 rounded ${cred.isManaged ? "bg-[#0079F2]/10 text-[#0079F2]" : "bg-[#0CCE6B]/10 text-[#0CCE6B]"}`} data-testid={`cred-label-${m.key}`}>
                                   {cred.isManaged ? "Vibe Companion managed" : "Your key"}
                                 </span>
                               )}
                             </div>
                           </div>
-                          {model === m.key && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
+                          {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
                         </DropdownMenuItem>
                       );
                     })}
