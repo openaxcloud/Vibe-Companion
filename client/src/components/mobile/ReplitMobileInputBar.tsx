@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Send, Mic, Paperclip, ChevronDown, MessageSquare, Bot, Zap, Gauge, Rocket, Flame, Wrench, Globe, TestTube, Sparkles, Code2, MicOff, X, FileText, Image as ImageIcon, File as FileIcon } from 'lucide-react';
+import { Send, Mic, Paperclip, ChevronDown, MessageSquare, Bot, Zap, Gauge, Rocket, Flame, Wrench, Globe, TestTube, Sparkles, Code2, MicOff, X, FileText, Image as ImageIcon, File as FileIcon, Brain, Cpu, Terminal, Check } from 'lucide-react';
 
 type AIMode = 'chat' | 'agent' | 'plan';
 type AgentMode = 'economy' | 'power' | 'turbo';
+type AIModel = 'claude' | 'gpt' | 'gemini' | 'openrouter' | 'perplexity' | 'mistral' | 'openhands' | 'goose';
 
 const AI_MODE_CONFIG = {
   chat: { label: 'Chat', icon: MessageSquare, color: 'var(--ide-text)' },
@@ -15,6 +16,14 @@ const AGENT_MODE_CONFIG = {
   economy: { label: 'Eco', icon: Gauge, color: '#0CCE6B', desc: '1 cr' },
   power: { label: 'Pwr', icon: Rocket, color: '#0079F2', desc: '3 cr' },
   turbo: { label: 'Trb', icon: Flame, color: '#FF6B35', desc: '5 cr' },
+};
+
+const PROVIDER_META: Record<string, { color: string; icon: typeof Sparkles; groupKey: AIModel; isExternal: boolean; shortName: string }> = {
+  openai:    { color: '#0CCE6B', icon: Zap,      groupKey: 'gpt',       isExternal: false, shortName: 'GPT' },
+  anthropic: { color: '#7C65CB', icon: Sparkles,  groupKey: 'claude',    isExternal: false, shortName: 'Claude' },
+  gemini:    { color: '#4285F4', icon: Zap,        groupKey: 'gemini',    isExternal: false, shortName: 'Gemini' },
+  openhands: { color: '#10B981', icon: Globe,      groupKey: 'openhands', isExternal: true,  shortName: 'OpenHands' },
+  goose:     { color: '#F97316', icon: Terminal,    groupKey: 'goose',     isExternal: true,  shortName: 'Goose' },
 };
 
 interface AgentToolsConfig {
@@ -80,7 +89,25 @@ export function ReplitMobileInputBar({
   const [showModeDropdown, setShowModeDropdown] = useState(false);
   const [showAgentModeDropdown, setShowAgentModeDropdown] = useState(false);
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const [selectedModel, setSelectedModel] = useState<AIModel>(() => {
+    try { const s = localStorage.getItem('ai-preferred-model'); if (s) return s as AIModel; } catch {}
+    return 'claude';
+  });
+  const [agentProvider, setAgentProvider] = useState<'builtin' | 'openhands' | 'goose' | 'claude-agent'>(() => {
+    try { const s = localStorage.getItem('ai-agent-provider'); if (s) return s as any; } catch {}
+    return 'builtin';
+  });
+  const [liveModels, setLiveModels] = useState<Array<{id: string; name: string; provider: string; description: string}>>([]);
+
+  useEffect(() => {
+    fetch('/api/models', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { if (data?.models && Array.isArray(data.models)) setLiveModels(data.models); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const vv = window.visualViewport;
@@ -98,13 +125,14 @@ export function ReplitMobileInputBar({
   }, []);
 
   useEffect(() => {
-    if (!showModeDropdown && !showAgentModeDropdown && !showToolsDropdown) return;
+    if (!showModeDropdown && !showAgentModeDropdown && !showToolsDropdown && !showProviderDropdown) return;
     const handler = (e: Event) => {
       const target = e.target as HTMLElement;
       if (!target.closest('[data-dropdown]')) {
         setShowModeDropdown(false);
         setShowAgentModeDropdown(false);
         setShowToolsDropdown(false);
+        setShowProviderDropdown(false);
       }
     };
     const timer = setTimeout(() => {
@@ -116,7 +144,7 @@ export function ReplitMobileInputBar({
       document.removeEventListener('click', handler, true);
       document.removeEventListener('touchend', handler);
     };
-  }, [showModeDropdown, showAgentModeDropdown, showToolsDropdown]);
+  }, [showModeDropdown, showAgentModeDropdown, showToolsDropdown, showProviderDropdown]);
 
   const handleFocus = useCallback(() => {
     setTimeout(() => {
@@ -145,6 +173,19 @@ export function ReplitMobileInputBar({
   const CurrentModeIcon = currentAIMode.icon;
   const currentAgentMode = AGENT_MODE_CONFIG[agentMode];
   const CurrentAgentIcon = currentAgentMode.icon;
+
+  const currentProviderDisplay = (() => {
+    if (agentProvider === 'claude-agent') return { color: '#D97F06', icon: Bot, name: 'Agent SDK' };
+    if (agentProvider === 'openhands') return { color: '#10B981', icon: Globe, name: 'OpenHands' };
+    if (agentProvider === 'goose') return { color: '#F97316', icon: Terminal, name: 'Goose' };
+    const modelMeta: Record<string, { color: string; icon: typeof Sparkles; name: string }> = {
+      claude: { color: '#7C65CB', icon: Sparkles, name: 'Claude' },
+      gpt: { color: '#0CCE6B', icon: Zap, name: 'GPT' },
+      gemini: { color: '#4285F4', icon: Zap, name: 'Gemini' },
+    };
+    return modelMeta[selectedModel] || { color: '#9CA3AF', icon: Cpu, name: selectedModel };
+  })();
+  const ProviderIcon = currentProviderDisplay.icon;
 
   const toolsCount = agentToolsConfig
     ? [agentToolsConfig.webSearch, agentToolsConfig.appTesting, agentToolsConfig.codeOptimizations, agentToolsConfig.architect].filter(Boolean).length
@@ -242,6 +283,84 @@ export function ReplitMobileInputBar({
                       </button>
                     );
                   })}
+                </div>
+              )}
+            </div>
+
+            <div className="w-px h-3.5 bg-[var(--ide-border)]" />
+            <div className="relative" data-dropdown>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowProviderDropdown(!showProviderDropdown); setShowModeDropdown(false); setShowAgentModeDropdown(false); setShowToolsDropdown(false); }}
+                className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-medium transition-colors hover:bg-[var(--ide-surface)] select-none touch-manipulation"
+                style={{ color: currentProviderDisplay.color }}
+                data-testid="mobile-provider-selector"
+              >
+                <ProviderIcon className="w-3 h-3" />
+                {currentProviderDisplay.name}
+                <ChevronDown className="w-2.5 h-2.5 opacity-50" />
+              </button>
+              {showProviderDropdown && (
+                <div className="absolute bottom-full left-0 mb-1 bg-[var(--ide-panel)] border border-[var(--ide-border)] rounded-lg shadow-xl overflow-hidden min-w-[200px] max-h-[320px] overflow-y-auto z-50" data-dropdown>
+                  <div className="px-3 py-1.5 text-[9px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider border-b border-[var(--ide-border)]">AI Provider</div>
+                  {liveModels.map(lm => {
+                    const meta = PROVIDER_META[lm.provider];
+                    if (!meta) return null;
+                    const MdlIcon = meta.icon;
+                    const isSelected = meta.isExternal
+                      ? agentProvider === lm.provider
+                      : agentProvider === 'builtin' && selectedModel === meta.groupKey;
+                    return (
+                      <button
+                        key={lm.id}
+                        onClick={() => {
+                          if (meta.isExternal) {
+                            setAgentProvider(lm.provider as 'openhands' | 'goose');
+                            try { localStorage.setItem('ai-agent-provider', lm.provider); } catch {}
+                          } else {
+                            setSelectedModel(meta.groupKey);
+                            setAgentProvider('builtin');
+                            try { localStorage.setItem('ai-preferred-model', meta.groupKey); localStorage.setItem('ai-agent-provider', 'builtin'); } catch {}
+                          }
+                          setShowProviderDropdown(false);
+                        }}
+                        className={cn(
+                          "flex items-center gap-2.5 w-full px-3 py-2 text-[11px] transition-colors",
+                          isSelected ? "bg-[var(--ide-surface)]" : "hover:bg-[var(--ide-surface)]/50"
+                        )}
+                        data-testid={`mobile-model-${lm.id}`}
+                      >
+                        <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: `${meta.color}15` }}>
+                          <MdlIcon className="w-3 h-3" style={{ color: meta.color }} />
+                        </div>
+                        <div className="flex flex-col flex-1 min-w-0 text-left">
+                          <span className="font-medium text-[var(--ide-text)]">{lm.name}</span>
+                          <span className="text-[9px] text-[var(--ide-text-muted)] truncate">{lm.description}</span>
+                        </div>
+                        {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => {
+                      setAgentProvider('claude-agent');
+                      try { localStorage.setItem('ai-agent-provider', 'claude-agent'); } catch {}
+                      setShowProviderDropdown(false);
+                    }}
+                    className={cn(
+                      "flex items-center gap-2.5 w-full px-3 py-2 text-[11px] transition-colors border-t border-[var(--ide-border)]",
+                      agentProvider === 'claude-agent' ? "bg-[var(--ide-surface)]" : "hover:bg-[var(--ide-surface)]/50"
+                    )}
+                    data-testid="mobile-model-claude-agent-sdk"
+                  >
+                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: '#D97F0615' }}>
+                      <Bot className="w-3 h-3" style={{ color: '#D97F06' }} />
+                    </div>
+                    <div className="flex flex-col flex-1 min-w-0 text-left">
+                      <span className="font-medium text-[var(--ide-text)]">Claude Agent SDK</span>
+                      <span className="text-[9px] text-[var(--ide-text-muted)]">Full autonomous agent</span>
+                    </div>
+                    {agentProvider === 'claude-agent' && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
+                  </button>
                 </div>
               )}
             </div>
