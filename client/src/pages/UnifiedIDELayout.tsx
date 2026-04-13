@@ -42,6 +42,7 @@ import {
   ExternalLink,
   Lock,
   ListTodo,
+  FolderOpen,
 } from 'lucide-react';
 import { ECodeLoading } from '@/components/ECodeLoading';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -403,6 +404,30 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'settings':
         handleAddTool('settings');
         break;
+      case 'monitoring':
+        handleAddTool('monitoring');
+        break;
+      case 'integrations':
+        handleAddTool('integrations');
+        break;
+      case 'checkpoints':
+        handleAddTool('checkpoints');
+        break;
+      case 'mcp':
+        handleAddTool('mcp');
+        break;
+      case 'publishing':
+        handleAddTool('publishing');
+        break;
+      case 'ssh':
+        handleAddTool('ssh');
+        break;
+      case 'security-scanner':
+        handleAddTool('security-scanner');
+        break;
+      case 'collaboration':
+        handleAddTool('collaboration');
+        break;
     }
   }, [setActiveActivityItem, setShowFileExplorer, setIsSidebarCollapsed, setLeftPanelTab, handleAddTool]);
 
@@ -495,7 +520,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   }, [mobileAgentHandlers?.handleSubmit]);
 
   const bootstrapConsumedRef = useRef(false);
-  const bootstrapPromptRef = useRef<string | null>(null);
+  const [bootstrapPendingMessage, setBootstrapPendingMessage] = useState<string | null>(null);
   useEffect(() => {
     if (bootstrapConsumedRef.current || !projectId) return;
     const promptKey = `agent-prompt-${projectId}`;
@@ -504,25 +529,10 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       bootstrapConsumedRef.current = true;
       sessionStorage.removeItem(promptKey);
       sessionStorage.removeItem(`agent-build-mode-${projectId}`);
-      bootstrapPromptRef.current = savedPrompt;
+      setBootstrapPendingMessage(savedPrompt);
       setMobileActiveTab('agent');
     }
   }, [projectId, setMobileActiveTab]);
-
-  useEffect(() => {
-    if (!bootstrapPromptRef.current) return;
-    const h = mobileAgentHandlersRef.current || mobileAgentHandlers;
-    if (h?.handleSubmit) {
-      const prompt = bootstrapPromptRef.current;
-      bootstrapPromptRef.current = null;
-      try {
-        h.handleSubmit(prompt);
-      } catch (err) {
-        console.error('[Bootstrap] Failed to send prompt:', err);
-        bootstrapPromptRef.current = prompt;
-      }
-    }
-  }, [mobileAgentHandlers?.handleSubmit]);
 
   // Tab content animation
   const [displayedTab, setDisplayedTab] = useState(activeTab);
@@ -571,7 +581,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     { id: 'agent', name: 'Agent', icon: 'agent' },
     { id: 'deploy', name: 'Deploy', icon: 'deploy' },
   ]);
-  const [activeOpenTabId, setActiveOpenTabId] = useState('agent');
+  const [activeOpenTabId, setActiveOpenTabId] = useState('preview');
 
   const toolNameMap: Record<string, string> = {
     agent: 'Agent', preview: 'Preview', deploy: 'Deploy', console: 'Console',
@@ -678,6 +688,13 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     );
   }
 
+  const mobileHandleFileSelect = useCallback((file: { id: string | number; name?: string; filename?: string }) => {
+    handleFileSelect(file);
+    if (deviceType !== 'desktop') {
+      setMobileActiveTab('code' as MobileTab);
+    }
+  }, [handleFileSelect, deviceType, setMobileActiveTab]);
+
   // Mobile content renderer
   const renderMobileContent = () => {
     if (isLoadingProject) {
@@ -687,7 +704,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'preview':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Preview..." /></div>}><MobilePreviewPanel projectId={projectId} /></Suspense>;
       case 'agent':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Agent..." /></div>}><AgentPanelErrorBoundary><ReplitAgentPanelV3 projectId={projectId} mode="mobile" agentToolsSettings={agentToolsSettings} onAgentToolsSettingsChange={setAgentToolsSettings} hideInput={true} onExternalInput={setMobileAgentHandlers} /></AgentPanelErrorBoundary></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Agent..." /></div>}><AgentPanelErrorBoundary><ReplitAgentPanelV3 projectId={projectId} mode="mobile" agentToolsSettings={agentToolsSettings} onAgentToolsSettingsChange={setAgentToolsSettings} hideInput={true} onExternalInput={setMobileAgentHandlers} pendingMessage={bootstrapPendingMessage} onPendingMessageConsumed={() => setBootstrapPendingMessage(null)} /></AgentPanelErrorBoundary></Suspense>;
       case 'deploy':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Deploy..." /></div>}><ReplitDeploymentPanel projectId={projectId} /></Suspense>;
       case 'git':
@@ -700,14 +717,38 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><DatabasePanel projectId={projectId} /></Suspense>;
       case 'terminal':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ShellPanel projectId={projectId} /></Suspense>;
+      case 'code':
+        return (
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Editor..." /></div>}>
+            <div className="flex flex-col h-full">
+              {activeFileId ? (
+                <>
+                  <div className="flex items-center h-9 px-3 bg-[var(--ide-surface)] border-b border-[var(--ide-border)] shrink-0">
+                    <button onClick={() => setMobileActiveTab('files' as MobileTab)} className="mr-2 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" data-testid="btn-back-to-files">
+                      <FolderOpen className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs font-medium text-[var(--ide-text)] truncate" data-testid="text-active-filename">{activeFileName || 'Untitled'}</span>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <ReplitMonacoEditor projectId={projectId} fileId={activeFileId} fileContents={fileContents} onCodeChange={handleCodeChange} onCursorChange={handleCursorChange} fontSize={userPrefs?.fontSize} tabSize={userPrefs?.tabSize} wordWrap={userPrefs?.wordWrap} minimap={false} filename={activeFileName || undefined} ytext={activeYtext} remoteAwareness={collabConnected ? remoteAwareness : undefined} />
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-full text-[var(--ide-text-muted)]" data-testid="text-no-file-selected">
+                  <p className="text-sm">Select a file to edit</p>
+                </div>
+              )}
+            </div>
+          </Suspense>
+        );
       case 'files':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Files..." /></div>}><ReplitFileExplorer projectId={projectId} files={Array.isArray(filesRaw) ? filesRaw : []} onFileSelect={(file: { id: string; name: string }) => handleFileSelect({ id: parseInt(file.id, 10), name: file.name })} selectedFileId={selectedFileId !== null ? String(selectedFileId) : null} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Files..." /></div>}><ReplitFileExplorer projectId={projectId} files={Array.isArray(filesRaw) ? filesRaw : []} onFileSelect={(file: { id: string; name: string }) => mobileHandleFileSelect({ id: parseInt(file.id, 10), name: file.name })} selectedFileId={selectedFileId !== null ? String(selectedFileId) : null} /></Suspense>;
       case 'history':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitHistoryPanel projectId={projectId} files={historyFiles} onClose={handleHistoryClose} onFileRestored={handleFileRestored} initialFile={activeFileName || null} /></Suspense>;
       case 'settings':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitSettingsPanel projectId={projectId} userPrefs={userPrefs} savePrefs={savePrefs} /></Suspense>;
       case 'extensions':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ExtensionsMarketplace projectId={parseInt(projectId, 10)} className="h-full" /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ExtensionsMarketplace projectId={projectId} className="h-full" /></Suspense>;
       case 'workflows':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><WorkflowsPanel projectId={projectId} /></Suspense>;
       case 'debug':
@@ -715,7 +756,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'security':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MobileSecurityPanel projectId={projectId} /></Suspense>;
       case 'search':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><GlobalSearch isOpen={true} inline={true} onClose={returnToLastPrimaryTab} projectId={projectId} onFileSelect={(file: any) => handleFileSelect({ id: file.id, name: file.name })} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><GlobalSearch isOpen={true} inline={true} onClose={returnToLastPrimaryTab} projectId={projectId} onFileSelect={(file: any) => mobileHandleFileSelect({ id: file.id, name: file.name })} /></Suspense>;
       case 'tasks':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Tasks..." /></div>}><TaskBoard projectId={projectId} onClose={returnToLastPrimaryTab} /></Suspense>;
       case 'checkpoints':
@@ -893,7 +934,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><WorkflowsPanel projectId={projectId} /></Suspense>;
     }
     if (currentTab.id === 'extensions') {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ExtensionsMarketplace projectId={parseInt(projectId, 10)} /></Suspense>;
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ExtensionsMarketplace projectId={projectId} /></Suspense>;
     }
     if (currentTab.id === 'security') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><MobileSecurityPanel projectId={projectId} /></Suspense>;
@@ -1402,8 +1443,8 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                         workspace.saveMutation.mutate({ fileId: String(file.id), content: code });
                       }
                     }}
-                    pendingMessage={pendingAIMessage}
-                    onPendingMessageConsumed={() => setPendingAIMessage(null)}
+                    pendingMessage={bootstrapPendingMessage || pendingAIMessage}
+                    onPendingMessageConsumed={() => { setBootstrapPendingMessage(null); setPendingAIMessage(null); }}
                     agentToolsSettings={agentToolsSettings}
                     onAgentToolsSettingsChange={setAgentToolsSettings}
                     onExternalInput={setMobileAgentHandlers}

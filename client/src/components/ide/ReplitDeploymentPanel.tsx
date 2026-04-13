@@ -420,8 +420,14 @@ export function ReplitDeploymentPanel({
   });
 
   const stopMutation = useMutation({
-    mutationFn: async (id: string) => apiRequest('POST', `/api/deployments/${id}/stop`),
+    mutationFn: async (_id: string) => apiRequest('POST', `/api/projects/${projectId}/deploy/stop`),
     onSuccess: () => { setIsDeploying(false); queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] }); toast({ title: 'Deployment paused' }); },
+  });
+
+  const shutdownMutation = useMutation({
+    mutationFn: async (_id: string) => apiRequest('DELETE', `/api/projects/${projectId}/deploy`),
+    onSuccess: () => { setIsDeploying(false); setView('type-select'); queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] }); toast({ title: 'Deployment shut down', description: 'Your published app has been terminated and unpublished.' }); },
+    onError: (error: Error) => toast({ title: 'Shutdown failed', description: error.message, variant: 'destructive' }),
   });
 
   const handleDeploy = () => {
@@ -1336,8 +1342,8 @@ export function ReplitDeploymentPanel({
             </Button>
             <p className="text-[10px] text-[var(--ide-text-muted)]">To change your deployment type, you will need to unpublish and publish again.</p>
 
-            <Button variant="outline" className="w-full h-10 text-[12px] gap-2 border-[var(--ide-border)] justify-center text-red-500 hover:text-red-600 hover:bg-red-500/10" data-testid="button-shutdown">
-              <Trash2 className="w-4 h-4" /> Shut down
+            <Button variant="outline" className="w-full h-10 text-[12px] gap-2 border-[var(--ide-border)] justify-center text-red-500 hover:text-red-600 hover:bg-red-500/10" onClick={() => { if (deploymentId) shutdownMutation.mutate(deploymentId); }} disabled={shutdownMutation.isPending} data-testid="button-shutdown">
+              <Trash2 className="w-4 h-4" /> {shutdownMutation.isPending ? 'Shutting down...' : 'Shut down'}
             </Button>
             <p className="text-[10px] text-[var(--ide-text-muted)]">Your published app billing will be canceled, and it will cease to exist</p>
           </div>

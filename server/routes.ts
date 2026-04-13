@@ -1090,6 +1090,10 @@ export async function registerRoutes(
     setLocalWorkspaceBroadcastFn(broadcastToProject);
   }).catch(() => {});
 
+  import("./services/claude-agent-service").then(({ setClaudeAgentBroadcastFn }) => {
+    setClaudeAgentBroadcastFn(broadcastToProject);
+  }).catch(() => {});
+
   app.use(compression());
 
   const PgStore = connectPgSimple(session);

@@ -1,0 +1,60 @@
+Instructions pour connecter l'agent Claude SDK à chaque panel de l'IDE :
+En plus du service de base (claude-agent-service.ts), voici comment connecter les events de l'agent à chaque panel :
+AGENT CHAT PANEL
+L'agent stream des events de type assistant.message. Affiche-les dans le chat en temps réel. Les events tool_use (create_file, execute_command, etc.) doivent être affichés comme des actions avec un badge (comme "Created file", "Ran command").
+FILE EXPLORER
+Quand l'agent stream un event tool_result pour create_file ou edit_file, mets à jour le file explorer en temps réel. L'agent écrit dans /workspace/ dans le container — synchronise ces fichiers avec notre DB via syncFileToWorkspace(). Après chaque fichier créé, broadcast un WebSocket event file_created pour que le frontend rafraîchisse.
+CODE EDITOR
+Quand un fichier est créé/modifié par l'agent, le contenu doit apparaître dans l'éditeur automatiquement. Utilise les events WebSocket file_updated pour trigger un refresh du contenu dans CodeMirror/Monaco.
+TERMINAL
+Les events tool_use de type execute_command de l'agent doivent être affichés dans le terminal panel. Montre la commande exécutée et son output (stdout/stderr). L'agent Claude SDK exécute les commandes dans le container sandbox — stream le résultat vers le terminal WebSocket.
+PREVIEW
+Après que l'agent crée/modifie des fichiers HTML/React, trigger un refresh du preview iframe. Quand l'agent exécute npm run dev ou un serveur, détecter le port et mettre à jour livePreviewUrl via le WebSocket run_status.
+GIT PANEL
+Après que l'agent fait des modifications, les fichiers changés apparaissent dans le Git panel automatiquement (via l'API git existante). Pas besoin de changement — ça marche déjà car les fichiers sont synchronisés en DB.
+PACKAGES PANEL
+Quand l'agent exécute npm install <package>, le packages panel doit se rafraîchir pour montrer les nouvelles dépendances. Écoute les events execute_command qui contiennent "npm install" et trigger un refresh du panel packages.
+DATABASE PANEL
+Si l'agent crée une base de données ou exécute des migrations, les events doivent trigger un refresh du database panel pour montrer les nouvelles tables/données.
+DEPLOY PANEL
+L'agent peut trigger un déploiement via execute_command avec les commandes de build. Le deploy panel reste indépendant — l'utilisateur choisit quand déployer.
+SECRETS PANEL
+Si l'agent a besoin de clés API (dans le vault), elles sont déjà accessibles via le vault_id configuré dans la session. Le secrets panel permet à l'utilisateur d'ajouter ses propres secrets qui sont injectés dans l'environnement du container.
+DEBUGGER PANEL
+Quand l'agent exécute du code avec --inspect, le debugger peut s'attacher au process Node.js dans le container via le port debug. Stream les events de debug vers le debugger panel.
+WORKFLOWS PANEL
+L'agent peut trigger les workflows system (npm run dev, npm run build, npm test) via execute_command. Les workflows custom créés par l'utilisateur sont aussi exécutables par l'agent.
+MONITORING PANEL
+Collecte les métriques du container (CPU, mémoire) via les events de la session. Affiche l'utilisation des ressources en temps réel.
+CHECKPOINTS PANEL
+Avant chaque action risquée de l'agent (suppression de fichiers, refactoring majeur), crée un checkpoint automatique. L'utilisateur peut restaurer à tout moment.
+IMPLEMENTATION TECHNIQUE :
+Dans server/services/claude-agent-service.ts, ajoute un event handler qui route chaque type d'event vers le bon panel :
+typescriptasync processAgentEvents(sessionId: string, projectId: string, broadcast: Function) {
+  const stream = await this.streamEvents(sessionId);
+  
+  for await (const event of stream) {
+    switch(event.type) {
+      case 'tool_use':
+        if (event.name === 'create_file' || event.name === 'edit_file') {
+          // Sync file to DB + broadcast to file explorer
+          await syncFileToWorkspace(projectId, event.input.filename, event.input.content);
+          broadcast({ type: 'file_created', file: { name: event.input.filename } });
+        }
+        if (event.name === 'execute_command') {
+          // Stream to terminal panel
+          broadcast({ type: 'terminal_output', data: event.input.command });
+        }
+        break;
+      case 'tool_result':
+        // Stream command output to terminal
+        broadcast({ type: 'terminal_output', data: event.content });
+        break;
+      case 'assistant.message':
+        // Stream to agent chat panel
+        broadcast({ type: 'agent_message', content: event.content });
+        break;
+    }
+  }
+}
+Implémente ça et connecte chaque event au bon panel via les WebSocket broadcasts existants. Rebuild et teste.

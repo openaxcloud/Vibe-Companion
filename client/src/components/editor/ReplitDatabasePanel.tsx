@@ -114,8 +114,19 @@ export function ReplitDatabasePanel({ projectId }: { projectId?: string }) {
     queryKey: ['/api/database/project', projectId],
     queryFn: async () => {
       if (!projectId) return { provisioned: false };
-      return apiRequest<DatabaseInfo>('GET', `/api/database/project/${projectId}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const res = await fetch(`/api/database/project/${projectId}`, { credentials: 'include', signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) return { provisioned: false };
+        return await res.json();
+      } catch {
+        clearTimeout(timeout);
+        return { provisioned: false };
+      }
     },
+    retry: 1,
     enabled: !!projectId,
     staleTime: 30000,
   });

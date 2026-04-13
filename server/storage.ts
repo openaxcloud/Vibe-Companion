@@ -194,6 +194,7 @@ export interface IStorage {
   updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; outputType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean }>): Promise<Project | undefined>;
 
   getFiles(projectId: string): Promise<File[]>;
+  getFilesByProjectId(projectId: string): Promise<File[]>;
   getFile(id: string): Promise<File | undefined>;
   createFile(projectId: string, data: InsertFile): Promise<File>;
   updateFileContent(id: string, content: string): Promise<File | undefined>;
@@ -1015,6 +1016,10 @@ export class DatabaseStorage implements IStorage {
 
   async getFiles(projectId: string): Promise<File[]> {
     return db.select().from(files).where(eq(files.projectId, projectId));
+  }
+
+  async getFilesByProjectId(projectId: string): Promise<File[]> {
+    return this.getFiles(projectId);
   }
 
   async getFile(id: string): Promise<File | undefined> {

@@ -1,1315 +1,738 @@
-// @ts-nocheck
-import { useState, useEffect } from 'react';
-import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
+import { useState, useCallback } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
-import { Progress } from '@/components/ui/progress';
-import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Database,
   Table,
   RefreshCw,
   ChevronRight,
   ChevronDown,
-  ChevronLeft,
   Search,
-  Settings,
   Loader2,
   Copy,
+  Check,
   Eye,
   EyeOff,
   Trash2,
-  MoreVertical,
-  Terminal,
-  LayoutGrid,
-  List,
-  Filter,
-  Columns,
   Plus,
-  Calendar,
-  Info,
-  Grid3X3,
-  Layers
+  Play,
+  Download,
+  ArrowUp,
+  ArrowDown,
+  AlertTriangle,
+  Settings,
+  LayoutGrid,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 
 interface DatabasePanelProps {
   projectId: string;
 }
 
-interface TableInfo {
-  name: string;
-  displayName: string;
-  icon: 'table' | 'file' | 'key' | 'rocket';
-  rowCount: number;
-}
-
-interface TableColumn {
+interface ColumnMeta {
   name: string;
   type: string;
-  nullable?: boolean;
-  isPrimaryKey?: boolean;
+  nullable: boolean;
+  hasDefault: boolean;
 }
 
-interface ProjectDataTablesResponse {
-  tables: TableInfo[];
+interface TableDataResult {
+  columns: ColumnMeta[];
+  rows: Record<string, any>[];
+  totalRows: number;
+  limit: number;
+  offset: number;
+  error?: string;
 }
 
-interface TableSchemaResponse {
-  tableName: string;
-  columns: TableColumn[];
+type DbTab = 'data' | 'sql' | 'settings';
+type DbEnv = 'development' | 'production';
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-interface TableDataResponse {
-  tableName: string;
-  data: any[];
-  pagination: {
-    page: number;
-    limit: number;
-    totalRows: number;
-    totalPages: number;
-    hasNextPage: boolean;
-    hasPrevPage: boolean;
-  };
+function CopyBtn({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="p-0.5 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]"
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+      data-testid="button-copy-credential"
+    >
+      {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+    </button>
+  );
 }
-
-interface DatabaseInfo {
-  provisioned: boolean;
-  status?: 'running' | 'stopped' | 'error' | 'provisioning';
-  host?: string;
-  port?: number;
-  databaseName?: string;
-  username?: string;
-  storageUsedMb?: number;
-  storageLimitMb?: number;
-  connectionCount?: number;
-  maxConnections?: number;
-  lastBackupAt?: string;
-  plan?: string;
-  region?: string;
-  computeHours?: number;
-}
-
-interface DatabaseCredentials {
-  host: string;
-  port: number;
-  databaseName: string;
-  username: string;
-  password: string;
-  connectionUrl: string;
-}
-
-interface ProvisionRequest {
-  plan: string;
-  region: string;
-  provider?: string;
-}
-
-type DatabaseView = 'all' | 'development' | 'production';
-type DetailTab = 'overview' | 'mydata' | 'settings';
-
-const HISTORY_RETENTION_OPTIONS = [
-  { value: '7', label: '7 Days' },
-  { value: '14', label: '14 Days' },
-  { value: '30', label: '30 Days' },
-  { value: '90', label: '90 Days' },
-];
-
-const TIMEZONE_OPTIONS = [
-  { value: 'UTC', label: 'UTC' },
-  { value: 'America/New_York', label: 'America/New_York' },
-  { value: 'America/Los_Angeles', label: 'America/Los_Angeles' },
-  { value: 'Europe/London', label: 'Europe/London' },
-  { value: 'Europe/Paris', label: 'Europe/Paris' },
-  { value: 'Asia/Jerusalem', label: 'Asia/Jerusalem' },
-  { value: 'Asia/Tokyo', label: 'Asia/Tokyo' },
-  { value: 'Asia/Shanghai', label: 'Asia/Shanghai' },
-];
 
 export function DatabasePanel({ projectId }: DatabasePanelProps) {
-  const { user } = useAuth();
-  const isAdmin = user?.isAdmin || false;
   const { toast } = useToast();
-  
-  const [currentView, setCurrentView] = useState<DatabaseView>('all');
-  const [activeDetailTab, setActiveDetailTab] = useState<DetailTab>('overview');
-  const [selectedTable, setSelectedTable] = useState<string>('');
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [showDatabaseUrl, setShowDatabaseUrl] = useState<boolean>(false);
-  const [historyRetention, setHistoryRetention] = useState<string>('7');
-  const [restoreDate, setRestoreDate] = useState<string>('');
-  const [restoreTime, setRestoreTime] = useState<string>('');
-  const [restoreTimezone, setRestoreTimezone] = useState<string>('Asia/Jerusalem');
-  const [readOnlyMode, setReadOnlyMode] = useState<boolean>(true);
-  const [tableRowsCount, setTableRowsCount] = useState<boolean>(true);
-  const [expandSubviews, setExpandSubviews] = useState<boolean>(false);
-  const [paginationType, setPaginationType] = useState<'limit' | 'pages'>('limit');
-  const [flatSchemas, setFlatSchemas] = useState<boolean>(false);
-  const [showByteaAs, setShowByteaAs] = useState<'hex' | 'utf8'>('hex');
-  const [showSettingsPanel, setShowSettingsPanel] = useState<boolean>(false);
-  const [sqlQuery, setSqlQuery] = useState<string>('');
-  const [showSqlConsole, setShowSqlConsole] = useState<boolean>(false);
-  const [autoRetryAttempted, setAutoRetryAttempted] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<DbTab>('data');
+  const [dbEnv, setDbEnv] = useState<DbEnv>('development');
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [expandedTable, setExpandedTable] = useState<string | null>(null);
+  const [tableColumns, setTableColumns] = useState<Record<string, { name: string; type: string }[]>>({});
 
-  const { data: databaseInfo, isLoading: databaseInfoLoading, refetch: refetchDatabaseInfo } = useQuery<DatabaseInfo>({
-    queryKey: ['/api/database/project', projectId],
+  const [sqlQuery, setSqlQuery] = useState('SELECT 1;');
+  const [queryResults, setQueryResults] = useState<{ columns: string[]; rows: any[][]; rowCount: number; error?: string; requiresConfirmation?: boolean } | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingDestructiveQuery, setPendingDestructiveQuery] = useState<string | null>(null);
+
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('ASC');
+  const [filterCol, setFilterCol] = useState('');
+  const [filterVal, setFilterVal] = useState('');
+  const [dataOffset, setDataOffset] = useState(0);
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [showInsertRow, setShowInsertRow] = useState(false);
+  const [insertValues, setInsertValues] = useState<Record<string, string>>({});
+  const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
+  const [editCellValue, setEditCellValue] = useState('');
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+
+  const tablesQuery = useQuery<string[]>({
+    queryKey: ['db-tables', projectId, dbEnv],
     queryFn: async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
       try {
-        const response = await apiRequest('GET', `/api/database/project/${projectId}`);
-        return response;
-      } catch (error: any) {
-        if (error?.status === 404) {
-          return { provisioned: false };
-        }
-        throw error;
+        const res = await fetch(`/api/projects/${projectId}/database/tables?env=${dbEnv}`, { credentials: 'include', signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) return [];
+        const data = await res.json();
+        if (data.error) return [];
+        return data.tables || [];
+      } catch {
+        clearTimeout(timeout);
+        return [];
       }
     },
-    staleTime: 30000,
-    enabled: !!projectId
+    retry: 1,
+    staleTime: 15000,
   });
 
-  const { data: credentials, isLoading: credentialsLoading, refetch: refetchCredentials } = useQuery<DatabaseCredentials>({
-    queryKey: ['/api/database/project', projectId, 'credentials'],
+  const tables = tablesQuery.data || [];
+
+  const tableDataQuery = useQuery<TableDataResult>({
+    queryKey: ['db-table-data', projectId, selectedTable, dbEnv, sortCol, sortDir, filterCol, filterVal, dataOffset],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/database/project/${projectId}/credentials`);
-      return response;
+      if (!selectedTable) return { columns: [], rows: [], totalRows: 0, limit: 100, offset: 0 };
+      const params = new URLSearchParams({ env: dbEnv, limit: '100', offset: String(dataOffset) });
+      if (sortCol) { params.set('sort', sortCol); params.set('dir', sortDir); }
+      if (filterCol && filterVal) { params.set('filterCol', filterCol); params.set('filterVal', filterVal); }
+      const res = await fetch(`/api/projects/${projectId}/database/tables/${selectedTable}/data?${params}`, { credentials: 'include' });
+      if (!res.ok) return { columns: [], rows: [], totalRows: 0, limit: 100, offset: 0, error: 'Failed to load' };
+      return res.json();
     },
-    staleTime: 60000,
-    enabled: !!projectId && databaseInfo?.provisioned === true
+    enabled: !!selectedTable,
   });
 
-  const provisionMutation = useMutation({
-    mutationFn: async (data: ProvisionRequest) => {
-      return apiRequest('POST', `/api/database/project/${projectId}/provision`, data);
+  const tableData = tableDataQuery.data;
+
+  const credentialsQuery = useQuery({
+    queryKey: ['db-credentials', projectId, dbEnv],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/database/credentials?env=${dbEnv}`, { credentials: 'include' });
+      if (!res.ok) return null;
+      return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/database/project', projectId] });
-      toast({
-        title: 'Database Provisioned',
-        description: 'Your PostgreSQL database is being provisioned.',
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Provisioning Failed',
-        description: error.message || 'Failed to provision database',
-        variant: 'destructive',
-      });
-    },
+    enabled: activeTab === 'settings',
   });
 
-  useEffect(() => {
-    if (
-      databaseInfo?.status === 'error' && 
-      !autoRetryAttempted && 
-      !provisionMutation.isPending &&
-      projectId
-    ) {
-      setAutoRetryAttempted(true);
-      const retryTimer = setTimeout(() => {
-        provisionMutation.mutate({ plan: 'free', region: 'us-east-1' });
-      }, 1000);
-      return () => clearTimeout(retryTimer);
-    }
-  }, [databaseInfo?.status, autoRetryAttempted, provisionMutation.isPending, projectId]);
-
-  useEffect(() => {
-    if (databaseInfo?.status === 'running' && autoRetryAttempted) {
-      setAutoRetryAttempted(false);
-    }
-  }, [databaseInfo?.status, autoRetryAttempted]);
-
-  useEffect(() => {
-    if (
-      databaseInfo?.provisioned === false && 
-      !databaseInfo?.status &&
-      !autoRetryAttempted && 
-      !provisionMutation.isPending &&
-      !databaseInfoLoading &&
-      projectId
-    ) {
-      setAutoRetryAttempted(true);
-      const provisionTimer = setTimeout(() => {
-        provisionMutation.mutate({ plan: 'free', region: 'us-east-1' });
-      }, 1500);
-      return () => clearTimeout(provisionTimer);
-    }
-  }, [databaseInfo?.provisioned, databaseInfo?.status, autoRetryAttempted, provisionMutation.isPending, databaseInfoLoading, projectId]);
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest('DELETE', `/api/database/project/${projectId}`);
+  const usageQuery = useQuery({
+    queryKey: ['db-usage', projectId, dbEnv],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/database/usage?env=${dbEnv}`, { credentials: 'include' });
+      if (!res.ok) return null;
+      return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/database/project', projectId] });
-      toast({
-        title: 'Database Deleted',
-        description: 'Your database has been deleted successfully.',
-      });
-      setCurrentView('all');
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Deletion Failed',
-        description: error.message || 'Failed to delete database',
-        variant: 'destructive',
-      });
-    },
+    enabled: activeTab === 'settings',
   });
 
-  const restoreMutation = useMutation({
-    mutationFn: async (data: { timestamp: string; timezone: string }) => {
-      return apiRequest('POST', `/api/database/project/${projectId}/restore`, data);
-    },
-    onSuccess: () => {
-      toast({
-        title: 'Restore Initiated',
-        description: 'Point-in-time restore has been initiated.',
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Restore Failed',
-        description: error.message || 'Failed to restore database',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const [sqlResults, setSqlResults] = useState<{ rows: any[]; rowCount: number; fields: any[] } | null>(null);
-  const [sqlError, setSqlError] = useState<string | null>(null);
-
-  const executeSqlMutation = useMutation({
-    mutationFn: async (query: string) => {
-      return apiRequest('POST', `/api/database/project/${projectId}/sql/execute`, { query });
+  const executeMutation = useMutation({
+    mutationFn: async ({ sql, confirm }: { sql: string; confirm?: boolean }) => {
+      const res = await apiRequest('POST', `/api/projects/${projectId}/database/execute`, { sql, confirm, env: dbEnv });
+      return res.json();
     },
     onSuccess: (data) => {
-      setSqlResults(data);
-      setSqlError(null);
-      toast({
-        title: 'Query Executed',
-        description: `Returned ${data.rowCount || 0} rows in ${data.executionTime || 0}ms`,
-      });
+      if (data.requiresConfirmation) {
+        setPendingDestructiveQuery(data.sql || sqlQuery);
+        setConfirmDialogOpen(true);
+        return;
+      }
+      if (data.error) {
+        setQueryResults({ columns: [], rows: [], rowCount: 0, error: data.error });
+      } else {
+        setQueryResults(data);
+        queryClient.invalidateQueries({ queryKey: ['db-tables'] });
+        if (selectedTable) queryClient.invalidateQueries({ queryKey: ['db-table-data'] });
+      }
     },
-    onError: (error: any) => {
-      setSqlError(error.message || 'Query execution failed');
-      setSqlResults(null);
-      toast({
-        title: 'Query Failed',
-        description: error.message || 'Failed to execute query',
-        variant: 'destructive',
-      });
+    onError: (err: any) => {
+      setQueryResults({ columns: [], rows: [], rowCount: 0, error: err.message || 'Query failed' });
     },
   });
 
-  const handleExecuteSql = () => {
-    if (!sqlQuery.trim()) {
-      toast({
-        title: 'Empty Query',
-        description: 'Please enter a SQL query',
-        variant: 'destructive',
-      });
+  const removeDatabaseMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/projects/${projectId}/database/remove`, { confirmToken: 'REMOVE_DATABASE', env: dbEnv });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['db-tables'] });
+      queryClient.invalidateQueries({ queryKey: ['db-usage'] });
+      setSelectedTable(null);
+      setRemoveConfirmOpen(false);
+      toast({ title: 'Database cleared', description: 'All tables have been removed.' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Failed', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const handleTableSelect = useCallback((table: string) => {
+    setSelectedTable(table);
+    setSortCol(null);
+    setSortDir('ASC');
+    setFilterCol('');
+    setFilterVal('');
+    setDataOffset(0);
+  }, []);
+
+  const handleToggleTable = useCallback(async (table: string) => {
+    if (expandedTable === table) {
+      setExpandedTable(null);
       return;
     }
-    executeSqlMutation.mutate(sqlQuery);
-  };
-
-  const { data: tablesData, isLoading: tablesLoading, refetch: refetchTables } = useQuery<ProjectDataTablesResponse>({
-    queryKey: isAdmin ? ['/api/admin/database/tables'] : ['/api/projects', projectId, 'data/tables'],
-    queryFn: async () => {
-      const endpoint = isAdmin 
-        ? '/api/admin/database/tables'
-        : `/api/projects/${projectId}/data/tables`;
-      const response = await apiRequest('GET', endpoint);
-      return response;
-    },
-    staleTime: 30000,
-    enabled: (isAdmin || !!projectId) && currentView !== 'all'
-  });
-
-  const allTables = tablesData?.tables || [];
-
-  useEffect(() => {
-    if (allTables.length > 0 && !selectedTable) {
-      setSelectedTable(allTables[0].name);
+    setExpandedTable(table);
+    if (!tableColumns[table]) {
+      try {
+        const params = new URLSearchParams({ env: dbEnv, limit: '1', offset: '0' });
+        const res = await fetch(`/api/projects/${projectId}/database/tables/${table}/data?${params}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.columns) {
+            setTableColumns(prev => ({ ...prev, [table]: data.columns.map((c: any) => ({ name: c.name, type: c.type })) }));
+          }
+        }
+      } catch {}
     }
-  }, [allTables, selectedTable]);
+  }, [expandedTable, tableColumns, dbEnv, projectId]);
 
-  const tableExists = allTables.some(t => t.name === selectedTable);
-  
-  const { data: tableData, isLoading: dataLoading } = useQuery<TableDataResponse>({
-    queryKey: isAdmin 
-      ? ['/api/admin/database', selectedTable, 'data', 'page', currentPage]
-      : ['/api/projects', projectId, 'data', selectedTable, 'page', currentPage],
-    queryFn: async () => {
-      const endpoint = isAdmin
-        ? `/api/admin/database/${selectedTable}/data?page=${currentPage}&limit=50`
-        : `/api/projects/${projectId}/data/${selectedTable}/data?page=${currentPage}&limit=50`;
-      const res = await apiRequest('GET', endpoint);
-      return res;
-    },
-    enabled: !!selectedTable && tableExists && activeDetailTab === 'mydata',
-    staleTime: 30000
-  });
-
-  const { data: tableSchema } = useQuery<TableSchemaResponse>({
-    queryKey: isAdmin
-      ? ['/api/admin/database', selectedTable, 'schema']
-      : ['/api/projects', projectId, 'data', selectedTable, 'schema'],
-    queryFn: async () => {
-      const endpoint = isAdmin
-        ? `/api/admin/database/${selectedTable}/schema`
-        : `/api/projects/${projectId}/data/${selectedTable}/schema`;
-      const response = await apiRequest('GET', endpoint);
-      return response;
-    },
-    enabled: !!selectedTable && tableExists && activeDetailTab === 'mydata',
-    staleTime: 60000
-  });
-
-  const handleRefresh = () => {
-    refetchTables();
-    refetchDatabaseInfo();
-    toast({
-      title: 'Refreshed',
-      description: 'Database information refreshed'
-    });
-  };
-
-  const handleCopyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({
-        title: 'Copied',
-        description: `${label} copied to clipboard`,
-      });
-    } catch {
-      toast({
-        title: 'Copy Failed',
-        description: 'Failed to copy to clipboard',
-        variant: 'destructive',
-      });
+  const handleSort = (col: string) => {
+    if (sortCol === col) {
+      setSortDir(d => d === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setSortCol(col);
+      setSortDir('ASC');
     }
+    setDataOffset(0);
   };
 
-  const handleRestore = () => {
-    if (!restoreDate) {
-      toast({
-        title: 'Missing Date',
-        description: 'Please select a date for restoration',
-        variant: 'destructive',
-      });
-      return;
-    }
-    const timestamp = `${restoreDate}T${restoreTime || '00:00:00'}`;
-    restoreMutation.mutate({ timestamp, timezone: restoreTimezone });
+  const exportCsv = () => {
+    if (!tableData || !selectedTable) return;
+    const cols = tableData.columns.map(c => c.name);
+    const header = cols.join(',');
+    const rows = tableData.rows.map(r => cols.map(c => {
+      const v = r[c];
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(',')).join('\n');
+    const blob = new Blob([header + '\n' + rows], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${selectedTable}.csv`; a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const filteredTables = (allTables || []).filter(table =>
-    table?.name && typeof table.name === 'string' && table.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const storageUsedMb = databaseInfo?.storageUsedMb || 0;
-  const storageLimitMb = databaseInfo?.storageLimitMb || 1024;
-  const storagePercentage = storageLimitMb > 0 ? (storageUsedMb / storageLimitMb) * 100 : 0;
-  const computeHours = databaseInfo?.computeHours || 0;
-
-  const formatStorage = (mb: number, limitMb: number) => {
-    if (limitMb >= 1024) {
-      return `${mb.toFixed(2)}MB / ${(limitMb / 1024).toFixed(0)}GB`;
-    }
-    return `${mb.toFixed(2)}MB / ${limitMb}MB`;
+  const handleInlineUpdate = async (rowIdx: number, colName: string, newValue: string) => {
+    if (!selectedTable || !tableData) return;
+    const row = tableData.rows[rowIdx];
+    const pkCol = tableData.columns.find(c => c.name === 'id') || tableData.columns[0];
+    if (!pkCol) return;
+    const pkVal = row[pkCol.name];
+    const isNum = tableData.columns.find(c => c.name === colName)?.type?.match(/int|float|numeric|double|decimal|serial|real/i);
+    const valExpr = newValue === '' ? 'NULL' : isNum ? newValue : `'${newValue.replace(/'/g, "''")}'`;
+    const sql = `UPDATE "${selectedTable}" SET "${colName}" = ${valExpr} WHERE "${pkCol.name}" = ${typeof pkVal === 'number' ? pkVal : `'${pkVal}'`}`;
+    executeMutation.mutate({ sql });
+    setEditingCell(null);
   };
 
-  const AllDatabasesView = () => (
-    <div className="flex flex-col h-full">
-      <div className="h-9 px-2.5 border-b border-[var(--ecode-border)] bg-[var(--ecode-surface)] flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Database className="h-3.5 w-3.5 text-[var(--ecode-text-muted)]" />
-          <h3 className="text-xs font-medium text-[var(--ecode-text-muted)]">Database</h3>
+  const handleInsertRow = async () => {
+    if (!selectedTable || !tableData) return;
+    const cols = Object.keys(insertValues).filter(k => insertValues[k] !== '');
+    if (cols.length === 0) return;
+    const colNames = cols.map(c => `"${c}"`).join(', ');
+    const values = cols.map(c => {
+      const meta = tableData.columns.find(m => m.name === c);
+      const v = insertValues[c];
+      if (meta?.type?.match(/int|float|numeric|double|decimal|serial|real/i)) return v;
+      return `'${v.replace(/'/g, "''")}'`;
+    }).join(', ');
+    executeMutation.mutate({ sql: `INSERT INTO "${selectedTable}" (${colNames}) VALUES (${values})` });
+    setShowInsertRow(false);
+    setInsertValues({});
+  };
+
+  const handleDeleteRow = async (rowIdx: number) => {
+    if (!selectedTable || !tableData) return;
+    const row = tableData.rows[rowIdx];
+    const pkCol = tableData.columns.find(c => c.name === 'id') || tableData.columns[0];
+    if (!pkCol) return;
+    const pkVal = row[pkCol.name];
+    executeMutation.mutate({ sql: `DELETE FROM "${selectedTable}" WHERE "${pkCol.name}" = ${typeof pkVal === 'number' ? pkVal : `'${pkVal}'`}`, confirm: true });
+  };
+
+  const isLoaded = !tablesQuery.isLoading;
+  const hasError = tablesQuery.isError;
+  const noDatabase = isLoaded && !hasError && tables.length === 0;
+
+  return (
+    <div className="h-full flex flex-col bg-[var(--ide-bg)] text-[var(--ide-text)]" data-testid="database-panel">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--ide-border)] shrink-0">
+        <div className="flex items-center gap-2">
+          <Database className="w-3.5 h-3.5 text-[#0079F2]" />
+          <span className="text-[11px] font-semibold">Database</span>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-[11px] gap-1"
-            onClick={handleRefresh}
-            data-testid="button-refresh"
+          <select
+            className="text-[10px] bg-[var(--ide-surface)] text-[var(--ide-text)] border border-[var(--ide-border)] rounded px-1.5 py-0.5"
+            value={dbEnv}
+            onChange={(e) => setDbEnv(e.target.value as DbEnv)}
+            data-testid="select-db-env"
           >
-            <RefreshCw className="h-3 w-3" />
+            <option value="development">Development</option>
+            <option value="production">Production</option>
+          </select>
+          <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['db-tables'] });
+            queryClient.invalidateQueries({ queryKey: ['db-usage'] });
+          }} data-testid="button-refresh-db">
+            <RefreshCw className="w-3 h-3" />
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <MoreVertical className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleRefresh}>Refresh All</DropdownMenuItem>
-              <DropdownMenuItem>Documentation</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-6">
-          <div>
-            <h4 className="text-[13px] font-semibold text-foreground mb-3">Databases</h4>
-            <div className="space-y-2">
-              <button
-                onClick={() => setCurrentView('development')}
-                className="w-full flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
-                data-testid="button-development-db"
-              >
-                <div className="flex items-center gap-3">
-                  <Table className="h-5 w-5 text-muted-foreground" />
-                  <div className="text-left">
-                    <div className="font-medium text-foreground">Development Database</div>
-                    <div className="text-[13px] text-muted-foreground">
-                      {formatStorage(storageUsedMb, storageLimitMb)}
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </button>
+      <div className="flex border-b border-[var(--ide-border)] shrink-0">
+        {(['data', 'sql', 'settings'] as DbTab[]).map(tab => (
+          <button
+            key={tab}
+            className={cn(
+              'flex-1 text-[10px] py-1.5 font-medium border-b-2 transition-colors',
+              activeTab === tab
+                ? 'border-[#0079F2] text-[#0079F2]'
+                : 'border-transparent text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]'
+            )}
+            onClick={() => setActiveTab(tab)}
+            data-testid={`tab-db-${tab}`}
+          >
+            {tab === 'data' ? 'Data' : tab === 'sql' ? 'SQL' : 'Settings'}
+          </button>
+        ))}
+      </div>
 
-              <button
-                onClick={() => setCurrentView('production')}
-                className="w-full flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
-                data-testid="button-production-db"
-              >
-                <div className="flex items-center gap-3">
-                  <Table className="h-5 w-5 text-muted-foreground" />
-                  <div className="text-left">
-                    <div className="font-medium text-foreground">Production Database</div>
-                    <div className="text-[13px] text-muted-foreground">
-                      {formatStorage(storageUsedMb, storageLimitMb)}
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="text-[13px] font-semibold text-foreground mb-2">Billing Period</h4>
-            <p className="text-[13px] text-muted-foreground">Renews monthly</p>
-          </div>
-
-          <div>
-            <h4 className="text-[13px] font-semibold text-foreground mb-2">Hours of Compute Used</h4>
-            <p className="text-[13px] text-muted-foreground">{computeHours.toFixed(2)} hours</p>
-          </div>
-        </div>
-      </ScrollArea>
-    </div>
-  );
-
-  const OverviewTab = () => (
-    <ScrollArea className="flex-1">
-      <div className="p-4">
-        <h4 className="text-[13px] font-semibold text-foreground mb-3">Tables</h4>
-        {tablesLoading ? (
+      <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
+        {tablesQuery.isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Loader2 className="w-5 h-5 text-[var(--ide-text-muted)] animate-spin" />
+          </div>
+        ) : hasError ? (
+          <div className="flex flex-col items-center justify-center py-8 px-4 gap-2">
+            <AlertTriangle className="w-6 h-6 text-amber-400" />
+            <span className="text-[11px] text-[var(--ide-text-muted)] text-center">Failed to connect to database</span>
+            <Button variant="outline" size="sm" className="text-[10px] h-7" onClick={() => tablesQuery.refetch()} data-testid="button-retry-db">
+              Retry
+            </Button>
           </div>
         ) : (
-          <div className="space-y-2">
-            {filteredTables.map((table) => (
-              <button
-                key={table.name}
-                onClick={() => {
-                  setSelectedTable(table.name);
-                  setActiveDetailTab('mydata');
-                }}
-                className="w-full flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors"
-                data-testid={`button-table-${table.name}`}
-              >
-                <div className="flex items-center gap-3">
-                  <Table className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-[13px] font-medium text-foreground">{table.name}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] text-muted-foreground">{table.rowCount} rows</span>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </button>
-            ))}
-            {filteredTables.length === 0 && !tablesLoading && (
-              <p className="text-[13px] text-muted-foreground text-center py-4">No tables found</p>
-            )}
-          </div>
-        )}
-      </div>
-    </ScrollArea>
-  );
-
-  const MyDataTab = () => (
-    <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-      <div className="w-full md:w-48 lg:w-64 border-b md:border-b-0 md:border-r border-border flex flex-col shrink-0">
-        <div className="p-3 space-y-2">
-          <Button
-            variant={showSqlConsole ? "default" : "outline"}
-            className="w-full justify-start gap-2"
-            onClick={() => setShowSqlConsole(!showSqlConsole)}
-            data-testid="button-sql-console"
-          >
-            <Terminal className="h-4 w-4" />
-            SQL console
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            data-testid="button-database-studio"
-          >
-            <Database className="h-4 w-4" />
-            Database studio
-          </Button>
-        </div>
-
-        <div className="px-3 pb-2">
-          <Select defaultValue="public">
-            <SelectTrigger className="w-full" data-testid="select-schema">
-              <SelectValue placeholder="schema: public" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="public">schema: public</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="px-3 pb-2 flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-            <Input
-              placeholder="Search..."
-              className="h-8 pl-7 text-[11px]"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              data-testid="input-search-tables"
-            />
-          </div>
-          <Button variant="outline" size="icon" className="h-8 w-8">
-            <Filter className="h-3 w-3" />
-          </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleRefresh}>
-            <RefreshCw className="h-3 w-3" />
-          </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8">
-            <Plus className="h-3 w-3" />
-          </Button>
-        </div>
-
-        <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1">
-            {filteredTables.map((table) => (
-              <button
-                key={table.name}
-                onClick={() => setSelectedTable(table.name)}
-                className={cn(
-                  "w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-[13px] hover:bg-muted",
-                  selectedTable === table.name && "bg-primary/10 text-primary"
-                )}
-                data-testid={`button-select-${table.name}`}
-              >
-                <Table className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                <span className="truncate">{table.name}</span>
-              </button>
-            ))}
-          </div>
-        </ScrollArea>
-      </div>
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {currentView === 'production' && (
-          <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between">
-            <span className="text-[13px] text-amber-600 dark:text-amber-400">
-              You're viewing your database in read-only.
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] text-muted-foreground">Enable Editing</span>
-              <Switch
-                checked={!readOnlyMode}
-                onCheckedChange={(checked) => setReadOnlyMode(!checked)}
-                data-testid="switch-enable-editing"
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-2 px-2 sm:px-4 py-2 border-b border-border">
-          <div className="flex items-center gap-1 border border-border rounded-md">
-            <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-none">
-              <List className="h-3 w-3 sm:h-4 sm:w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-none hidden sm:flex">
-              <LayoutGrid className="h-3 w-3 sm:h-4 sm:w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-none hidden md:flex">
-              <Grid3X3 className="h-3 w-3 sm:h-4 sm:w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-none">
-              <Filter className="h-3 w-3 sm:h-4 sm:w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-none hidden sm:flex">
-              <Columns className="h-3 w-3 sm:h-4 sm:w-4" />
-            </Button>
-          </div>
-          <Button size="icon" className="h-7 w-7 sm:h-8 sm:w-8 bg-primary text-primary-foreground">
-            <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-          </Button>
-          <div className="flex-1 min-w-0" />
-          <div className="flex items-center gap-1 text-[13px] text-muted-foreground">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-3 w-3" />
-            </Button>
-            <span className="px-2">50</span>
-            <span className="px-2">{(currentPage - 1) * 50}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={!tableData?.pagination?.hasNextPage}
-            >
-              <ChevronRight className="h-3 w-3" />
-            </Button>
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRefresh}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setShowSettingsPanel(!showSettingsPanel)}
-          >
-            <MoreVertical className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {showSqlConsole && (
-          <div className="p-4 border-b border-border">
-            <textarea
-              className="w-full h-24 p-2 text-[13px] font-mono bg-muted border border-border rounded-md resize-none"
-              placeholder="Enter SQL query..."
-              value={sqlQuery}
-              onChange={(e) => setSqlQuery(e.target.value)}
-              data-testid="textarea-sql"
-            />
-            <div className="flex justify-end mt-2">
-              <Button 
-                size="sm" 
-                onClick={handleExecuteSql}
-                disabled={executeSqlMutation.isPending}
-                data-testid="button-execute-sql"
-              >
-                {executeSqlMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                Execute
-              </Button>
-            </div>
-            {sqlError && (
-              <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-red-500 text-[11px]" data-testid="sql-error">
-                <div>{sqlError}</div>
-                {sqlError.includes('not provisioned') && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-2"
-                    onClick={() => provisionMutation.mutate({ plan: 'free', region: 'us-east-1' })}
-                    disabled={provisionMutation.isPending}
-                  >
-                    {provisionMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                    Provision Database
+          <>
+            {activeTab === 'data' && (
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between px-3 py-1 border-b border-[var(--ide-border)] shrink-0">
+                  <span className="text-[10px] font-medium text-[var(--ide-text-muted)]">Tables ({tables.length})</span>
+                  <Button variant="ghost" size="icon" className="w-5 h-5"
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['db-tables'] })}
+                    data-testid="button-refresh-tables">
+                    <RefreshCw className="w-3 h-3" />
                   </Button>
-                )}
-                {sqlError.includes('not available') && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-2"
-                    onClick={() => executeSqlMutation.mutate(sqlQuery)}
-                    disabled={executeSqlMutation.isPending}
-                  >
-                    {executeSqlMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                    Retry
-                  </Button>
-                )}
-              </div>
-            )}
-            {sqlResults && (
-              <div className="mt-2" data-testid="sql-results-container">
-                <div className="p-2 bg-green-500/10 border border-green-500/30 rounded text-green-600 text-[11px] mb-2" data-testid="sql-results-summary">
-                  Query executed successfully. {sqlResults.rowCount !== undefined ? `${sqlResults.rowCount} row(s)` : 'No rows'} affected/returned.
                 </div>
-                {sqlResults.rows && sqlResults.rows.length > 0 && (
-                  <div className="max-h-48 overflow-auto border border-border rounded" data-testid="sql-results-table">
-                    <table className="w-full text-[11px]">
-                      <thead>
-                        <tr className="bg-muted border-b border-border">
-                          {Object.keys(sqlResults.rows[0] || {}).map((key) => (
-                            <th key={key} className="px-2 py-1 text-left font-medium text-foreground" data-testid={`sql-column-${key}`}>
-                              {key}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sqlResults.rows.map((row, index) => (
-                          <tr key={index} className="border-b border-border" data-testid={`sql-row-${index}`}>
-                            {Object.values(row).map((value, i) => (
-                              <td key={i} className="px-2 py-1 text-muted-foreground font-mono" data-testid={`sql-cell-${index}-${i}`}>
-                                {value !== null && value !== undefined ? String(value) : 'null'}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+
+                {noDatabase && (
+                  <div className="flex flex-col items-center justify-center py-8 px-4 gap-3" data-testid="no-database-message">
+                    <Database className="w-8 h-8 text-[var(--ide-text-muted)] opacity-40" />
+                    <div className="text-center">
+                      <p className="text-[12px] font-medium text-[var(--ide-text-muted)]">No database configured</p>
+                      <p className="text-[10px] text-[var(--ide-text-muted)] mt-1 opacity-70">
+                        Create tables using the SQL tab or configure DATABASE_URL in your project settings.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-[10px] h-7 mt-1"
+                      onClick={() => setActiveTab('sql')}
+                      data-testid="button-go-to-sql"
+                    >
+                      <Play className="w-3 h-3 mr-1" /> Open SQL Console
+                    </Button>
                   </div>
                 )}
-              </div>
-            )}
-          </div>
-        )}
 
-        <div className="flex-1 overflow-auto">
-          {dataLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="min-w-full">
-              {tableSchema?.columns && tableSchema.columns.length > 0 && (
-                <div className="flex border-b border-border bg-muted/50 sticky top-0">
-                  <div className="w-8 p-2 border-r border-border" />
-                  {tableSchema.columns.map((col) => (
-                    <div
-                      key={col.name}
-                      className="flex-1 min-w-[150px] p-2 border-r border-border text-[11px]"
-                    >
-                      <div className="font-medium text-foreground">{col.name}</div>
-                      <div className="text-muted-foreground">{col.type}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {tableData?.data && tableData.data.length > 0 ? (
-                tableData.data.map((row, index) => (
-                  <div key={index} className="flex border-b border-border hover:bg-muted/50">
-                    <div className="w-8 p-2 border-r border-border text-[11px] text-muted-foreground">
-                      {(currentPage - 1) * 50 + index + 1}
-                    </div>
-                    {tableSchema?.columns?.map((col) => (
-                      <div
-                        key={col.name}
-                        className="flex-1 min-w-[150px] p-2 border-r border-border text-[11px] truncate"
-                      >
-                        {row[col.name] !== null && row[col.name] !== undefined
-                          ? String(row[col.name])
-                          : <span className="text-muted-foreground">null</span>
-                        }
+                {tables.length > 0 && (
+                  <div className="max-h-[180px] overflow-y-auto shrink-0 border-b border-[var(--ide-border)]">
+                    {tables.map((table) => (
+                      <div key={table}>
+                        <button
+                          className={cn(
+                            'w-full flex items-center gap-1.5 px-3 py-1.5 text-left hover:bg-[var(--ide-surface)]/40 transition-colors',
+                            selectedTable === table ? 'bg-[var(--ide-surface)]/60' : ''
+                          )}
+                          onClick={() => handleTableSelect(table)}
+                          onDoubleClick={() => handleToggleTable(table)}
+                          data-testid={`table-item-${table}`}
+                        >
+                          {expandedTable === table ? <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)]" /> : <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)]" />}
+                          <Table className="w-3 h-3 text-[#0079F2] shrink-0" />
+                          <span className="text-[11px] text-[var(--ide-text)] font-mono truncate">{table}</span>
+                        </button>
+                        {expandedTable === table && tableColumns[table] && (
+                          <div className="pl-7 pr-3 py-0.5">
+                            {tableColumns[table].map((col) => (
+                              <div key={col.name} className="flex items-center justify-between py-0.5">
+                                <span className="text-[10px] text-[var(--ide-text-secondary)] font-mono">{col.name}</span>
+                                <span className="text-[9px] text-[var(--ide-text-muted)] font-mono uppercase">{col.type}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
-                ))
-              ) : (
-                <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-                  <p className="text-[13px]">No rows</p>
-                  <p className="text-[11px] mt-1">limit 50 offset {(currentPage - 1) * 50}</p>
+                )}
+
+                {selectedTable && (
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <div className="flex items-center justify-between px-3 py-1 border-b border-[var(--ide-border)] shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-semibold font-mono">{selectedTable}</span>
+                        {tableData && <span className="text-[9px] text-[var(--ide-text-muted)]">{tableData.totalRows} rows</span>}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="w-5 h-5"
+                          onClick={() => { setShowInsertRow(true); if (tableData) { const vals: Record<string, string> = {}; tableData.columns.forEach(c => vals[c.name] = ''); setInsertValues(vals); } }}
+                          title="Insert row" data-testid="button-insert-row">
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="w-5 h-5" onClick={exportCsv} title="Export CSV" data-testid="button-export-csv">
+                          <Download className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="w-5 h-5"
+                          onClick={() => queryClient.invalidateQueries({ queryKey: ['db-table-data'] })}
+                          data-testid="button-refresh-data">
+                          <RefreshCw className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {tableData && tableData.columns.length > 0 && (
+                      <div className="px-3 py-1 flex items-center gap-2 border-b border-[var(--ide-border)] shrink-0">
+                        <select className="text-[10px] bg-[var(--ide-surface)] border border-[var(--ide-border)] rounded px-1 py-0.5"
+                          value={filterCol} onChange={(e) => setFilterCol(e.target.value)} data-testid="select-filter-col">
+                          <option value="">Filter column...</option>
+                          {tableData.columns.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                        </select>
+                        {filterCol && (
+                          <Input className="text-[10px] h-5 w-24 px-1" placeholder="value..." value={filterVal}
+                            onChange={(e) => setFilterVal(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') setDataOffset(0); }}
+                            data-testid="input-filter-val" />
+                        )}
+                      </div>
+                    )}
+
+                    {showInsertRow && tableData && (
+                      <div className="px-3 py-2 border-b border-[var(--ide-border)] bg-[var(--ide-surface)]/30 shrink-0">
+                        <div className="text-[10px] font-medium mb-1">Insert Row</div>
+                        <div className="grid grid-cols-2 gap-1">
+                          {tableData.columns.map(c => (
+                            <div key={c.name} className="flex items-center gap-1">
+                              <span className="text-[9px] text-[var(--ide-text-muted)] font-mono w-20 truncate">{c.name}</span>
+                              <Input className="text-[10px] h-5 flex-1 px-1" value={insertValues[c.name] || ''} placeholder={c.hasDefault ? '(default)' : ''}
+                                onChange={(e) => setInsertValues(prev => ({ ...prev, [c.name]: e.target.value }))} />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex gap-1 mt-1">
+                          <Button size="sm" className="text-[10px] h-6" onClick={handleInsertRow} data-testid="button-confirm-insert">Insert</Button>
+                          <Button variant="ghost" size="sm" className="text-[10px] h-6" onClick={() => setShowInsertRow(false)}>Cancel</Button>
+                        </div>
+                      </div>
+                    )}
+
+                    <ScrollArea className="flex-1 min-h-0">
+                      {tableDataQuery.isLoading ? (
+                        <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-[var(--ide-text-muted)]" /></div>
+                      ) : tableData?.error ? (
+                        <div className="px-3 py-4 text-[11px] text-red-400">{tableData.error}</div>
+                      ) : tableData && tableData.columns.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-[10px] font-mono">
+                            <thead>
+                              <tr className="border-b border-[var(--ide-border)] bg-[var(--ide-surface)]/30">
+                                {tableData.columns.map(col => (
+                                  <th key={col.name} className="px-2 py-1 text-left font-medium text-[var(--ide-text-muted)] cursor-pointer hover:text-[var(--ide-text)] whitespace-nowrap"
+                                    onClick={() => handleSort(col.name)}>
+                                    <span className="flex items-center gap-0.5">
+                                      {col.name}
+                                      {sortCol === col.name && (sortDir === 'ASC' ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />)}
+                                    </span>
+                                  </th>
+                                ))}
+                                <th className="w-8" />
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {tableData.rows.map((row, ri) => (
+                                <tr key={ri} className="border-b border-[var(--ide-border)]/50 hover:bg-[var(--ide-surface)]/20">
+                                  {tableData.columns.map(col => (
+                                    <td key={col.name} className="px-2 py-0.5 max-w-[200px] truncate cursor-pointer"
+                                      onDoubleClick={() => { setEditingCell({ row: ri, col: col.name }); setEditCellValue(row[col.name] === null ? '' : String(row[col.name])); }}>
+                                      {editingCell?.row === ri && editingCell?.col === col.name ? (
+                                        <Input className="text-[10px] h-5 px-1" value={editCellValue}
+                                          autoFocus
+                                          onChange={(e) => setEditCellValue(e.target.value)}
+                                          onBlur={() => handleInlineUpdate(ri, col.name, editCellValue)}
+                                          onKeyDown={(e) => { if (e.key === 'Enter') handleInlineUpdate(ri, col.name, editCellValue); if (e.key === 'Escape') setEditingCell(null); }} />
+                                      ) : (
+                                        <span className={cn(row[col.name] === null ? 'text-[var(--ide-text-muted)] italic' : 'text-[var(--ide-text)]')}>
+                                          {row[col.name] === null ? 'NULL' : String(row[col.name])}
+                                        </span>
+                                      )}
+                                    </td>
+                                  ))}
+                                  <td className="px-1">
+                                    <button className="text-[var(--ide-text-muted)] hover:text-red-400 p-0.5" onClick={() => handleDeleteRow(ri)}
+                                      data-testid={`button-delete-row-${ri}`}>
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="px-3 py-4 text-[11px] text-[var(--ide-text-muted)] text-center">No data in this table</div>
+                      )}
+                    </ScrollArea>
+
+                    {tableData && tableData.totalRows > 100 && (
+                      <div className="flex items-center justify-between px-3 py-1 border-t border-[var(--ide-border)] shrink-0">
+                        <span className="text-[9px] text-[var(--ide-text-muted)]">
+                          {dataOffset + 1}-{Math.min(dataOffset + 100, tableData.totalRows)} of {tableData.totalRows}
+                        </span>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" className="text-[10px] h-5 px-2" disabled={dataOffset === 0}
+                            onClick={() => setDataOffset(Math.max(0, dataOffset - 100))} data-testid="button-prev-page">Prev</Button>
+                          <Button variant="ghost" size="sm" className="text-[10px] h-5 px-2" disabled={dataOffset + 100 >= tableData.totalRows}
+                            onClick={() => setDataOffset(dataOffset + 100)} data-testid="button-next-page">Next</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!selectedTable && tables.length > 0 && (
+                  <div className="flex flex-col items-center justify-center py-8 text-[var(--ide-text-muted)]">
+                    <LayoutGrid className="w-6 h-6 mb-2 opacity-40" />
+                    <p className="text-[11px]">Select a table to view data</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'sql' && (
+              <div className="flex-1 flex flex-col min-h-0 p-3 gap-2">
+                <textarea
+                  className="flex-none h-24 p-2 text-[11px] font-mono bg-[var(--ide-surface)] border border-[var(--ide-border)] rounded resize-none text-[var(--ide-text)]"
+                  value={sqlQuery}
+                  onChange={(e) => setSqlQuery(e.target.value)}
+                  placeholder="SELECT * FROM ..."
+                  spellCheck={false}
+                  data-testid="textarea-sql-query"
+                />
+                <div className="flex items-center gap-2">
+                  <Button size="sm" className="text-[10px] h-7 gap-1"
+                    onClick={() => executeMutation.mutate({ sql: sqlQuery })}
+                    disabled={executeMutation.isPending}
+                    data-testid="button-run-query">
+                    {executeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                    Run
+                  </Button>
+                  <span className="text-[9px] text-[var(--ide-text-muted)]">
+                    {dbEnv === 'production' ? 'Read-only in production' : 'Destructive queries require confirmation'}
+                  </span>
                 </div>
-              )}
+
+                {queryResults && (
+                  <ScrollArea className="flex-1 min-h-0">
+                    {queryResults.error ? (
+                      <div className="p-2 text-[11px] text-red-400 bg-red-400/10 rounded">{queryResults.error}</div>
+                    ) : (
+                      <div>
+                        <div className="text-[9px] text-[var(--ide-text-muted)] mb-1">{queryResults.rowCount} row(s) returned</div>
+                        {queryResults.columns.length > 0 && (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-[10px] font-mono">
+                              <thead>
+                                <tr className="border-b border-[var(--ide-border)]">
+                                  {queryResults.columns.map(col => (
+                                    <th key={col} className="px-2 py-1 text-left font-medium text-[var(--ide-text-muted)] whitespace-nowrap">{col}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {queryResults.rows.map((row, ri) => (
+                                  <tr key={ri} className="border-b border-[var(--ide-border)]/50">
+                                    {row.map((val: any, ci: number) => (
+                                      <td key={ci} className="px-2 py-0.5 max-w-[200px] truncate">
+                                        {val === null ? <span className="text-[var(--ide-text-muted)] italic">NULL</span> : String(val)}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </ScrollArea>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'settings' && (
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="p-3 space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-medium">Connection Info</span>
+                      <Button variant="ghost" size="sm" className="text-[10px] h-6 gap-1"
+                        onClick={() => setShowCredentials(!showCredentials)} data-testid="button-toggle-credentials">
+                        {showCredentials ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        {showCredentials ? 'Hide' : 'Show'}
+                      </Button>
+                    </div>
+                    {credentialsQuery.isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)]" />
+                    ) : credentialsQuery.data?.credentials ? (
+                      <div className="space-y-1 bg-[var(--ide-surface)] rounded p-2">
+                        {Object.entries(credentialsQuery.data.credentials as Record<string, string>).map(([key, val]) => (
+                          <div key={key} className="flex items-center justify-between gap-2">
+                            <span className="text-[9px] text-[var(--ide-text-muted)] font-mono shrink-0">{key}</span>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="text-[10px] font-mono truncate">{showCredentials ? val : '••••••••'}</span>
+                              <CopyBtn text={val} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-[var(--ide-text-muted)]">No credentials available</div>
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="text-[11px] font-medium">Usage</span>
+                    {usageQuery.isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)] mt-2" />
+                    ) : usageQuery.data ? (
+                      <div className="mt-1 space-y-1 text-[10px]">
+                        <div className="flex justify-between">
+                          <span className="text-[var(--ide-text-muted)]">Tables</span>
+                          <span>{usageQuery.data.tableCount}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[var(--ide-text-muted)]">Total Size</span>
+                          <span>{formatBytes(usageQuery.data.dbSizeBytes || 0)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[var(--ide-text-muted)]">Limit</span>
+                          <span>{usageQuery.data.freeLimit}</span>
+                        </div>
+                        {usageQuery.data.tables?.length > 0 && (
+                          <div className="mt-2 border-t border-[var(--ide-border)] pt-1">
+                            {usageQuery.data.tables.map((t: any) => (
+                              <div key={t.table} className="flex justify-between py-0.5">
+                                <span className="font-mono text-[var(--ide-text-muted)]">{t.table}</span>
+                                <span>{t.rowCount} rows / {formatBytes(t.sizeBytes)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-[var(--ide-text-muted)] mt-1">Usage data not available</div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-[var(--ide-border)] pt-3">
+                    <span className="text-[11px] font-medium text-red-400">Danger Zone</span>
+                    <p className="text-[9px] text-[var(--ide-text-muted)] mt-1">Remove all tables and data from this project's database.</p>
+                    {removeConfirmOpen ? (
+                      <div className="flex items-center gap-2 mt-2">
+                        <Button variant="destructive" size="sm" className="text-[10px] h-7"
+                          onClick={() => removeDatabaseMutation.mutate()}
+                          disabled={removeDatabaseMutation.isPending}
+                          data-testid="button-confirm-remove-db">
+                          {removeDatabaseMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes, Remove Everything'}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-[10px] h-7" onClick={() => setRemoveConfirmOpen(false)}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <Button variant="outline" size="sm" className="text-[10px] h-7 mt-2 text-red-400 border-red-400/30 hover:bg-red-400/10"
+                        onClick={() => setRemoveConfirmOpen(true)} data-testid="button-remove-db">
+                        <Trash2 className="w-3 h-3 mr-1" /> Remove Database
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </ScrollArea>
+            )}
+          </>
+        )}
+      </div>
+
+      {confirmDialogOpen && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded-lg p-4 max-w-sm mx-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              <span className="text-[12px] font-medium">Confirm Destructive Query</span>
             </div>
-          )}
-        </div>
-
-        {showSettingsPanel && (
-          <div className="absolute right-0 top-0 w-72 h-full bg-background border-l border-border shadow-lg z-10 overflow-auto">
-            <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[13px] font-medium">Table rows count</span>
-                <Switch
-                  checked={tableRowsCount}
-                  onCheckedChange={setTableRowsCount}
-                />
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Beware count(*) operation performs light scan of the table which can be both slow and billed by serverless databases for row reads
-              </p>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[13px] font-medium">Expand subviews</span>
-                  <p className="text-[11px] text-muted-foreground">Always keep subviews visible</p>
-                </div>
-                <Switch
-                  checked={expandSubviews}
-                  onCheckedChange={setExpandSubviews}
-                />
-              </div>
-
-              <div>
-                <span className="text-[13px] font-medium">Pagination type</span>
-                <div className="mt-2 space-y-1">
-                  <label className="flex items-center gap-2 text-[13px]">
-                    <input
-                      type="radio"
-                      checked={paginationType === 'limit'}
-                      onChange={() => setPaginationType('limit')}
-                    />
-                    LIMIT OFFSET
-                  </label>
-                  <label className="flex items-center gap-2 text-[13px]">
-                    <input
-                      type="radio"
-                      checked={paginationType === 'pages'}
-                      onChange={() => setPaginationType('pages')}
-                    />
-                    PAGES
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[13px] font-medium">Flat schemas</span>
-                  <p className="text-[11px] text-muted-foreground">Show tables without grouping by schema</p>
-                </div>
-                <Switch
-                  checked={flatSchemas}
-                  onCheckedChange={setFlatSchemas}
-                />
-              </div>
-
-              <div>
-                <span className="text-[13px] font-medium">Show bytea as</span>
-                <div className="mt-2 space-y-1">
-                  <label className="flex items-center gap-2 text-[13px]">
-                    <input
-                      type="radio"
-                      checked={showByteaAs === 'hex'}
-                      onChange={() => setShowByteaAs('hex')}
-                    />
-                    HEX <code className="text-[11px] bg-muted px-1 rounded">\x69643A3130303031</code>
-                  </label>
-                  <label className="flex items-center gap-2 text-[13px]">
-                    <input
-                      type="radio"
-                      checked={showByteaAs === 'utf8'}
-                      onChange={() => setShowByteaAs('utf8')}
-                    />
-                    UTF8 <code className="text-[11px] bg-muted px-1 rounded">id:10001</code>
-                  </label>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                onClick={() => handleCopyToClipboard('-- Schema dump', 'Schema')}
-              >
-                <Layers className="h-4 w-4" />
-                Copy database schema
+            <p className="text-[10px] text-[var(--ide-text-muted)] mb-3">This query will modify or delete data. Are you sure?</p>
+            <pre className="text-[9px] font-mono bg-[var(--ide-surface)] p-2 rounded mb-3 max-h-24 overflow-auto">{pendingDestructiveQuery}</pre>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" className="text-[10px]" onClick={() => { setConfirmDialogOpen(false); setPendingDestructiveQuery(null); }}>Cancel</Button>
+              <Button variant="destructive" size="sm" className="text-[10px]"
+                onClick={() => { setConfirmDialogOpen(false); if (pendingDestructiveQuery) executeMutation.mutate({ sql: pendingDestructiveQuery, confirm: true }); setPendingDestructiveQuery(null); }}
+                data-testid="button-confirm-destructive">
+                Execute
               </Button>
             </div>
           </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const SettingsTab = () => (
-    <ScrollArea className="flex-1">
-      <div className="p-4 space-y-6">
-        <div>
-          <h4 className="text-[13px] font-semibold text-foreground mb-2">History Retention</h4>
-          <p className="text-[13px] text-muted-foreground mb-3">
-            Maintain a history of changes for a period of time, enabling features like point-in-time restore and restoring a database back to an agent checkpoint.
-          </p>
-          <div>
-            <label className="text-[13px] text-muted-foreground mb-1 block">History Retention Period</label>
-            <Select value={historyRetention} onValueChange={setHistoryRetention}>
-              <SelectTrigger className="w-full" data-testid="select-retention">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {HISTORY_RETENTION_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
-
-        <div>
-          <h4 className="text-[13px] font-semibold text-foreground mb-2">Restore</h4>
-          <p className="text-[13px] text-muted-foreground mb-3">
-            Quickly restore a branch to a point within it's history retention period.
-          </p>
-          <div className="space-y-3">
-            <div>
-              <label className="text-[13px] text-muted-foreground mb-1 block">Timestamp</label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Input
-                  type="date"
-                  className="flex-1 min-w-0"
-                  value={restoreDate}
-                  onChange={(e) => setRestoreDate(e.target.value)}
-                  placeholder="jj / mm / aaaa"
-                  data-testid="input-restore-date"
-                />
-                <Input
-                  type="time"
-                  className="w-full sm:w-32"
-                  value={restoreTime}
-                  onChange={(e) => setRestoreTime(e.target.value)}
-                  placeholder="--:--:--"
-                  data-testid="input-restore-time"
-                />
-              </div>
-            </div>
-            <Select value={restoreTimezone} onValueChange={setRestoreTimezone}>
-              <SelectTrigger data-testid="select-timezone">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TIMEZONE_OPTIONS.map((tz) => (
-                  <SelectItem key={tz.value} value={tz.value}>
-                    {tz.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              className="w-full"
-              onClick={handleRestore}
-              disabled={restoreMutation.isPending}
-              data-testid="button-restore"
-            >
-              {restoreMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Restore
-            </Button>
-          </div>
-        </div>
-
-        <div>
-          <h4 className="text-[13px] font-semibold text-foreground mb-2">Storage Used</h4>
-          <Progress value={storagePercentage} className="h-2 mb-2" data-testid="progress-storage" />
-          <div className="flex justify-between text-[13px] text-muted-foreground">
-            <span>Total usage: {storageUsedMb.toFixed(1)}MB</span>
-            <span>Max usage: {(storageLimitMb / 1024).toFixed(0)}GB</span>
-          </div>
-        </div>
-
-        <div>
-          <h4 className="text-[13px] font-semibold text-foreground mb-3">Environment variables</h4>
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <span className="text-[11px] sm:text-[13px] font-mono text-muted-foreground shrink-0">DATABASE_URL</span>
-              <div className="flex items-center gap-1 min-w-0">
-                <code className="text-[11px] sm:text-[13px] bg-muted px-2 py-1 rounded max-w-[120px] sm:max-w-[200px] truncate">
-                  {showDatabaseUrl ? credentials?.connectionUrl : '••••••••••••••••••'}
-                </code>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => handleCopyToClipboard(credentials?.connectionUrl || '', 'DATABASE_URL')}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => setShowDatabaseUrl(!showDatabaseUrl)}
-                >
-                  {showDatabaseUrl ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <span className="text-[11px] sm:text-[13px] font-mono text-muted-foreground shrink-0">PGDATABASE</span>
-              <div className="flex items-center gap-1 min-w-0">
-                <code className="text-[11px] sm:text-[13px] bg-muted px-2 py-1 rounded truncate">
-                  {credentials?.databaseName || 'neondb'}
-                </code>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => handleCopyToClipboard(credentials?.databaseName || '', 'PGDATABASE')}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <span className="text-[11px] sm:text-[13px] font-mono text-muted-foreground shrink-0">PGHOST</span>
-              <div className="flex items-center gap-1 min-w-0">
-                <code className="text-[11px] sm:text-[13px] bg-muted px-2 py-1 rounded max-w-[120px] sm:max-w-[200px] truncate">
-                  {credentials?.host || 'ep-lively-resonance-a6vcsxeu.u'}
-                </code>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => handleCopyToClipboard(credentials?.host || '', 'PGHOST')}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <span className="text-[11px] sm:text-[13px] font-mono text-muted-foreground shrink-0">PGPORT</span>
-              <div className="flex items-center gap-1 min-w-0">
-                <code className="text-[11px] sm:text-[13px] bg-muted px-2 py-1 rounded">
-                  {credentials?.port || '5432'}
-                </code>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => handleCopyToClipboard(String(credentials?.port || '5432'), 'PGPORT')}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <span className="text-[11px] sm:text-[13px] font-mono text-muted-foreground shrink-0">PGUSER</span>
-              <div className="flex items-center gap-1 min-w-0">
-                <code className="text-[11px] sm:text-[13px] bg-muted px-2 py-1 rounded truncate">
-                  {credentials?.username || 'neondb_owner'}
-                </code>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => handleCopyToClipboard(credentials?.username || '', 'PGUSER')}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <span className="text-[11px] sm:text-[13px] font-mono text-muted-foreground shrink-0">PGPASSWORD</span>
-              <div className="flex items-center gap-1 min-w-0">
-                <code className="text-[11px] sm:text-[13px] bg-muted px-2 py-1 rounded truncate">
-                  {showPassword ? credentials?.password : '••••••••••••••••'}
-                </code>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => handleCopyToClipboard(credentials?.password || '', 'PGPASSWORD')}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="ghost"
-              className="w-full justify-center gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-              data-testid="button-remove-database"
-            >
-              <Trash2 className="h-4 w-4" />
-              Remove Database
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remove Database?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. All data stored in this database will be permanently deleted.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => deleteMutation.mutate()}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Remove
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </ScrollArea>
-  );
-
-  const DatabaseDetailView = () => (
-    <div className="flex flex-col h-full">
-      <div className="h-9 px-2.5 border-b border-[var(--ecode-border)] bg-[var(--ecode-surface)] flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setCurrentView('all')}
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Button>
-          <Database className="h-3.5 w-3.5 text-[var(--ecode-text-muted)]" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1 text-xs font-medium text-[var(--ecode-text-muted)] hover:text-foreground">
-                {currentView === 'development' ? 'Development' : 'Production'}
-                <ChevronDown className="h-3 w-3" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setCurrentView('development')}>
-                Development Database
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setCurrentView('production')}>
-                Production Database
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-[11px] gap-1"
-          onClick={handleRefresh}
-        >
-          <RefreshCw className="h-3 w-3" />
-        </Button>
-      </div>
-
-      <div className="h-9 border-b border-[var(--ecode-border)] bg-[var(--ecode-surface)]">
-        <div className="flex px-2.5 overflow-x-auto scrollbar-none h-full items-center" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          <button
-            onClick={() => setActiveDetailTab('overview')}
-            className={cn(
-              "flex items-center gap-1 px-2.5 h-full text-xs border-b-2 -mb-px transition-colors whitespace-nowrap",
-              activeDetailTab === 'overview'
-                ? "border-[hsl(142,72%,42%)] text-[var(--ecode-text)]"
-                : "border-transparent text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)]"
-            )}
-            data-testid="tab-overview"
-          >
-            <Info className="h-3.5 w-3.5" />
-            Overview
-          </button>
-          <button
-            onClick={() => setActiveDetailTab('mydata')}
-            className={cn(
-              "flex items-center gap-1 px-2.5 h-full text-xs border-b-2 -mb-px transition-colors whitespace-nowrap",
-              activeDetailTab === 'mydata'
-                ? "border-[hsl(142,72%,42%)] text-[var(--ecode-text)]"
-                : "border-transparent text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)]"
-            )}
-            data-testid="tab-mydata"
-          >
-            <Database className="h-3.5 w-3.5" />
-            My Data
-          </button>
-          <button
-            onClick={() => setActiveDetailTab('settings')}
-            className={cn(
-              "flex items-center gap-1 px-2.5 h-full text-xs border-b-2 -mb-px transition-colors whitespace-nowrap",
-              activeDetailTab === 'settings'
-                ? "border-[hsl(142,72%,42%)] text-[var(--ecode-text)]"
-                : "border-transparent text-[var(--ecode-text-muted)] hover:text-[var(--ecode-text)]"
-            )}
-            data-testid="tab-settings"
-          >
-            <Settings className="h-3.5 w-3.5" />
-            Settings
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-hidden relative">
-        {activeDetailTab === 'overview' && <OverviewTab />}
-        {activeDetailTab === 'mydata' && <MyDataTab />}
-        {activeDetailTab === 'settings' && <SettingsTab />}
-      </div>
-    </div>
-  );
-
-  if (databaseInfoLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-full flex flex-col bg-[var(--ecode-surface)]">
-      {currentView === 'all' ? <AllDatabasesView /> : <DatabaseDetailView />}
+      )}
     </div>
   );
 }

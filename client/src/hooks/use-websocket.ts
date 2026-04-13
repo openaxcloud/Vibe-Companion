@@ -76,10 +76,13 @@ export function useProjectWebSocket(projectId: string | undefined) {
     }
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws?projectId=${projectId}`);
+    const wsUrl = `${protocol}//${window.location.host}/ws/project?projectId=${projectId}`;
+    console.log(`[ws] Connecting to ${wsUrl}`);
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      console.log("[ws] Connected successfully");
       setConnected(true);
       setConnectionQuality("good");
       wsFailures.current = 0;
@@ -100,6 +103,7 @@ export function useProjectWebSocket(projectId: string | undefined) {
     };
 
     ws.onclose = (event) => {
+      console.log(`[ws] Closed: code=${event.code} reason=${event.reason} wasClean=${event.wasClean} failures=${wsFailures.current}`);
       setConnected(false);
       stopPing();
       if (event.code === 1013) {

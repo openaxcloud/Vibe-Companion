@@ -13,19 +13,6 @@ import { Socket } from 'net';
 import type { Duplex } from 'stream';
 import * as os from 'os';
 
-// Lazy-load node-pty to avoid crashes in production where it's not available
-let ptyModule: typeof import('node-pty') | null = null;
-
-async function getPty(): Promise<typeof import('node-pty')> {
-  if (!ptyModule) {
-    try {
-      ptyModule = await import('node-pty');
-    } catch (error) {
-      throw new Error('node-pty is not available in this environment. Terminal functionality requires native modules.');
-    }
-  }
-  return ptyModule;
-}
 import * as path from 'path';
 import * as fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
@@ -129,10 +116,131 @@ class CircularBuffer {
   }
 }
 
+const PTY_MAX_RETRY = 3;
+const PTY_CRASH_WINDOW_MS = 2000;
+
+class ChildProcessPtyWrapper {
+  private proc: ChildProcess | null = null;
+  private _onDataCallbacks: Array<(data: string) => void> = [];
+  private _onExitCallbacks: Array<(info: { exitCode: number; signal: number }) => void> = [];
+  private _killed = false;
+  private _stopped = false;
+  private retryCount = 0;
+  private spawnTime = 0;
+  private shell: string;
+  private args: string[];
+  private spawnOpts: { cwd: string; env: Record<string, string>; cols: number; rows: number };
+  pid?: number;
+
+  constructor(shell: string, args: string[], options: { cwd: string; env: Record<string, string>; cols?: number; rows?: number }) {
+    this.shell = shell;
+    this.args = args;
+    this.spawnOpts = {
+      cwd: options.cwd,
+      env: options.env,
+      cols: options.cols || 80,
+      rows: options.rows || 24,
+    };
+    this.spawnChild();
+  }
+
+  private spawnChild() {
+    if (this._killed || this._stopped) return;
+    this.spawnTime = Date.now();
+
+    try {
+      this.proc = spawn(this.shell, this.args, {
+        cwd: this.spawnOpts.cwd,
+        env: { ...this.spawnOpts.env, COLUMNS: String(this.spawnOpts.cols), LINES: String(this.spawnOpts.rows) },
+        shell: false,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err: any) {
+      logger.error(`[PTY] spawn failed: ${err.message}`);
+      this._stopped = true;
+      this._onExitCallbacks.forEach(cb => cb({ exitCode: 1, signal: 0 }));
+      return;
+    }
+
+    this.pid = this.proc.pid;
+    logger.info(`[PTY] bash spawned pid=${this.pid} retry=${this.retryCount}`);
+
+    this.proc.stdout?.on('data', (data: Buffer) => {
+      const str = data.toString();
+      this._onDataCallbacks.forEach(cb => cb(str));
+    });
+
+    this.proc.stderr?.on('data', (data: Buffer) => {
+      const str = data.toString();
+      this._onDataCallbacks.forEach(cb => cb(str));
+    });
+
+    this.proc.on('exit', (code, signal) => {
+      if (this._killed) {
+        this._onExitCallbacks.forEach(cb => cb({ exitCode: code || 0, signal: signal ? 1 : 0 }));
+        return;
+      }
+
+      const uptime = Date.now() - this.spawnTime;
+      const isCrash = uptime < PTY_CRASH_WINDOW_MS;
+
+      if (isCrash && this.retryCount < PTY_MAX_RETRY) {
+        this.retryCount++;
+        const delay = this.retryCount * 500;
+        logger.info(`[PTY] bash crashed after ${uptime}ms, retry ${this.retryCount}/${PTY_MAX_RETRY} in ${delay}ms`);
+        setTimeout(() => this.spawnChild(), delay);
+      } else if (isCrash) {
+        logger.error(`[PTY] bash crashed ${PTY_MAX_RETRY} times, stopped`);
+        this._stopped = true;
+        this._onExitCallbacks.forEach(cb => cb({ exitCode: code || 1, signal: 0 }));
+      } else {
+        this.retryCount = 0;
+        this._onExitCallbacks.forEach(cb => cb({ exitCode: code || 0, signal: signal ? 1 : 0 }));
+      }
+    });
+
+    this.proc.on('error', (err) => {
+      logger.error('[PTY] Child process error:', err);
+    });
+  }
+
+  write(data: string) {
+    try {
+      if (this.proc && !this._killed && !this._stopped && this.proc.stdin?.writable) {
+        this.proc.stdin.write(data);
+      }
+    } catch {}
+  }
+
+  resize(_cols: number, _rows: number) {
+    this.spawnOpts.cols = _cols;
+    this.spawnOpts.rows = _rows;
+  }
+
+  onData(callback: (data: string) => void) {
+    this._onDataCallbacks.push(callback);
+  }
+
+  onExit(callback: (info: { exitCode: number; signal: number }) => void) {
+    this._onExitCallbacks.push(callback);
+  }
+
+  kill() {
+    this._killed = true;
+    this._stopped = true;
+    try {
+      this.proc?.kill('SIGTERM');
+      setTimeout(() => {
+        try { this.proc?.kill('SIGKILL'); } catch {}
+      }, 3000);
+    } catch {}
+  }
+}
+
 interface PTYSession {
-  ptyProcess: pty.IPty | null;  // null when using Docker
-  dockerProcess: ChildProcess | null;  // Docker exec process
-  containerId: string | null;  // Docker container ID
+  ptyProcess: any;
+  dockerProcess: ChildProcess | null;
+  containerId: string | null;
   projectId: string;
   clients: Set<WebSocket>;
   commandHistory: string[];
@@ -142,7 +250,7 @@ interface PTYSession {
   createdAt: number;
   lastActivity: number;
   outputBuffer: CircularBuffer;
-  isDocker: boolean;  // Flag to indicate Docker-based session
+  isDocker: boolean;
 }
 
 export class PTYTerminalService {
@@ -634,14 +742,13 @@ export class PTYTerminalService {
         PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
       };
 
-      const pty = await getPty();
-      const ptyProcess = pty.spawn(shell, ['-i'], {
-        name: 'xterm-256color',
-        cols: 80,
-        rows: 24,
-        cwd: workDir,
-        env: sandboxedEnv,
-      });
+      const ptyProcess = new ChildProcessPtyWrapper(
+        shell,
+        this.getShellArgs(),
+        { cwd: workDir, env: sandboxedEnv, cols: 80, rows: 24 }
+      );
+      const isNativePty = false;
+      logger.info(`[PTY] Using child_process for project ${projectId}`);
 
       const session: PTYSession = {
         ptyProcess,
@@ -659,7 +766,7 @@ export class PTYTerminalService {
         isDocker: false
       };
 
-      ptyProcess.onData((data) => {
+      ptyProcess.onData((data: string) => {
         session.outputBuffer.push(data);
         this.broadcastToSession(session, {
           type: 'output',
@@ -667,7 +774,7 @@ export class PTYTerminalService {
         });
       });
 
-      ptyProcess.onExit(({ exitCode, signal }) => {
+      ptyProcess.onExit(({ exitCode, signal }: { exitCode: number; signal: number }) => {
         logger.info(`PTY process exited for project ${projectId}: code=${exitCode}, signal=${signal}`);
         this.broadcastToSession(session, {
           type: 'exit',
@@ -804,9 +911,10 @@ export class PTYTerminalService {
           if (message.cols && message.rows) {
             session.cols = message.cols;
             session.rows = message.rows;
-            // Resize only works with local PTY
-            if (session.ptyProcess) {
-              session.ptyProcess.resize(message.cols, message.rows);
+            if (session.ptyProcess && typeof session.ptyProcess.resize === 'function') {
+              try {
+                session.ptyProcess.resize(message.cols, message.rows);
+              } catch {}
             }
           }
           break;
@@ -833,7 +941,9 @@ export class PTYTerminalService {
     if (session.isDocker && session.dockerProcess?.stdin) {
       session.dockerProcess.stdin.write(data);
     } else if (session.ptyProcess) {
-      session.ptyProcess.write(data);
+      if (typeof session.ptyProcess.write === 'function') {
+        session.ptyProcess.write(data);
+      }
     }
   }
 
@@ -897,7 +1007,9 @@ export class PTYTerminalService {
           spawn('docker', ['stop', session.containerId], { stdio: 'ignore' });
         }
       } else if (session.ptyProcess) {
-        session.ptyProcess.kill();
+        if (typeof session.ptyProcess.kill === 'function') {
+          session.ptyProcess.kill();
+        }
       }
     } catch (error) {
       logger.error(`Error killing terminal process:`, error);

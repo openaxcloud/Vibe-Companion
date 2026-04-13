@@ -84,11 +84,22 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
   const tablesQuery = useQuery<string[]>({
     queryKey: ["db-tables", projectId, dbEnv],
     queryFn: async () => {
-      const res = await fetch(`/api/projects/${projectId}/database/tables?env=${dbEnv}`, { credentials: "include" });
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.tables || [];
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const res = await fetch(`/api/projects/${projectId}/database/tables?env=${dbEnv}`, { credentials: "include", signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) return [];
+        const data = await res.json();
+        if (data.error) return [];
+        return data.tables || [];
+      } catch {
+        clearTimeout(timeout);
+        return [];
+      }
     },
+    retry: 1,
+    staleTime: 15000,
   });
 
   const tableDataQuery = useQuery<TableDataResult>({
@@ -437,7 +448,13 @@ export default function DatabasePanel({ projectId, onClose }: DatabasePanelProps
               </div>
             )}
             {tables.length === 0 && !tablesQuery.isLoading && (
-              <div className="px-3 py-2 text-[10px] text-[var(--ide-text-muted)]">No tables found</div>
+              <div className="flex flex-col items-center justify-center py-8 px-4 gap-2" data-testid="no-database-message">
+                <Database className="w-7 h-7 text-[var(--ide-text-muted)] opacity-40" />
+                <p className="text-[11px] font-medium text-[var(--ide-text-muted)]">No database</p>
+                <p className="text-[10px] text-[var(--ide-text-muted)] opacity-70 text-center">
+                  Create tables using the SQL tab or configure DATABASE_URL.
+                </p>
+              </div>
             )}
           </div>
 

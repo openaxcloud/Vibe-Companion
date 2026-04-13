@@ -118,6 +118,36 @@ export async function sendTeamInviteEmail(email: string, teamName: string, invit
   return sendEmail(email, `Join ${teamName} on E-Code`, html);
 }
 
+export async function sendProjectInviteEmail(email: string, projectName: string, inviterName: string, role: string, token: string): Promise<boolean> {
+  const APP_URL_RESOLVED = (() => {
+    const url = process.env.APP_URL;
+    if (url && !url.includes("replit.app")) return url;
+    if (process.env.APP_DOMAIN) return `https://${process.env.APP_DOMAIN}`;
+    return "https://e-code.ai";
+  })();
+  const inviteUrl = `${APP_URL_RESOLVED}/accept-invite?token=${token}`;
+  log(`Project invite link for ${email}: ${inviteUrl}`);
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <div style="display: inline-block; width: 40px; height: 40px; background: #F26522; border-radius: 8px; margin-bottom: 12px;"></div>
+        <h1 style="font-size: 20px; color: #1a1a1a; margin: 0;">E-Code</h1>
+      </div>
+      <h2 style="font-size: 18px; color: #1a1a1a;">You're Invited to Collaborate!</h2>
+      <p style="color: #555; line-height: 1.6;"><strong>${inviterName}</strong> has invited you to collaborate on the project <strong>${projectName}</strong> as a <strong>${role}</strong>.</p>
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${inviteUrl}" style="display: inline-block; padding: 12px 32px; background: #0CCE6B; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">Accept Invitation</a>
+      </div>
+      <p style="color: #888; font-size: 13px;">If you don't have an E-Code account, you'll be prompted to create one first.</p>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+      <p style="color: #aaa; font-size: 12px; text-align: center;">E-Code &mdash; Build, run, and deploy code from anywhere</p>
+    </div>
+  `;
+
+  return sendEmail(email, `${inviterName} invited you to "${projectName}" on E-Code`, html);
+}
+
 export function isEmailConfigured(): boolean {
   return smtpConfigured;
 }

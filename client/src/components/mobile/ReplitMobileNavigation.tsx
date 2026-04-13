@@ -13,7 +13,7 @@ export type MobileTab =
   | 'automations' | 'config' | 'feedback' | 'github' | 'integrations'
   | 'mcp' | 'merge-conflicts' | 'monitoring' | 'networking' | 'publishing'
   | 'skills' | 'ssh' | 'threads' | 'test-runner' | 'security-scanner' | 'backup'
-  | 'tasks';
+  | 'tasks' | 'code';
 
 interface OpenTab {
   id: string;

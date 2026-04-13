@@ -47,7 +47,8 @@ import {
   Check,
   Copy,
   ExternalLink,
-  Lock
+  Lock,
+  FolderOpen
 } from 'lucide-react';
 import { ECodeLoading } from '@/components/ECodeLoading';
 
@@ -429,8 +430,31 @@ function UnifiedIDELayout({
         handleAddTool('extensions');
         break;
       case 'settings':
-        // Open settings as inline tab instead of overlay
         handleAddTool('settings');
+        break;
+      case 'monitoring':
+        handleAddTool('monitoring');
+        break;
+      case 'integrations':
+        handleAddTool('integrations');
+        break;
+      case 'checkpoints':
+        handleAddTool('checkpoints');
+        break;
+      case 'mcp':
+        handleAddTool('mcp');
+        break;
+      case 'publishing':
+        handleAddTool('publishing');
+        break;
+      case 'ssh':
+        handleAddTool('ssh');
+        break;
+      case 'security-scanner':
+        handleAddTool('security-scanner');
+        break;
+      case 'collaboration':
+        handleAddTool('collaboration');
         break;
     }
   }, [setActiveActivityItem, setShowFileExplorer, setIsSidebarCollapsed, setLeftPanelTab, handleAddTool]);
@@ -518,7 +542,7 @@ function UnifiedIDELayout({
     { id: 'agent', name: 'Agent', icon: 'agent' },
     { id: 'deploy', name: 'Deploy', icon: 'deploy' },
   ]);
-  const [activeOpenTabId, setActiveOpenTabId] = useState('agent');
+  const [activeOpenTabId, setActiveOpenTabId] = useState('preview');
   
   // Mobile agent input handlers - exposed from ReplitAgentPanelV3 to ReplitMobileInputBar
   const [mobileAgentHandlers, setMobileAgentHandlers] = useState<ExternalInputHandlers | null>(null);
@@ -541,7 +565,7 @@ function UnifiedIDELayout({
   }, [bootstrapToken, setLeftPanelTab, setIsSidebarCollapsed]);
 
   const bootstrapConsumedRef = useRef(false);
-  const bootstrapPromptRef = useRef<string | null>(null);
+  const [bootstrapPendingMessage, setBootstrapPendingMessage] = useState<string | null>(null);
   useEffect(() => {
     if (bootstrapConsumedRef.current || !projectId) return;
     const promptKey = `agent-prompt-${projectId}`;
@@ -550,7 +574,7 @@ function UnifiedIDELayout({
       bootstrapConsumedRef.current = true;
       sessionStorage.removeItem(promptKey);
       sessionStorage.removeItem(`agent-build-mode-${projectId}`);
-      bootstrapPromptRef.current = savedPrompt;
+      setBootstrapPendingMessage(savedPrompt);
       setMobileActiveTab('agent');
       setLeftPanelTab('agent');
     }
@@ -560,21 +584,6 @@ function UnifiedIDELayout({
   useEffect(() => {
     mobileAgentHandlersRef.current = mobileAgentHandlers;
   }, [mobileAgentHandlers]);
-
-  useEffect(() => {
-    if (!bootstrapPromptRef.current) return;
-    const h = mobileAgentHandlersRef.current || mobileAgentHandlers;
-    if (h?.handleSubmit) {
-      const prompt = bootstrapPromptRef.current;
-      bootstrapPromptRef.current = null;
-      try {
-        h.handleSubmit(prompt);
-      } catch (err) {
-        console.error('[Bootstrap] Failed to send prompt:', err);
-        bootstrapPromptRef.current = prompt;
-      }
-    }
-  }, [mobileAgentHandlers?.handleSubmit]);
 
   // Tool name mapping for display
   const toolNameMap: Record<string, string> = {
@@ -865,6 +874,8 @@ function UnifiedIDELayout({
               hideInput={true}
               onExternalInput={setMobileAgentHandlers}
               onBootstrapFailure={onBootstrapFailure}
+              pendingMessage={bootstrapPendingMessage}
+              onPendingMessageConsumed={() => setBootstrapPendingMessage(null)}
             />
           </AgentPanelErrorBoundary>
         );
@@ -926,12 +937,39 @@ function UnifiedIDELayout({
             <MobileTerminal projectId={projectId} className="h-full" />
           </Suspense>
         );
+      case 'code':
+        return (
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Editor..." /></div>}>
+            <div className="flex flex-col h-full">
+              {activeFileId ? (
+                <>
+                  <div className="flex items-center h-9 px-3 bg-[var(--ide-surface)] border-b border-[var(--ide-border)] shrink-0">
+                    <button onClick={() => setMobileActiveTab('files' as MobileTab)} className="mr-2 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" data-testid="btn-back-to-files">
+                      <FolderOpen className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs font-medium text-[var(--ide-text)] truncate" data-testid="text-active-filename">{activeFileName || 'Untitled'}</span>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <ReplitMonacoEditor projectId={projectId} fileId={activeFileId} fileContents={fileContents || {}} onCodeChange={handleCodeChange || (() => {})} onCursorChange={handleCursorChange} fontSize={userPrefs?.fontSize} tabSize={userPrefs?.tabSize} wordWrap={userPrefs?.wordWrap} minimap={false} filename={activeFileName || undefined} ytext={activeYtext} remoteAwareness={collabConnected ? remoteAwareness : undefined} />
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-full text-[var(--ide-text-muted)]" data-testid="text-no-file-selected">
+                  <p className="text-sm">Select a file to edit</p>
+                </div>
+              )}
+            </div>
+          </Suspense>
+        );
       case 'files':
         return (
           <Suspense fallback={<FileExplorerSkeleton />}>
             <InlineMobileFileExplorer
               projectId={projectId}
-              onFileSelect={(file) => handleFileSelect({ id: file.id, filename: file.filename })}
+              onFileSelect={(file) => {
+                handleFileSelect({ id: file.id, filename: file.filename });
+                setMobileActiveTab('code' as MobileTab);
+              }}
               selectedFileId={selectedFileId}
               className="h-full"
             />
@@ -970,7 +1008,7 @@ function UnifiedIDELayout({
       case 'extensions':
         return (
           <Suspense fallback={<MobileLoadingSkeleton />}>
-            <ExtensionsMarketplace projectId={parseInt(projectId, 10)} className="h-full" />
+            <ExtensionsMarketplace projectId={projectId} className="h-full" />
           </Suspense>
         );
       case 'workflows':
@@ -1034,6 +1072,8 @@ function UnifiedIDELayout({
                 hideInput={true}
                 onExternalInput={setMobileAgentHandlers}
                 onBootstrapFailure={onBootstrapFailure}
+                pendingMessage={bootstrapPendingMessage}
+                onPendingMessageConsumed={() => setBootstrapPendingMessage(null)}
               />
             </AgentPanelErrorBoundary>
           </Suspense>
@@ -1052,6 +1092,8 @@ function UnifiedIDELayout({
                 hideInput={true}
                 onExternalInput={setMobileAgentHandlers}
                 onBootstrapFailure={onBootstrapFailure}
+                pendingMessage={bootstrapPendingMessage}
+                onPendingMessageConsumed={() => setBootstrapPendingMessage(null)}
               />
             </AgentPanelErrorBoundary>
           </Suspense>
@@ -1155,6 +1197,8 @@ function UnifiedIDELayout({
                 isBootstrapping={!!bootstrapToken}
                 bootstrapToken={bootstrapToken}
                 onBootstrapFailure={onBootstrapFailure}
+                pendingMessage={bootstrapPendingMessage}
+                onPendingMessageConsumed={() => setBootstrapPendingMessage(null)}
               />
             </AgentPanelErrorBoundary>
           </Suspense>
@@ -1344,7 +1388,7 @@ function UnifiedIDELayout({
     if (currentTab.id === 'extensions') {
       return (
         <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Extensions..." /></div>}>
-          <ExtensionsMarketplace projectId={parseInt(projectId, 10)} />
+          <ExtensionsMarketplace projectId={projectId} />
         </Suspense>
       );
     }
@@ -1464,6 +1508,8 @@ function UnifiedIDELayout({
             mode="desktop"
             agentToolsSettings={agentToolsSettings}
             onAgentToolsSettingsChange={setAgentToolsSettings}
+            pendingMessage={bootstrapPendingMessage}
+            onPendingMessageConsumed={() => setBootstrapPendingMessage(null)}
           />
         </Suspense>
       );
@@ -1761,6 +1807,7 @@ function UnifiedIDELayout({
               onFileSelect={(file) => {
                 handleFileSelect(file);
                 setTabletPanel('editor');
+                setMobileActiveTab('code' as MobileTab);
               }}
               selectedFileId={selectedFileId}
               isBootstrapping={!!bootstrapToken}
@@ -1999,6 +2046,8 @@ function UnifiedIDELayout({
                   isBootstrapping={!!bootstrapToken}
                   bootstrapToken={bootstrapToken}
                   onBootstrapFailure={onBootstrapFailure}
+                  pendingMessage={bootstrapPendingMessage}
+                  onPendingMessageConsumed={() => setBootstrapPendingMessage(null)}
                 />
               </div>
             </ResizablePanel>

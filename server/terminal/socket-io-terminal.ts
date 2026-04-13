@@ -53,36 +53,53 @@ class CircularBuffer {
   }
 }
 
-let ptyModule: any = null;
-let ptyAvailable: boolean | null = null;
 
-async function getPty(): Promise<any | null> {
-  if (ptyAvailable === false) return null;
-  if (ptyModule) return ptyModule;
-  try {
-    ptyModule = await import('node-pty');
-    ptyAvailable = true;
-    logger.info('[SocketIO Terminal] node-pty loaded successfully');
-    return ptyModule;
-  } catch (error) {
-    ptyAvailable = false;
-    logger.info('[SocketIO Terminal] node-pty not available — using child_process fallback');
-    return null;
-  }
-}
+const SHELL_MAX_RETRY = 3;
+const SHELL_CRASH_WINDOW_MS = 2000;
 
 class ChildProcessPtyWrapper {
-  private proc: ChildProcess;
+  private proc: ChildProcess | null = null;
   private _onDataCallbacks: Array<(data: string) => void> = [];
   private _onExitCallbacks: Array<(info: { exitCode: number; signal: number }) => void> = [];
+  private _killed = false;
+  private _stopped = false;
+  private retryCount = 0;
+  private spawnTime = 0;
+  private shell: string;
+  private args: string[];
+  private options: { cwd: string; env: Record<string, string>; cols: number; rows: number };
 
   constructor(shell: string, args: string[], options: { cwd: string; env: Record<string, string>; cols?: number; rows?: number }) {
-    this.proc = spawn(shell, args, {
+    this.shell = shell;
+    this.args = args;
+    this.options = {
       cwd: options.cwd,
-      env: { ...options.env, COLUMNS: String(options.cols || 80), LINES: String(options.rows || 24) },
-      shell: false,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+      env: options.env,
+      cols: options.cols || 80,
+      rows: options.rows || 24,
+    };
+    this.spawnChild();
+  }
+
+  private spawnChild() {
+    if (this._killed || this._stopped) return;
+    this.spawnTime = Date.now();
+
+    try {
+      this.proc = spawn(this.shell, this.args, {
+        cwd: this.options.cwd,
+        env: { ...this.options.env, COLUMNS: String(this.options.cols), LINES: String(this.options.rows) },
+        shell: false,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err: any) {
+      logger.error(`[SocketIO Terminal] spawn failed: ${err.message}`);
+      this._stopped = true;
+      this._onExitCallbacks.forEach(cb => cb({ exitCode: 1, signal: 0 }));
+      return;
+    }
+
+    logger.info(`[SocketIO Terminal] bash spawned pid=${this.proc.pid} retry=${this.retryCount}`);
 
     this.proc.stdout?.on('data', (data: Buffer) => {
       const str = data.toString();
@@ -95,22 +112,45 @@ class ChildProcessPtyWrapper {
     });
 
     this.proc.on('exit', (code, signal) => {
-      this._onExitCallbacks.forEach(cb => cb({ exitCode: code || 0, signal: signal ? 1 : 0 }));
+      if (this._killed) {
+        this._onExitCallbacks.forEach(cb => cb({ exitCode: code || 0, signal: signal ? 1 : 0 }));
+        return;
+      }
+
+      const uptime = Date.now() - this.spawnTime;
+      const isCrash = uptime < SHELL_CRASH_WINDOW_MS;
+
+      if (isCrash && this.retryCount < SHELL_MAX_RETRY) {
+        this.retryCount++;
+        const delay = this.retryCount * 500;
+        logger.info(`[SocketIO Terminal] bash crashed after ${uptime}ms, retry ${this.retryCount}/${SHELL_MAX_RETRY} in ${delay}ms`);
+        setTimeout(() => this.spawnChild(), delay);
+      } else if (isCrash) {
+        logger.error(`[SocketIO Terminal] bash crashed ${SHELL_MAX_RETRY} times, stopped`);
+        this._stopped = true;
+        this._onExitCallbacks.forEach(cb => cb({ exitCode: code || 1, signal: 0 }));
+      } else {
+        this.retryCount = 0;
+        this._onExitCallbacks.forEach(cb => cb({ exitCode: code || 0, signal: signal ? 1 : 0 }));
+      }
     });
 
     this.proc.on('error', (err) => {
       logger.error('[SocketIO Terminal] Child process error:', err);
-      this._onExitCallbacks.forEach(cb => cb({ exitCode: 1, signal: 0 }));
     });
   }
 
   write(data: string) {
     try {
-      this.proc.stdin?.write(data);
+      if (this.proc && !this._killed && !this._stopped && this.proc.stdin?.writable) {
+        this.proc.stdin.write(data);
+      }
     } catch {}
   }
 
   resize(_cols: number, _rows: number) {
+    this.options.cols = _cols;
+    this.options.rows = _rows;
   }
 
   onData(callback: (data: string) => void) {
@@ -122,10 +162,12 @@ class ChildProcessPtyWrapper {
   }
 
   kill() {
+    this._killed = true;
+    this._stopped = true;
     try {
-      this.proc.kill('SIGTERM');
+      this.proc?.kill('SIGTERM');
       setTimeout(() => {
-        try { this.proc.kill('SIGKILL'); } catch {}
+        try { this.proc?.kill('SIGKILL'); } catch {}
       }, 3000);
     } catch {}
   }
@@ -357,40 +399,19 @@ export class SocketIOTerminalService {
         PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
       };
 
-      let ptyProcess: any;
-      let isNativePty = false;
-
-      const pty = await getPty();
-      if (pty) {
-        const shellArgs = process.platform === 'win32'
-          ? []
-          : ['-c', `ulimit -v 524288 -n 256 -u 64 -t 3600 2>/dev/null; exec ${bashPath} -i`];
-
-        ptyProcess = pty.spawn(
-          process.platform === 'win32' ? 'powershell.exe' : bashPath,
-          shellArgs,
-          {
-            name: 'xterm-256color',
-            cols: 80,
-            rows: 24,
-            cwd: workDir,
-            env: sandboxedEnv,
-          }
-        );
-        isNativePty = true;
-      } else {
-        ptyProcess = new ChildProcessPtyWrapper(
-          bashPath,
-          ['--login', '-i'],
-          {
-            cwd: workDir,
-            env: sandboxedEnv,
-            cols: 80,
-            rows: 24,
-          }
-        );
-        isNativePty = false;
-      }
+      const shellArgs = process.platform === 'win32' ? [] :
+                        bashPath.endsWith('/sh') ? ['-l'] : ['--login'];
+      const ptyProcess = new ChildProcessPtyWrapper(
+        bashPath,
+        shellArgs,
+        {
+          cwd: workDir,
+          env: sandboxedEnv,
+          cols: 80,
+          rows: 24,
+        }
+      );
+      const isNativePty = false;
 
       const buffer = new CircularBuffer(10000);
       this.outputBuffers.set(sessionKey, buffer);

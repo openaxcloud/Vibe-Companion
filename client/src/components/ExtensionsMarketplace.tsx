@@ -6,57 +6,94 @@ import { cn } from "@/lib/utils";
 import {
   Puzzle, Search, Download, CheckCircle, Star, Package,
   Code, Database, Globe, Shield, Palette, Zap, Terminal,
-  FileCode, GitBranch, Layers, RefreshCw, Trash2
+  FileCode, GitBranch, Layers, RefreshCw, Trash2, Loader2,
+  AlertTriangle, Info
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 interface ExtensionsMarketplaceProps {
-  projectId: number;
+  projectId: string | number;
   className?: string;
 }
 
-interface Extension {
-  id: string;
+interface CatalogExtension {
+  extensionId: string;
   name: string;
   description: string;
-  icon: typeof Code;
-  category: string;
-  version: string;
   author: string;
-  downloads: string;
-  rating: number;
-  color: string;
+  version: string;
+  category: string;
+  icon: string;
+  npmPackage: string | null;
+  type: 'npm' | 'native' | 'unavailable';
+  nativeFeature?: string;
 }
 
-const AVAILABLE_EXTENSIONS: Extension[] = [
-  { id: "prettier", name: "Prettier", description: "Automatic code formatting for JS, TS, CSS, HTML, JSON, and more", icon: FileCode, category: "Formatting", version: "3.2.5", author: "Prettier", downloads: "42M", rating: 4.8, color: "#56B3B4" },
-  { id: "eslint", name: "ESLint", description: "Find and fix problems in your JavaScript/TypeScript code", icon: Shield, category: "Linting", version: "9.1.0", author: "ESLint", downloads: "38M", rating: 4.7, color: "#4B32C3" },
-  { id: "tailwind-intellisense", name: "Tailwind CSS IntelliSense", description: "Intelligent autocomplete for Tailwind CSS classes", icon: Palette, category: "CSS", version: "0.12.0", author: "Tailwind Labs", downloads: "18M", rating: 4.9, color: "#38BDF8" },
-  { id: "git-lens", name: "GitLens", description: "Supercharge Git - visualize code authorship, history, and changes", icon: GitBranch, category: "Git", version: "15.0.4", author: "GitKraken", downloads: "32M", rating: 4.6, color: "#F05033" },
-  { id: "docker", name: "Docker", description: "Build, manage and deploy containerized applications", icon: Layers, category: "DevOps", version: "1.29.0", author: "Microsoft", downloads: "25M", rating: 4.5, color: "#2496ED" },
-  { id: "live-server", name: "Live Server", description: "Launch a local development server with hot reload for static pages", icon: Globe, category: "Tools", version: "5.7.9", author: "Ritwick Dey", downloads: "45M", rating: 4.4, color: "#41B883" },
-  { id: "db-client", name: "Database Client", description: "Browse and query PostgreSQL, MySQL, SQLite databases", icon: Database, category: "Database", version: "4.5.2", author: "cweijan", downloads: "8M", rating: 4.3, color: "#336791" },
-  { id: "thunder-client", name: "Thunder Client", description: "Lightweight REST API client for testing HTTP requests", icon: Zap, category: "API", version: "2.22.0", author: "Thunder Client", downloads: "12M", rating: 4.7, color: "#A855F7" },
-  { id: "terminal-tabs", name: "Terminal Tabs", description: "Enhanced terminal with tabs, split panes, and custom profiles", icon: Terminal, category: "Tools", version: "1.8.0", author: "Vibe Companion", downloads: "5M", rating: 4.2, color: "#22C55E" },
-  { id: "import-cost", name: "Import Cost", description: "Display size of imported packages inline in the editor", icon: Package, category: "Performance", version: "3.3.0", author: "Wix", downloads: "6M", rating: 4.1, color: "#E11D48" },
-  { id: "code-runner", name: "Code Runner", description: "Run code snippets in any language with a single click", icon: Code, category: "Tools", version: "0.12.1", author: "Jun Han", downloads: "28M", rating: 4.6, color: "#F59E0B" },
-  { id: "auto-rename", name: "Auto Rename Tag", description: "Automatically rename paired HTML/XML tags", icon: FileCode, category: "HTML", version: "0.1.10", author: "Jun Han", downloads: "15M", rating: 4.5, color: "#E34F26" },
-];
+interface InstalledExtension {
+  id: string;
+  extensionId: string;
+  name: string;
+  version: string;
+  enabled: boolean;
+  category: string;
+  npmPackage: string | null;
+}
 
-const categories = ["All", ...new Set(AVAILABLE_EXTENSIONS.map(e => e.category))];
+const ICON_MAP: Record<string, typeof Code> = {
+  "file-code": FileCode,
+  "shield": Shield,
+  "palette": Palette,
+  "git-branch": GitBranch,
+  "layers": Layers,
+  "globe": Globe,
+  "database": Database,
+  "zap": Zap,
+  "terminal": Terminal,
+  "package": Package,
+  "code": Code,
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Formatting: "#56B3B4",
+  Linting: "#4B32C3",
+  CSS: "#38BDF8",
+  Git: "#F05033",
+  DevOps: "#2496ED",
+  Tools: "#41B883",
+  Database: "#336791",
+  API: "#A855F7",
+  Performance: "#E11D48",
+  HTML: "#E34F26",
+};
 
 export function ExtensionsMarketplace({ projectId, className }: ExtensionsMarketplaceProps) {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [installingId, setInstallingId] = useState<string | null>(null);
+  const [uninstallingId, setUninstallingId] = useState<string | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data: installed = [], isLoading } = useQuery<string[]>({
-    queryKey: ["/api/projects", projectId, "extensions"],
+  const { data: catalog = [], isLoading: catalogLoading } = useQuery<CatalogExtension[]>({
+    queryKey: ["/api/extensions/marketplace"],
     queryFn: async () => {
       try {
-        const res = await apiRequest("GET", `/api/projects/${projectId}/extensions`);
+        const res = await apiRequest("GET", "/api/extensions/marketplace");
+        const data = await res.json();
+        return data.extensions || [];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: installed = [], isLoading: installedLoading } = useQuery<InstalledExtension[]>({
+    queryKey: ["/api/extensions", projectId, "installed"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", `/api/extensions/${projectId}/installed`);
         return res.json();
       } catch {
         return [];
@@ -64,44 +101,60 @@ export function ExtensionsMarketplace({ projectId, className }: ExtensionsMarket
     },
   });
 
+  const installedIds = useMemo(() => new Set(installed.map(e => e.extensionId)), [installed]);
+
   const installMutation = useMutation({
-    mutationFn: async (extId: string) => {
-      const csrf = getCsrfToken();
-      const res = await apiRequest("POST", `/api/projects/${projectId}/extensions`, { extensionId: extId });
+    mutationFn: async (extensionId: string) => {
+      setInstallingId(extensionId);
+      const res = await apiRequest("POST", `/api/extensions/${projectId}/install`, { extensionId });
       return res.json();
     },
-    onSuccess: (_, extId) => {
-      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "extensions"] });
-      const ext = AVAILABLE_EXTENSIONS.find(e => e.id === extId);
-      toast({ title: `${ext?.name || extId} installed` });
+    onSuccess: (_, extensionId) => {
+      setInstallingId(null);
+      qc.invalidateQueries({ queryKey: ["/api/extensions", projectId, "installed"] });
+      const ext = catalog.find(e => e.extensionId === extensionId);
+      toast({ title: `${ext?.name || extensionId} installed`, description: ext?.npmPackage ? `npm package "${ext.npmPackage}" added to devDependencies` : "Extension activated" });
     },
-    onError: (err: any) => {
-      toast({ title: "Install failed", description: err.message, variant: "destructive" });
+    onError: (err: any, extensionId) => {
+      setInstallingId(null);
+      toast({ title: "Install failed", description: err.message || "Unknown error", variant: "destructive" });
     },
   });
 
   const uninstallMutation = useMutation({
-    mutationFn: async (extId: string) => {
-      const csrf = getCsrfToken();
-      await apiRequest("DELETE", `/api/projects/${projectId}/extensions/${extId}`);
+    mutationFn: async (extensionId: string) => {
+      setUninstallingId(extensionId);
+      const res = await apiRequest("POST", `/api/extensions/${projectId}/uninstall`, { extensionId });
+      return res.json();
     },
-    onSuccess: (_, extId) => {
-      qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "extensions"] });
-      const ext = AVAILABLE_EXTENSIONS.find(e => e.id === extId);
-      toast({ title: `${ext?.name || extId} uninstalled` });
+    onSuccess: (_, extensionId) => {
+      setUninstallingId(null);
+      qc.invalidateQueries({ queryKey: ["/api/extensions", projectId, "installed"] });
+      const ext = catalog.find(e => e.extensionId === extensionId);
+      toast({ title: `${ext?.name || extensionId} uninstalled` });
+    },
+    onError: (err: any) => {
+      setUninstallingId(null);
+      toast({ title: "Uninstall failed", description: err.message, variant: "destructive" });
     },
   });
 
+  const categories = useMemo(() => {
+    const cats = [...new Set(catalog.map(e => e.category))];
+    return ["All", ...cats];
+  }, [catalog]);
+
   const filtered = useMemo(() => {
-    return AVAILABLE_EXTENSIONS.filter(ext => {
+    return catalog.filter(ext => {
       const matchesSearch = !search || ext.name.toLowerCase().includes(search.toLowerCase()) || ext.description.toLowerCase().includes(search.toLowerCase());
       const matchesCategory = activeCategory === "All" || ext.category === activeCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [search, activeCategory]);
+  }, [catalog, search, activeCategory]);
 
-  const installedExts = filtered.filter(e => installed.includes(e.id));
-  const availableExts = filtered.filter(e => !installed.includes(e.id));
+  const installedExts = filtered.filter(e => installedIds.has(e.extensionId));
+  const availableExts = filtered.filter(e => !installedIds.has(e.extensionId));
+  const isLoading = catalogLoading || installedLoading;
 
   return (
     <div className={cn("h-full flex flex-col overflow-hidden", className)}>
@@ -109,7 +162,7 @@ export function ExtensionsMarketplace({ projectId, className }: ExtensionsMarket
         <div className="flex items-center gap-2 mb-3">
           <Puzzle className="w-4 h-4 text-[#0CCE6B]" />
           <h2 className="text-[13px] font-semibold text-[var(--ide-text)]" data-testid="text-extensions-title">Extensions</h2>
-          <span className="ml-auto text-[10px] text-[var(--ide-text-muted)]">{installed.length} installed</span>
+          <span className="ml-auto text-[10px] text-[var(--ide-text-muted)]" data-testid="text-installed-count">{installed.length} installed</span>
         </div>
         <div className="relative mb-2">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--ide-text-muted)]" />
@@ -153,11 +206,12 @@ export function ExtensionsMarketplace({ projectId, className }: ExtensionsMarket
                 <div className="space-y-1.5">
                   {installedExts.map(ext => (
                     <ExtensionCard
-                      key={ext.id}
+                      key={ext.extensionId}
                       ext={ext}
                       installed
-                      onUninstall={() => uninstallMutation.mutate(ext.id)}
-                      loading={uninstallMutation.isPending}
+                      onUninstall={() => uninstallMutation.mutate(ext.extensionId)}
+                      loading={uninstallingId === ext.extensionId}
+                      installingId={null}
                     />
                   ))}
                 </div>
@@ -171,11 +225,12 @@ export function ExtensionsMarketplace({ projectId, className }: ExtensionsMarket
               <div className="space-y-1.5">
                 {availableExts.map(ext => (
                   <ExtensionCard
-                    key={ext.id}
+                    key={ext.extensionId}
                     ext={ext}
                     installed={false}
-                    onInstall={() => installMutation.mutate(ext.id)}
-                    loading={installMutation.isPending}
+                    onInstall={() => installMutation.mutate(ext.extensionId)}
+                    loading={false}
+                    installingId={installingId}
                   />
                 ))}
               </div>
@@ -190,35 +245,48 @@ export function ExtensionsMarketplace({ projectId, className }: ExtensionsMarket
   );
 }
 
-function ExtensionCard({ ext, installed, onInstall, onUninstall, loading }: {
-  ext: Extension;
+function ExtensionCard({ ext, installed, onInstall, onUninstall, loading, installingId }: {
+  ext: CatalogExtension;
   installed: boolean;
   onInstall?: () => void;
   onUninstall?: () => void;
   loading: boolean;
+  installingId: string | null;
 }) {
-  const Icon = ext.icon;
+  const Icon = ICON_MAP[ext.icon] || Code;
+  const color = CATEGORY_COLORS[ext.category] || "#888";
+  const isInstalling = installingId === ext.extensionId;
+  const isUnavailable = ext.type === 'unavailable';
+  const isNative = ext.type === 'native';
+
   return (
-    <div className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-[var(--ide-surface)] transition-colors group" data-testid={`card-extension-${ext.id}`}>
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${ext.color}15` }}>
-        <Icon className="w-4 h-4" style={{ color: ext.color }} />
+    <div className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-[var(--ide-surface)] transition-colors group" data-testid={`card-extension-${ext.extensionId}`}>
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}15` }}>
+        <Icon className="w-4 h-4" style={{ color }} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-medium text-[var(--ide-text)] truncate">{ext.name}</span>
           <span className="text-[9px] text-[var(--ide-text-muted)]">v{ext.version}</span>
+          {ext.npmPackage && (
+            <span className="text-[8px] px-1 py-0 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">npm</span>
+          )}
+          {isNative && (
+            <span className="text-[8px] px-1 py-0 rounded bg-green-500/10 text-green-400 border border-green-500/20">built-in</span>
+          )}
+          {isUnavailable && (
+            <span className="text-[8px] px-1 py-0 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">N/A</span>
+          )}
         </div>
         <p className="text-[10px] text-[var(--ide-text-muted)] line-clamp-2 mt-0.5">{ext.description}</p>
+        {isNative && ext.nativeFeature && (
+          <p className="text-[9px] text-green-400/70 mt-0.5 flex items-center gap-1">
+            <Info className="w-2.5 h-2.5" />
+            {ext.nativeFeature}
+          </p>
+        )}
         <div className="flex items-center gap-3 mt-1">
           <span className="text-[9px] text-[var(--ide-text-muted)]">{ext.author}</span>
-          <div className="flex items-center gap-0.5">
-            <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
-            <span className="text-[9px] text-[var(--ide-text-muted)]">{ext.rating}</span>
-          </div>
-          <div className="flex items-center gap-0.5">
-            <Download className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" />
-            <span className="text-[9px] text-[var(--ide-text-muted)]">{ext.downloads}</span>
-          </div>
         </div>
       </div>
       <div className="shrink-0">
@@ -227,19 +295,39 @@ function ExtensionCard({ ext, installed, onInstall, onUninstall, loading }: {
             <CheckCircle className="w-3.5 h-3.5 text-[#0CCE6B]" />
             <button
               onClick={onUninstall}
-              className="opacity-0 group-hover:opacity-100 text-[var(--ide-text-muted)] hover:text-red-400 transition-all"
-              data-testid={`button-uninstall-${ext.id}`}
+              disabled={loading}
+              className="opacity-0 group-hover:opacity-100 text-[var(--ide-text-muted)] hover:text-red-400 transition-all disabled:opacity-50"
+              data-testid={`button-uninstall-${ext.extensionId}`}
             >
-              <Trash2 className="w-3 h-3" />
+              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
             </button>
           </div>
+        ) : isUnavailable ? (
+          <Button
+            size="sm"
+            disabled
+            className="h-6 px-2 text-[10px] bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded cursor-not-allowed"
+            data-testid={`button-unavailable-${ext.extensionId}`}
+          >
+            <AlertTriangle className="w-2.5 h-2.5 mr-1" />
+            N/A
+          </Button>
+        ) : isInstalling ? (
+          <Button
+            size="sm"
+            disabled
+            className="h-6 px-2 text-[10px] bg-[#0CCE6B]/15 text-[#0CCE6B] border border-[#0CCE6B]/30 rounded"
+            data-testid={`button-installing-${ext.extensionId}`}
+          >
+            <Loader2 className="w-2.5 h-2.5 mr-1 animate-spin" />
+            Installing...
+          </Button>
         ) : (
           <Button
             size="sm"
             onClick={onInstall}
-            disabled={loading}
             className="h-6 px-2 text-[10px] bg-[#0CCE6B]/15 hover:bg-[#0CCE6B]/25 text-[#0CCE6B] border border-[#0CCE6B]/30 rounded"
-            data-testid={`button-install-${ext.id}`}
+            data-testid={`button-install-${ext.extensionId}`}
           >
             <Download className="w-2.5 h-2.5 mr-1" />
             Install

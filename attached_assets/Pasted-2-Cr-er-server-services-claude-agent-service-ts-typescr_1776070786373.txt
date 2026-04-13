@@ -1,0 +1,95 @@
+2. Créer server/services/claude-agent-service.ts :
+typescriptimport Anthropic from '@anthropic-ai/sdk';
+
+const client = new Anthropic();
+
+export class ClaudeAgentService {
+  private agentId = process.env.CLAUDE_AGENT_ID;
+  private environmentId = process.env.CLAUDE_ENVIRONMENT_ID;
+  private vaultId = process.env.CLAUDE_VAULT_ID;
+
+  // Créer une session pour chaque projet utilisateur
+  async createSession(projectId: string, userId: string): Promise<string> {
+    const session = await client.beta.sessions.create({
+      agent: this.agentId,
+      environment_id: this.environmentId,
+      vault_ids: [this.vaultId],
+      title: `project-${projectId}-user-${userId}`
+    });
+    return session.id;
+  }
+
+  // Envoyer un message (prompt utilisateur) à l'agent
+  async sendMessage(sessionId: string, message: string) {
+    const response = await client.beta.sessions.events.create(sessionId, {
+      events: [{
+        type: 'user.message',
+        content: [{ type: 'text', text: message }]
+      }]
+    });
+    return response;
+  }
+
+  // Streamer les events de l'agent (fichiers créés, commandes, output)
+  async streamEvents(sessionId: string) {
+    const stream = await client.beta.sessions.events.stream(sessionId);
+    return stream;
+  }
+
+  // Archiver la session quand l'utilisateur ferme le projet
+  async archiveSession(sessionId: string) {
+    await client.beta.sessions.archive(sessionId);
+  }
+}
+
+export const claudeAgentService = new ClaudeAgentService();
+3. Ajouter les routes dans server/routes/ :
+Crée server/routes/claude-agent.router.ts :
+typescriptimport { Router } from 'express';
+import { claudeAgentService } from '../services/claude-agent-service';
+
+const router = Router();
+
+// Créer une session agent pour un projet
+router.post('/projects/:projectId/agent/session', async (req, res) => {
+  const { projectId } = req.params;
+  const userId = req.user?.id;
+  const sessionId = await claudeAgentService.createSession(projectId, userId);
+  // Stocker sessionId dans la DB associé au projet
+  res.json({ sessionId });
+});
+
+// Envoyer un message à l'agent
+router.post('/projects/:projectId/agent/message', async (req, res) => {
+  const { sessionId, message } = req.body;
+  const response = await claudeAgentService.sendMessage(sessionId, message);
+  res.json(response);
+});
+
+// Streamer les events (SSE)
+router.get('/projects/:projectId/agent/stream', async (req, res) => {
+  const { sessionId } = req.query;
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  const stream = await claudeAgentService.streamEvents(sessionId as string);
+  // Forward events to client
+  for await (const event of stream) {
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+  }
+  res.end();
+});
+
+export default router;
+4. Connecter aux panels de l'IDE :
+
+Agent Panel : Quand l'utilisateur ouvre un projet, créer une session via POST /api/projects/:id/agent/session. Afficher les events streamés dans le chat panel.
+File Explorer : Quand l'agent crée/modifie des fichiers dans /workspace/, synchroniser avec notre base de données de fichiers via les events file.created/file.modified.
+Terminal : Les events command.executed de l'agent doivent être affichés dans le terminal panel.
+Preview : Quand l'agent écrit des fichiers HTML/React, rafraîchir le preview automatiquement.
+
+5. Installer le SDK :
+npm install @anthropic-ai/sdk
+6. Enregistrer le router dans server/routes/index.ts :
+typescriptimport claudeAgentRouter from './claude-agent.router';
+app.use('/api', claudeAgentRouter);
+Implémente ça et connecte-le aux panels existants de l'IDE. Les events streamés de l'agent doivent alimenter : le chat agent, le file explorer, le terminal, et le preview. Rebuild et redémarre après.

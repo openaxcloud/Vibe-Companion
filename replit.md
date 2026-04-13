@@ -30,10 +30,11 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 
 **Production Domain**: `e-code.ai` — configured via `APP_DOMAIN` env var (production). Dev URLs: `{projectId}.dev.e-code.ai`. Email from: `noreply@e-code.ai`. Desktop app connects to `https://e-code.ai`.
 
-**AI Integration**: Multi-agent provider architecture supporting three backends:
+**AI Integration**: Multi-agent provider architecture supporting four backends:
 1. **Built-in E-Code AI** — Anthropic Claude Sonnet, OpenAI GPT-4.1/o4-mini/o3, Google Gemini Flash with MCP tool-use
-2. **OpenHands** (MIT, 70k+ stars) — Autonomous AI software engineer via REST API integration (`server/integrations/openhands-client.ts`, routes at `/api/openhands/*`)
-3. **Goose** (Apache 2.0, Block/Linux Foundation) — AI agent via REST API integration (`server/integrations/goose-client.ts`, routes at `/api/goose/*`)
+2. **Claude Agent SDK** — Full Anthropic Agent SDK integration via `server/services/claude-agent-service.ts`. Creates sandboxed sessions per project/user, streams events (file creates, command execution, assistant messages) to all IDE panels via WebSocket broadcast. Routes at `/api/projects/:id/agent/{session,message,stream,archive,status}`. Env vars: `CLAUDE_AGENT_ID`, `CLAUDE_ENVIRONMENT_ID`, `CLAUDE_VAULT_ID`, `ANTHROPIC_API_KEY`. Frontend hook: `client/src/hooks/use-claude-agent.ts`.
+3. **OpenHands** (MIT, 70k+ stars) — Autonomous AI software engineer via REST API integration (`server/integrations/openhands-client.ts`, routes at `/api/openhands/*`)
+4. **Goose** (Apache 2.0, Block/Linux Foundation) — AI agent via REST API integration (`server/integrations/goose-client.ts`, routes at `/api/goose/*`)
 Unified provider status at `/api/agent-providers/status`. Provider selection persisted in `localStorage("ai-agent-provider")`. Each external provider supports health checks, session management, streaming events, and configuration (server URL, API key, model). The built-in agent offers various modes (Economy, Power, Turbo) with **usage-based token billing** — credits deducted per-token from `MODEL_TOKEN_PRICING` in `shared/schema.ts`. Modular AI agent services support DALL-E 3, NanoBanana (Stable Diffusion XL), Brave Image Search, and ElevenLabs TTS.
 
 **Code Editor**: Dual-engine editor with toggle in the status bar:
@@ -71,7 +72,7 @@ Editor engine preference stored in `localStorage("editor-engine")`. Toggle avail
 
 ## Important Technical Notes
 - **Express 5**: Wildcard routes use `/{*path}` not `*`. `req.path` is always `/` in wildcard routes — use `req.originalUrl`.
-- **Build**: `npx vite build` to rebuild frontend. Server: `PORT=5000 NODE_ENV=development node --import tsx/esm server/index.ts`.
+- **Build**: `rm -rf dist && npx vite build` to rebuild frontend after ANY client/shared file changes. Server: `PORT=5000 NODE_ENV=development node --import tsx/esm server/index.ts`. Server logs build timestamp and stale detection on startup. `/api/build-info` endpoint returns `{ buildTime, isStale, newestSource, hasManifest }`. Browser console logs build timestamp on mount. Vite uses `build.manifest: true` and hashed filenames `[name]-[hash].js` for cache busting. HTML served with `no-cache`; hashed assets with `1y immutable`.
 - **Schema**: `shared/schema.ts` (~3700 lines) contains all Drizzle table definitions and Zod schemas. ~100+ tables.
 - **Storage exports**: `server/storage.ts` exports `storage`, `getStorage()`, and `sessionStore`.
 - **AI Agent System Prompt**: Agent prompt in `legacy-ai-assistant.ts` (~line 2538) instructs AI to build production-ready, beautifully designed apps. Includes mandatory architecture rules (React+Vite+Tailwind for non-trivial apps), comprehensive design system (dark mode, glassmorphism, typography, animations, responsive), and strict completeness requirements. Output quality is a top priority — apps must look like premium SaaS products.
@@ -80,6 +81,7 @@ Editor engine preference stored in `localStorage("editor-engine")`. Toggle avail
 - **Route loading order**: `server/routes.ts` `registerRoutes()` loads legacy routes first (including `legacy-ai-assistant.ts` catch-all proxy routes), then `MainRouter` from `server/routes/index.ts` last. Legacy routes can intercept modular router paths.
 - **Terminal/Shell unification**: The "Terminal" tab in `UnifiedIDELayout.tsx` now renders `ShellPanel` (not the defunct `ReplitTerminalPanel`). The tab label displays "Shell" for consistency. Both desktop and mobile paths are unified.
 - **AI Mode**: All providers use managed mode (platform API keys). No BYOK popup. `credentialModes` hardcoded as configured in `AIPanel.tsx`.
+- **WebSocket Paths**: Project WebSocket uses `/ws/project?projectId=...` (NOT bare `/ws` which is blocked by Replit proxy). Collab uses `/ws/collab`, terminal uses `/ws/terminal`. The CentralUpgradeDispatcher handles `/ws/project` with self-auth (handler does its own session middleware). Polling fallback at `/api/projects/:id/poll` after 3 WS failures.
 - **Known non-blocking warnings**: SSH server (`ssh2.Server` constructor), Stripe webhooks (need `STRIPE_WEBHOOK_SECRET`), fuzzy search SQL syntax.
 - **GitHub remote**: `origin` = `https://github.com/openaxcloud/Vibe-Companion`.
 - **Auth flow**: Frontend uses `/api/login`, `/api/register`, `/api/logout`, `/api/me`. Auth router mounted at `/api` with Passport local strategy. Session regeneration on login sets both `req.user` (Passport) and `req.session.userId` (legacy). CSRF exempt for login/register endpoints.

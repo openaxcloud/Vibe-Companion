@@ -1,27 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
+import { storage } from '../storage';
 
-/**
- * SECURITY FIX: Fortune 500 grade authentication guard
- * 
- * - Relies ONLY on Passport session authentication
- * - NO development bypasses - all authentication must go through proper login flow
- * - Ensures consistent security in both development and production environments
- * 
- * To test authenticated routes during development:
- * 1. Use the login page at /auth with test credentials (testuser@test.com / testpass123)
- * 2. Session cookies will be maintained by your browser/client
- * 3. For API testing, use tools like Postman with cookie jar enabled
- */
-export const ensureAuthenticated = (req: Request, res: Response, next: NextFunction) => {
-  // Check for valid Passport session only - no bypass mechanisms
+export const ensureAuthenticated = async (req: Request, res: Response, next: NextFunction) => {
   const isAuthenticated = typeof req.isAuthenticated === 'function' && req.isAuthenticated();
   const hasUser = !!req.user;
-  
+
   if (isAuthenticated && hasUser) {
     return next();
   }
-  
-  // No valid authentication found
+
+  const sessionUserId = (req.session as any)?.userId;
+  if (sessionUserId) {
+    try {
+      const user = await storage.getUser(sessionUserId);
+      if (user) {
+        (req as any).user = user;
+        return next();
+      }
+    } catch {}
+  }
+
   res.status(401).json({ 
     error: 'Authentication required',
     code: 'AUTH_REQUIRED'
@@ -44,12 +42,18 @@ export const optionalAuth = (req: Request, res: Response, next: NextFunction) =>
  * 
  * Allowed admin roles: 'admin', 'superadmin', 'owner'
  */
-export const ensureAdmin = (req: Request, res: Response, next: NextFunction) => {
-  // First check authentication
-  const isAuthenticated = typeof req.isAuthenticated === 'function' && req.isAuthenticated();
-  const hasUser = !!req.user;
-  
-  if (!isAuthenticated || !hasUser) {
+export const ensureAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    const sessionUserId = (req.session as any)?.userId;
+    if (sessionUserId) {
+      try {
+        const user = await storage.getUser(sessionUserId);
+        if (user) (req as any).user = user;
+      } catch {}
+    }
+  }
+
+  if (!req.user) {
     return res.status(401).json({ 
       error: 'Authentication required',
       code: 'AUTH_REQUIRED'

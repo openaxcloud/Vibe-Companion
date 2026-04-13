@@ -1,0 +1,23 @@
+J'ai fait un audit complet de l'IDE. Voici tous les bugs trouvés avec les fix exacts. Corrige-les dans l'ordre. Après chaque groupe de fix, fais rm -rf dist && npm run build && kill 1.
+BUG 1 — ÉDITEUR VIDE (CRITIQUE)
+Quand on clique sur un fichier dans le file explorer, l'éditeur ne montre aucun contenu. Le code source est fixé (parseInt retiré, file.filename utilisé) mais le build servi est ancien.
+FIX : Fais immédiatement rm -rf dist && npm run build && kill 1. Si après ça l'éditeur est encore vide, vérifie dans client/src/components/ide/UnifiedIDELayout.tsx que le composant éditeur dans le mode tablet (largeur < 1024px, ce qui est le cas dans le preview Replit) reçoit fileContents et onCodeChange comme props. Le Replit preview pane fait moins de 1024px donc c'est toujours le mode tablet qui est utilisé.
+BUG 2 — TERMINAL EN BOUCLE (CRITIQUE)
+Le terminal affiche "Failed to start terminal" → "Disconnected" → "Connected" → "Failed" en boucle infinie.
+FIX : Dans server/terminal.ts, le problème est que node-pty a été retiré mais le fallback child_process ne maintient pas la session. Cherche où le terminal spawn est fait. Remplace le spawn par child_process.spawn('bash', [], { cwd: workspaceDir, env: processEnv, stdio: ['pipe', 'pipe', 'pipe'] }) et assure que la session reste ouverte. Ajoute un max retry de 3 : après 3 échecs consécutifs, arrête de retry et affiche "Terminal unavailable — restart the project" au lieu de boucler infiniment.
+BUG 3 — DATABASE LOADING INFINI
+Le Database panel reste sur un spinner de chargement sans jamais afficher de contenu.
+FIX : Dans le composant DatabasePanel.tsx ou la route database.router.ts, quand aucune DATABASE_URL n'est configurée pour le projet, retourne un message "No database configured. Add a DATABASE_URL in your Secrets to connect." au lieu de spinner infiniment. Ajoute aussi un timeout de 10 secondes sur la connexion DB — si ça timeout, affiche l'erreur au lieu de spinner.
+BUG 4 — PANELS MANQUANTS DANS LA SIDEBAR
+8 panels existent dans le code mais ne sont pas accessibles dans la sidebar de l'IDE : Monitoring, Integrations, Checkpoints, MCP, Publishing, SSH, Security Scanner, Collaboration.
+FIX : Dans client/src/components/ide/UnifiedIDELayout.tsx, vérifie la liste des icônes de la sidebar (TOOL_TABS ou sidebarItems). Ajoute les entrées manquantes pour : monitoring, integrations, checkpoints, mcp, publishing, ssh, security-scanner, collaboration. Chacun doit avoir une icône, un label, et pointer vers le bon composant panel. Vérifie aussi que les routes backend existent dans server/routes/index.ts pour chacun.
+BUG 5 — BUILD PRODUCTION MANQUANT
+Le serveur crash avec "ENOENT: dist/public/index.html" quand dist/ n'existe pas.
+FIX : Change le run command dans .replit pour toujours builder avant de démarrer :
+run = "npm run build && node dist/index.cjs"
+Ou ajoute un script prestart dans package.json : "prestart": "npm run build".
+BUG 6 — WS: Starting ne se connecte jamais complètement
+Le WebSocket reste en "WS: Starting" et ne passe jamais à "Connected".
+FIX : Vérifie dans les logs serveur si le WebSocket upgrade handler reçoit les connexions. Le problème peut être que le frontend se connecte à un mauvais chemin WS. Vérifie que le client WebSocket dans client/src/hooks/use-ide-workspace.ts se connecte au bon URL (doit être wss://<hostname>/ws ou ws://<hostname>/ws). Sur Replit, les WebSockets passent par le même port que HTTP.
+
+Corrige dans l'ordre : Bug 1 (build), Bug 2 (terminal), Bug 3 (database), Bug 5 (run command), Bug 4 (sidebar), Bug 6 (WebSocket). Fais rm -rf dist && npm run build && kill 1 après les bugs 1-3.

@@ -310,10 +310,11 @@ export class MainRouter {
       safeImport("automations", () => import("./automations.router")),
     ]);
 
-    const [openhandsMod, gooseMod, agentProvidersMod] = await Promise.all([
+    const [openhandsMod, gooseMod, agentProvidersMod, claudeAgentMod] = await Promise.all([
       safeImport("openhands", () => import("./openhands.router")),
       safeImport("goose", () => import("./goose.router")),
       safeImport("agent-providers", () => import("./agent-providers.router")),
+      safeImport("claude-agent", () => import("./claude-agent.router")),
     ]);
 
     mount(app, '/api', def(placeholderMod));
@@ -458,6 +459,7 @@ export class MainRouter {
     mount(app, '/api/openhands', tierLimiters.api, def(openhandsMod));
     mount(app, '/api/goose', tierLimiters.api, def(gooseMod));
     mount(app, '/api/agent-providers', tierLimiters.api, def(agentProvidersMod));
+    mount(app, '/api', tierLimiters.streaming, def(claudeAgentMod));
 
     if (setupPreviewRoutes) setupPreviewRoutes(app);
 

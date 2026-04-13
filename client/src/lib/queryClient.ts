@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
 
 let csrfToken: string | null = null;
 
@@ -24,8 +25,66 @@ export async function fetchCsrfToken(): Promise<string> {
   return "";
 }
 
+let _sessionExpiredFired = false;
+let _sessionExpiredTimer: ReturnType<typeof setTimeout> | null = null;
+
+function handleSessionExpired() {
+  if (_sessionExpiredFired) return;
+  _sessionExpiredFired = true;
+
+  if (_sessionExpiredTimer) clearTimeout(_sessionExpiredTimer);
+  _sessionExpiredTimer = setTimeout(() => { _sessionExpiredFired = false; }, 30000);
+
+  queryClient.clear();
+
+  toast({
+    title: "Session expired",
+    description: "Please log in again to continue.",
+    variant: "destructive",
+  });
+
+  const currentPath = window.location.pathname + window.location.search;
+  const isAuthPage = currentPath.startsWith("/login") || currentPath.startsWith("/register");
+  if (!isAuthPage) {
+    const next = encodeURIComponent(currentPath);
+    setTimeout(() => {
+      window.location.href = `/login?next=${next}`;
+    }, 800);
+  }
+}
+
+const PUBLIC_ENDPOINTS = new Set([
+  "/api/login",
+  "/api/register",
+  "/api/csrf-token",
+  "/api/auth/me",
+  "/api/me",
+]);
+
+const PUBLIC_PREFIXES = [
+  "/api/models",
+  "/api/marketplace",
+  "/api/themes",
+];
+
+function isPublicEndpoint(rawUrl: string): boolean {
+  let pathname = rawUrl;
+  try {
+    pathname = new URL(rawUrl, window.location.origin).pathname;
+  } catch {}
+  if (PUBLIC_ENDPOINTS.has(pathname)) return true;
+  return PUBLIC_PREFIXES.some(p => pathname.startsWith(p));
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    if (res.status === 401) {
+      const url = res.url || "";
+      const pathname = url.replace(window.location.origin, "");
+      if (!isPublicEndpoint(pathname)) {
+        handleSessionExpired();
+      }
+    }
     const text = (await res.text()) || res.statusText;
     let message = text;
     try {
@@ -73,12 +132,17 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = queryKey.join("/") as string;
+    const res = await fetch(url, {
       credentials: "include",
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;
+    }
+
+    if (res.status === 401 && !isPublicEndpoint(url)) {
+      handleSessionExpired();
     }
 
     await throwIfResNotOk(res);
@@ -91,13 +155,12 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: true,
-      staleTime: 5 * 60 * 1000, // 5 minutes - prevents stale data
+      staleTime: 5 * 60 * 1000,
       retry: (failureCount, error) => {
-        // Don't retry on 4xx errors (client errors)
         if (error instanceof Error && error.message.includes("40")) return false;
         return failureCount < 2;
       },
-      cacheTime: 10 * 60 * 1000, // 10 minutes garbage collection
+      cacheTime: 10 * 60 * 1000,
     },
     mutations: {
       retry: false,

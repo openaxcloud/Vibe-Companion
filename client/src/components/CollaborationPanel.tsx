@@ -54,8 +54,14 @@ export function CollaborationPanel({ projectId, currentUser, className }: Collab
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/api/projects", projectId, "guests"] });
+      const savedEmail = inviteEmail;
       setInviteEmail("");
-      toast({ title: "Invite sent", description: data.message || `Invited ${inviteEmail}` });
+      toast({
+        title: data.emailSent ? "Invite email sent" : "Invite created",
+        description: data.emailSent
+          ? `Invitation email sent to ${savedEmail}`
+          : `Invited ${savedEmail} (email delivery not configured — share the invite link)`,
+      });
     },
     onError: (err: any) => {
       toast({ title: "Failed to invite", description: err.message, variant: "destructive" });

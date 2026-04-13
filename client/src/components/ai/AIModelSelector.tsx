@@ -61,6 +61,12 @@ const OpenHandsIcon = () => (
   </svg>
 );
 
+const ClaudeAgentIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
+    <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1.27c.34-.6.99-1 1.73-1a2 2 0 1 1 0 4c-.74 0-1.39-.4-1.73-1H20a7 7 0 0 1-7 7v1.27c.6.34 1 .99 1 1.73a2 2 0 1 1-4 0c0-.74.4-1.39 1-1.73V16a7 7 0 0 1-7-7H2.73c-.34.6-.99 1-1.73 1a2 2 0 1 1 0-4c.74 0 1.39.4 1.73 1H4a7 7 0 0 1 7-7V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zm0 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/>
+  </svg>
+);
+
 const getProviderIcon = (provider: string) => {
   const icons: Record<string, React.ElementType> = {
     openai: SiOpenai,
@@ -69,6 +75,7 @@ const getProviderIcon = (provider: string) => {
     xai: XAIIcon,
     moonshot: MoonshotIcon,
     openhands: OpenHandsIcon,
+    'claude-agent': ClaudeAgentIcon,
     default: Cpu
   };
   return icons[provider] || icons.default;
@@ -82,6 +89,7 @@ const getProviderColor = (provider: string) => {
     xai: 'bg-purple-500',
     moonshot: 'bg-cyan-500',
     openhands: 'bg-emerald-500',
+    'claude-agent': 'bg-amber-600',
     default: 'bg-gray-500'
   };
   return colors[provider] || colors.default;
@@ -124,6 +132,9 @@ export function AIModelSelector({
       });
     },
     onError: (error: any) => {
+      if (error?.message?.includes('401') || error?.message?.includes('Unauthorized') || error?.message?.includes('Not authenticated')) {
+        return;
+      }
       toast({
         title: 'Error',
         description: error.message || 'Failed to save model preference',
@@ -146,6 +157,10 @@ export function AIModelSelector({
       } else if (modelObj.provider === 'goose') {
         try {
           localStorage.setItem('ai-agent-provider', 'goose');
+        } catch {}
+      } else if (modelObj.provider === 'claude-agent') {
+        try {
+          localStorage.setItem('ai-agent-provider', 'claude-agent');
         } catch {}
       } else {
         const providerMap: Record<string, string> = {

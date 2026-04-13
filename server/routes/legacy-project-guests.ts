@@ -63,6 +63,20 @@ export async function registerProjectGuestsRoutes(app: Express, ctx: any): Promi
   const path = path_;
 
 
+  async function verifyProjectWriteAccess(projectId: string, userId: string): Promise<boolean> {
+    const project = await storage.getProject(projectId);
+    if (!project) return false;
+    if (project.userId === userId) return true;
+    if (project.teamId) {
+      const teams = await storage.getUserTeams(userId);
+      const teamMatch = teams.find((t: any) => t.id === project.teamId);
+      if (teamMatch && (teamMatch.role === "owner" || teamMatch.role === "admin" || teamMatch.role === "editor")) return true;
+    }
+    const guest = await storage.getProjectGuestByUserId(projectId, userId);
+    if (guest && guest.role === "editor") return true;
+    return false;
+  }
+
   // --- PROJECT GUESTS ---
   app.get("/api/projects/:id/guests", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -83,6 +97,18 @@ export async function registerProjectGuestsRoutes(app: Express, ctx: any): Promi
       const existing = await storage.getProjectGuestByEmail(project.id, email);
       if (existing) return res.status(409).json({ message: "Guest already invited" });
       const guest = await storage.addProjectGuest(project.id, email, role, req.session.userId!);
+
+      try {
+        const inviter = await storage.getUser(req.session.userId!);
+        const inviterName = inviter?.displayName || inviter?.email || 'Someone';
+        const { sendProjectInviteEmail } = await import("../email");
+        const emailSent = await sendProjectInviteEmail(email, project.name, inviterName, role, guest.token);
+        (guest as any).emailSent = emailSent;
+      } catch (emailErr: any) {
+        console.warn(`[project-guests] Failed to send invite email to ${email}: ${emailErr.message}`);
+        (guest as any).emailSent = false;
+      }
+
       return res.status(201).json(guest);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });

@@ -123,7 +123,7 @@ class CentralUpgradeDispatcher {
                 resolve(false);
                 return;
               }
-              resolve(session.passport?.user != null);
+              resolve(session.passport?.user != null || session.userId != null);
             });
           });
           
@@ -233,6 +233,7 @@ class CentralUpgradeDispatcher {
     const selfAuthPaths = [
       '/api/runtime/logs/ws',  // RuntimeLogsService handles its own session auth
       '/api/server/logs/ws',   // ServerLogsService handles its own session auth
+      '/ws/project',           // Legacy WebSocket handler does its own session auth
     ];
     const publicPaths = [
       '/health', '/api/health',

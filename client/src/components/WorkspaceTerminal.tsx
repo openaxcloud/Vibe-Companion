@@ -95,6 +95,8 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
   const connectedUrlRef = useRef<string | null>(null);
   const intentionalCloseRef = useRef(false);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
   const onLastCommandRef = useRef(onLastCommand);
   onLastCommandRef.current = onLastCommand;
 
@@ -179,6 +181,7 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
     socketRef.current = ws;
 
     ws.onopen = () => {
+      retryCountRef.current = 0;
       termRef.current?.writeln("\r\n\x1b[32mConnected to workspace terminal.\x1b[0m\r\n");
       if (fitAddonRef.current) {
         fitAddonRef.current.fit();
@@ -208,7 +211,13 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
 
     ws.onclose = () => {
       if (!intentionalCloseRef.current && connectedUrlRef.current === url) {
-        termRef.current?.writeln("\r\n\x1b[33mDisconnected from terminal. Reconnecting...\x1b[0m");
+        retryCountRef.current += 1;
+        if (retryCountRef.current > MAX_RETRIES) {
+          termRef.current?.writeln("\r\n\x1b[31mTerminal unavailable. Max retries reached.\x1b[0m");
+          connectedUrlRef.current = null;
+          return;
+        }
+        termRef.current?.writeln(`\r\n\x1b[33mDisconnected from terminal. Reconnecting (${retryCountRef.current}/${MAX_RETRIES})...\x1b[0m`);
         retryTimeoutRef.current = setTimeout(() => {
           if (connectedUrlRef.current === url) {
             connect(url);

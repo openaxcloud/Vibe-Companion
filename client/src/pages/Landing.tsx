@@ -328,17 +328,15 @@ export default function Landing() {
               to deliver Fortune 500 development velocity to every team.
             </LazyMotionDiv>
 
-            {/* AI Model Selection - Only show to logged-in users */}
-            {user && (
-              <LazyMotionDiv
-                className="max-w-4xl mx-auto mt-8"
-                variants={fadeInUp}
-              >
-                <div className="flex justify-center">
-                  <AIModelSelector variant="card" className="w-full max-w-2xl" />
-                </div>
-              </LazyMotionDiv>
-            )}
+            {/* AI Model Selection */}
+            <LazyMotionDiv
+              className="max-w-4xl mx-auto mt-8"
+              variants={fadeInUp}
+            >
+              <div className="flex justify-center">
+                <AIModelSelector variant="hero" className="w-full max-w-2xl" />
+              </div>
+            </LazyMotionDiv>
 
             {/* AI Input Section */}
             <LazyMotionDiv 

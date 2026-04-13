@@ -811,10 +811,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const [agentProvider, setAgentProvider] = useState<"builtin" | "openhands" | "goose">(() => {
+  const [agentProvider, setAgentProvider] = useState<"builtin" | "openhands" | "goose" | "claude-agent">(() => {
     try {
       const saved = localStorage.getItem("ai-agent-provider");
-      if (saved && ["builtin", "openhands", "goose"].includes(saved)) return saved as any;
+      if (saved && ["builtin", "openhands", "goose", "claude-agent"].includes(saved)) return saved as any;
     } catch {}
     return "builtin";
   });
@@ -882,6 +882,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const audioWorkletRef = useRef<AudioWorkletNode | null>(null);
   const audioReadyRef = useRef(false);
   const audioAbortRef = useRef<AbortController | null>(null);
+  const [claudeAgentSessionId, setClaudeAgentSessionId] = useState<string | null>(null);
+  const [claudeAgentClaudeId, setClaudeAgentClaudeId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/models/preferred", { credentials: "include" })
@@ -1340,10 +1342,21 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
   }, [input]);
 
+  const pendingMessageHandledRef = useRef<string | null>(null);
+  const sendMessageDirectRef = useRef<((content: string, attachments?: Attachment[]) => Promise<boolean | undefined>) | null>(null);
   useEffect(() => {
-    if (pendingMessage && conversationLoaded && !isStreaming) {
-      setInput(pendingMessage);
+    if (pendingMessage && conversationLoaded && !isStreaming && pendingMessage !== pendingMessageHandledRef.current) {
+      pendingMessageHandledRef.current = pendingMessage;
       onPendingMessageConsumed?.();
+      const autoSend = () => {
+        if (sendMessageDirectRef.current) {
+          sendMessageDirectRef.current(pendingMessage);
+          setInput("");
+        } else {
+          setTimeout(autoSend, 200);
+        }
+      };
+      setTimeout(autoSend, 400);
     }
   }, [pendingMessage, conversationLoaded, isStreaming]);
 
@@ -1861,6 +1874,130 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
   }, [isAudioStreaming, readAloudMsgId, selectedVoice, initAudioPlayback, stopAudioPlayback]);
 
+  const sendViaClaudeAgent = useCallback(async (
+    content: string,
+    assistantId: string,
+  ): Promise<boolean> => {
+    const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    const csrfToken = getCsrfToken();
+    if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
+
+    let sessionId = claudeAgentSessionId;
+    let claudeId = claudeAgentClaudeId;
+
+    if (!sessionId || !claudeId) {
+      const sessionRes = await fetch(`/api/projects/${projectId}/agent/session`, {
+        method: "POST",
+        headers: fetchHeaders,
+        credentials: "include",
+      });
+
+      if (!sessionRes.ok) {
+        const errData = await sessionRes.json().catch(() => ({}));
+        throw new Error(errData.message || errData.error || "Failed to create Claude Agent session");
+      }
+
+      const sessionData = await sessionRes.json();
+      sessionId = sessionData.sessionId;
+      claudeId = sessionData.claudeSessionId;
+      setClaudeAgentSessionId(sessionId);
+      setClaudeAgentClaudeId(claudeId);
+    }
+
+    const messageRes = await fetch(`/api/projects/${projectId}/agent/message`, {
+      method: "POST",
+      headers: fetchHeaders,
+      credentials: "include",
+      body: JSON.stringify({
+        sessionId,
+        claudeSessionId: claudeId,
+        message: content,
+      }),
+      signal: abortRef.current?.signal,
+    });
+
+    if (!messageRes.ok) {
+      const errData = await messageRes.json().catch(() => ({}));
+      throw new Error(errData.message || errData.error || "Claude Agent message failed");
+    }
+
+    const streamRes = await fetch(`/api/projects/${projectId}/agent/stream?sessionId=${sessionId}&claudeSessionId=${claudeId}`, {
+      credentials: "include",
+      signal: abortRef.current?.signal,
+    });
+
+    if (!streamRes.ok) {
+      throw new Error("Failed to connect to Claude Agent stream");
+    }
+
+    const reader = streamRes.body?.getReader();
+    if (!reader) throw new Error("No stream from Claude Agent");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+
+          if (data.type === "stream_end") break;
+
+          if (data.type === "agent_message") {
+            const text = data.data?.text || "";
+            if (text) {
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + text } : m)
+              );
+            }
+          } else if (data.type === "agent_tool_use") {
+            const toolName = data.data?.tool || "";
+            let actionText = "";
+            if (toolName === "create_file" || toolName === "write_file") {
+              actionText = `\n> 📄 Creating file: \`${data.data?.input?.filename || data.data?.input?.path || "..."}\`\n`;
+            } else if (toolName === "edit_file") {
+              actionText = `\n> ✏️ Editing file: \`${data.data?.input?.filename || data.data?.input?.path || "..."}\`\n`;
+            } else if (toolName === "execute_command" || toolName === "bash" || toolName === "shell") {
+              actionText = `\n> ⚡ Running: \`${data.data?.input?.command || "..."}\`\n`;
+            } else if (toolName) {
+              actionText = `\n> 🔧 ${toolName}\n`;
+            }
+            if (actionText) {
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + actionText } : m)
+              );
+            }
+          } else if (data.type === "agent_tool_result") {
+            const resultText = typeof data.data?.content === "string"
+              ? data.data.content
+              : Array.isArray(data.data?.content)
+              ? data.data.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n")
+              : "";
+            if (resultText) {
+              const truncated = resultText.length > 2000 ? resultText.slice(0, 2000) + "\n...(truncated)" : resultText;
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + "\n```\n" + truncated + "\n```\n" } : m)
+              );
+            }
+          } else if (data.type === "agent_error") {
+            setMessages((prev) =>
+              prev.map((m) => m.id === assistantId ? { ...m, content: m.content + `\n\n⚠️ ${data.data?.message || "Agent error"}` } : m)
+            );
+          }
+        } catch {}
+      }
+    }
+
+    return true;
+  }, [projectId, claudeAgentSessionId, claudeAgentClaudeId]);
+
   const sendViaExternalProvider = useCallback(async (
     provider: "openhands" | "goose",
     content: string,
@@ -2012,15 +2149,34 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     persistMessage("user", userMsg.content);
 
     const assistantId = (Date.now() + 1).toString();
-    const effectiveModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : model;
+    const effectiveModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : agentProvider === "claude-agent" ? "claude" : model;
     setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", model: effectiveModel }]);
 
     abortRef.current = new AbortController();
 
     try {
+      if (agentProvider === "claude-agent") {
+        console.log("[AIPanel] Routing to Claude Agent SDK");
+        await sendViaClaudeAgent(fullContent, assistantId);
+
+        const extractedContent = await new Promise<string>((resolve) => {
+          setMessages((prev) => {
+            const assistantMsg = prev.find((m) => m.id === assistantId);
+            resolve(assistantMsg?.content || "");
+            return prev;
+          });
+        });
+
+        if (extractedContent) {
+          persistMessage("assistant", extractedContent, effectiveModel);
+        }
+
+        return true;
+      }
+
       if (agentProvider !== "builtin") {
         console.log(`[AIPanel] Routing to external provider: ${agentProvider}`);
-        await sendViaExternalProvider(agentProvider, fullContent, assistantId);
+        await sendViaExternalProvider(agentProvider as "openhands" | "goose", fullContent, assistantId);
 
         const extractedContent = await new Promise<string>((resolve) => {
           setMessages((prev) => {
@@ -2133,7 +2289,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       abortRef.current = null;
       onAgentComplete?.();
     }
-  }, [messages, model, openrouterModel, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete, audioOutputEnabled, readAloud, agentProvider, sendViaExternalProvider]);
+  }, [messages, model, openrouterModel, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete, audioOutputEnabled, readAloud, agentProvider, sendViaExternalProvider, sendViaClaudeAgent]);
 
   const processQueue = useCallback(async () => {
     if (processingQueueRef.current || pausedRef.current) return;
@@ -2268,7 +2424,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     });
   }, []);
 
-  const sendMessageDirectRef = useRef(sendMessageDirect);
   sendMessageDirectRef.current = sendMessageDirect;
 
   const addFilesExternalRef = useRef(addFilesExternal);
@@ -2279,14 +2434,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     const handlers: ExternalInputHandlers = {
       handleSubmit: (value: string) => {
         console.log('[MobileSubmit] handleSubmit called with:', value?.slice(0, 50));
-        setInput(value);
+        setInput("");
         setTimeout(() => {
           sendMessageDirectRef.current(value);
         }, 0);
       },
       handleSubmitWithAttachments: (value: string, atts: Attachment[]) => {
         console.log('[MobileSubmit] handleSubmitWithAttachments called');
-        setInput(value);
+        setInput("");
         setTimeout(() => {
           sendMessageDirectRef.current(value, atts);
           setAttachments([]);
@@ -2357,7 +2512,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const cleaned = prev.slice(0, -2);
       const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: retryInput };
       const assistantId = (Date.now() + 1).toString();
-      const retryEffectiveModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : model;
+      const retryEffectiveModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : agentProvider === "claude-agent" ? "claude" : model;
       const updatedMessages = [...cleaned, userMsg, { id: assistantId, role: "assistant" as const, content: "", model: retryEffectiveModel }];
       setIsStreaming(true);
       abortRef.current = new AbortController();
@@ -2376,8 +2531,23 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const retryToken = getCsrfToken();
       if (retryToken) retryHeaders["X-CSRF-Token"] = retryToken;
       persistMessage("user", retryInput);
+      if (agentProvider === "claude-agent") {
+        sendViaClaudeAgent(retryInput, assistantId).then(() => {
+          setMessages((prev) => {
+            const assistantMsg = prev.find((m) => m.id === assistantId);
+            if (assistantMsg?.content) persistMessage("assistant", assistantMsg.content, retryEffectiveModel);
+            return prev;
+          });
+        }).catch((err: unknown) => {
+          if (err instanceof Error) {
+            setLastFailedInput(retryInput);
+            setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Connection error — ${err.message}` } : m));
+          }
+        }).finally(() => { setIsStreaming(false); abortRef.current = null; onAgentComplete?.(); });
+        return updatedMessages;
+      }
       if (agentProvider !== "builtin") {
-        sendViaExternalProvider(agentProvider, retryInput, assistantId).then(() => {
+        sendViaExternalProvider(agentProvider as "openhands" | "goose", retryInput, assistantId).then(() => {
           setMessages((prev) => {
             const assistantMsg = prev.find((m) => m.id === assistantId);
             if (assistantMsg?.content) persistMessage("assistant", assistantMsg.content, retryEffectiveModel);
@@ -3353,7 +3523,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } catch {}
   };
 
-  const displayModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : model;
+  const displayModel: AIModel = agentProvider === "openhands" ? "openhands" : agentProvider === "goose" ? "goose" : agentProvider === "claude-agent" ? "claude" : model;
   const modelInfo = MODEL_LABELS[displayModel];
   const ModelIcon = modelInfo.icon;
 
@@ -4317,6 +4487,23 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         );
                       });
                     })()}
+                    <DropdownMenuItem
+                      className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5 border-t border-[var(--ide-border)] mt-1 pt-1.5"
+                      onClick={() => {
+                        setAgentProvider("claude-agent");
+                        try { localStorage.setItem("ai-agent-provider", "claude-agent"); } catch {}
+                      }}
+                      data-testid="model-claude-agent-sdk"
+                    >
+                      <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: "#D97F0615" }}>
+                        <Bot className="w-3 h-3" style={{ color: "#D97F06" }} />
+                      </div>
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="font-medium">Claude Agent SDK</span>
+                        <span className="text-[10px] text-[var(--ide-text-muted)]">Full autonomous agent with sandbox environment</span>
+                      </div>
+                      {agentProvider === "claude-agent" && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <div className={`relative rounded-md ${topMode === "plan" ? "p-[1px]" : ""}`}

@@ -238,16 +238,19 @@ export function MobileDatabasePanel({ projectId, className }: MobileDatabasePane
   const { data: databaseInfo, isLoading: databaseInfoLoading, refetch: refetchDatabaseInfo } = useQuery<DatabaseInfo>({
     queryKey: ['/api/projects', projectId, 'database'],
     queryFn: async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
       try {
-        const response = await apiRequest('GET', `/api/projects/${projectId}/database/usage?env=development`);
-        return response;
-      } catch (error: any) {
-        if (error?.status === 404) {
-          return { provisioned: false };
-        }
-        throw error;
+        const res = await fetch(`/api/projects/${projectId}/database/usage?env=development`, { credentials: 'include', signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) return { provisioned: false };
+        return await res.json();
+      } catch {
+        clearTimeout(timeout);
+        return { provisioned: false };
       }
     },
+    retry: 1,
     staleTime: 30000,
     enabled: !!projectId
   });
@@ -387,9 +390,19 @@ export function MobileDatabasePanel({ projectId, className }: MobileDatabasePane
   const { data: tablesData, isLoading: tablesLoading, error: tablesError, refetch: refetchTables } = useQuery<ProjectDataTablesResponse>({
     queryKey: ['/api/projects', projectId, 'database', 'tables'],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/projects/${projectId}/database/tables?env=development`);
-      return response;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const res = await fetch(`/api/projects/${projectId}/database/tables?env=development`, { credentials: 'include', signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) return { tables: [], totalTables: 0, projectId, projectName: '' } as ProjectDataTablesResponse;
+        return await res.json();
+      } catch {
+        clearTimeout(timeout);
+        return { tables: [], totalTables: 0, projectId, projectName: '' } as ProjectDataTablesResponse;
+      }
     },
+    retry: 1,
     staleTime: 30000,
     enabled: activeTab === 'tables' || activeTab === 'data'
   });

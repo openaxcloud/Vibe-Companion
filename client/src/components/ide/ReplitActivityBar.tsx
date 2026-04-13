@@ -23,6 +23,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
+  Activity,
+  Plug,
+  History,
+  Cpu,
+  Globe,
+  Shield,
+  Users,
 } from 'lucide-react';
 
 export type ActivityItem = 
@@ -40,7 +47,15 @@ export type ActivityItem =
   | 'workflows'
   | 'extensions'
   | 'settings'
-  | 'history';
+  | 'history'
+  | 'monitoring'
+  | 'integrations'
+  | 'checkpoints'
+  | 'mcp'
+  | 'publishing'
+  | 'ssh'
+  | 'security-scanner'
+  | 'collaboration';
 
 interface ActivityBarItem {
   id: ActivityItem;
@@ -73,6 +88,13 @@ const defaultItems: ActivityBarItem[] = [
   { id: 'database', icon: Database, label: 'Database', separator: true },
   { id: 'preview', icon: Eye, label: 'Preview', shortcut: '⌘⇧P' },
   { id: 'workflows', icon: Zap, label: 'Workflows' },
+  { id: 'monitoring', icon: Activity, label: 'Monitoring' },
+  { id: 'integrations', icon: Plug, label: 'Integrations' },
+  { id: 'checkpoints', icon: History, label: 'Checkpoints' },
+  { id: 'mcp', icon: Cpu, label: 'MCP' },
+  { id: 'publishing', icon: Globe, label: 'Publishing', separator: true },
+  { id: 'collaboration', icon: Users, label: 'Collaboration' },
+  { id: 'security-scanner', icon: Shield, label: 'Security' },
 ];
 
 const bottomItems: ActivityBarItem[] = [

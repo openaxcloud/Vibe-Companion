@@ -5,7 +5,7 @@ import {
   Lock, Settings, History, Layers, Package, Bug, Shield,
   Users, Search, Workflow, Puzzle, X, Globe, MessageSquare,
   Server, Network, BookOpen, Key, Cpu, TestTube, Archive,
-  Wrench, Inbox, Github, Plug, Bot, Merge, Activity,
+  Wrench, Inbox, Github, Plug, Bot, Merge, Activity, Code,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -45,7 +45,7 @@ const iconMap: Record<string, ElementType> = {
   integrations: Plug, mcp: Cpu, 'merge-conflicts': Merge, monitoring: Activity,
   networking: Network, publishing: Globe, skills: BookOpen, ssh: Server,
   threads: MessageSquare, 'test-runner': TestTube, 'security-scanner': Shield,
-  backup: Archive, tasks: Layers,
+  backup: Archive, tasks: Layers, code: Code,
 };
 
 function getIcon(id: string): ElementType {

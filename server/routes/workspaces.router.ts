@@ -176,6 +176,93 @@ router.post('/:projectId', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/:projectId/status', async (req: Request, res: Response) => {
+  const projectId = req.params.projectId;
+  if (!projectId) return res.status(400).json({ error: 'Invalid projectId' });
+
+  const runnerMode = process.env.RUNNER_MODE || "local";
+  if (runnerMode === "local" || !runner.isRunnerConfigured()) {
+    return res.json({ status: 'running', localMode: true });
+  }
+
+  try {
+    const numericId = parseInt(projectId, 10);
+    if (isNaN(numericId)) return res.json({ status: 'none' });
+
+    const [existing] = await db
+      .select()
+      .from(runnerWorkspaces)
+      .where(eq(runnerWorkspaces.projectId, numericId))
+      .limit(1);
+
+    if (!existing) return res.json({ status: 'none' });
+    return res.json({ status: existing.status || 'running', workspaceId: existing.workspaceId });
+  } catch (err: any) {
+    logger.warn(`Workspace status error: ${err.message}`);
+    return res.json({ status: 'error' });
+  }
+});
+
+router.post('/:projectId/start', async (req: Request, res: Response) => {
+  const projectId = req.params.projectId;
+  if (!projectId) return res.status(400).json({ error: 'Invalid projectId' });
+
+  const runnerMode = process.env.RUNNER_MODE || "local";
+  if (runnerMode === "local" || !runner.isRunnerConfigured()) {
+    return res.json({ status: 'running', localMode: true });
+  }
+
+  try {
+    const numericId = parseInt(projectId, 10);
+    if (isNaN(numericId)) return res.json({ status: 'error', reason: 'Invalid project ID' });
+
+    const [existing] = await db
+      .select()
+      .from(runnerWorkspaces)
+      .where(eq(runnerWorkspaces.projectId, numericId))
+      .limit(1);
+
+    if (!existing) return res.json({ status: 'error', reason: 'No workspace found' });
+
+    await runner.startWorkspace(existing.workspaceId);
+    await db.update(runnerWorkspaces).set({ status: 'running' }).where(eq(runnerWorkspaces.projectId, numericId));
+    return res.json({ status: 'running', workspaceId: existing.workspaceId });
+  } catch (err: any) {
+    logger.warn(`Workspace start error: ${err.message}`);
+    return res.json({ status: 'running', localMode: true });
+  }
+});
+
+router.post('/:projectId/stop', async (req: Request, res: Response) => {
+  const projectId = req.params.projectId;
+  if (!projectId) return res.status(400).json({ error: 'Invalid projectId' });
+
+  const runnerMode = process.env.RUNNER_MODE || "local";
+  if (runnerMode === "local" || !runner.isRunnerConfigured()) {
+    return res.json({ status: 'stopped', localMode: true });
+  }
+
+  try {
+    const numericId = parseInt(projectId, 10);
+    if (isNaN(numericId)) return res.json({ status: 'error' });
+
+    const [existing] = await db
+      .select()
+      .from(runnerWorkspaces)
+      .where(eq(runnerWorkspaces.projectId, numericId))
+      .limit(1);
+
+    if (!existing) return res.json({ status: 'stopped' });
+
+    await runner.stopWorkspace(existing.workspaceId);
+    await db.update(runnerWorkspaces).set({ status: 'stopped' }).where(eq(runnerWorkspaces.projectId, numericId));
+    return res.json({ status: 'stopped', workspaceId: existing.workspaceId });
+  } catch (err: any) {
+    logger.warn(`Workspace stop error: ${err.message}`);
+    return res.json({ status: 'stopped' });
+  }
+});
+
 router.delete('/:projectId', async (req: Request, res: Response) => {
   const projectId = req.params.projectId;
   if (!projectId) return res.status(400).json({ error: 'Invalid projectId' });

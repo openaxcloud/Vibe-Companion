@@ -50,6 +50,7 @@ import { generateEcodeContent, getEcodeFilename, buildProjectStructureTree, dete
 import { addCollaborator, removeCollaborator, getCollaborators, updateActiveFile, broadcastToCollaborators, broadcastPresence, getOrCreateFileDoc, initializeFileDoc, getFileDocContent, broadcastBinaryToCollaborators, setFilePersister, type CollabMessage, Y } from "../collaboration";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
+import { centralUpgradeDispatcher } from "../websocket/central-upgrade-dispatcher";
 
 
 export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<void> {
@@ -110,15 +111,62 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
     return false;
   }
 
+  const fakeRes = () => {
+    const noop = () => {};
+    return { on: noop, once: noop, emit: noop, end: noop, write: noop, writeHead: noop, setHeader: noop, getHeader: () => undefined, removeHeader: noop, headersSent: false, statusCode: 200 } as any;
+  };
+
+  centralUpgradeDispatcher.register(
+    '/ws/project',
+    (request: any, socket: any, head: any) => {
+      log(`[ws-upgrade] /ws/project handler via central dispatcher`, "websocket");
+      sessionMiddleware(request, fakeRes(), (err?: any) => {
+        if (err) {
+          log(`[ws-upgrade] /ws/project session error: ${err.message}`, "websocket");
+          socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        const url = new URL(request.url || "/", `http://${request.headers.host}`);
+        const projectId = url.searchParams.get("projectId");
+        log(`[ws-upgrade] /ws/project session loaded userId=${request.session?.userId} projectId=${projectId}`, "websocket");
+        if (!request.session?.userId || !projectId) {
+          log(`[ws-upgrade] /ws/project 401 — no session or projectId`, "websocket");
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        storage.getProject(projectId).then(async (project: any) => {
+          if (!project || !(await canAccessProject(request.session.userId, project))) {
+            log(`[ws-upgrade] /ws/project 403 — project access denied`, "websocket");
+            socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+          log(`[ws-upgrade] /ws/project upgrading socket for project ${projectId}`, "websocket");
+          wss.handleUpgrade(request, socket, head, (ws: any) => {
+            wss.emit("connection", ws, request);
+          });
+        }).catch((e: any) => {
+          log(`[ws-upgrade] /ws/project error: ${e?.message}`, "websocket");
+          socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+          socket.destroy();
+        });
+      });
+    },
+    { pathMatch: 'exact', priority: 50 }
+  );
+
   httpServer.on("upgrade", (req: any, socket, head) => {
     const pathname = new URL(req.url || "/", `http://${req.headers.host}`).pathname;
+    log(`[ws-upgrade] path=${pathname} cookie=${!!req.headers.cookie}`, "websocket");
 
     // ── Preview proxy WebSocket (HMR, hot reload, etc.) ──────────────────────
     if (pathname.startsWith("/api/preview/")) {
       const previewMatch = pathname.match(/^\/api\/preview\/([^/]+)(\/.*)?$/);
       if (previewMatch) {
         const projectId = previewMatch[1];
-        sessionMiddleware(req, {} as any, () => {
+        sessionMiddleware(req, fakeRes(), () => {
           if (!req.session?.userId) {
             socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
             socket.destroy();
@@ -163,30 +211,42 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
     }
 
     if (pathname === "/ws") {
-      sessionMiddleware(req, {} as any, () => {
+      log(`[ws-upgrade] ${pathname} handler matched, running session middleware`, "websocket");
+      sessionMiddleware(req, fakeRes(), (err?: any) => {
+        if (err) {
+          log(`[ws-upgrade] /ws session error: ${err.message}`, "websocket");
+          socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+          socket.destroy();
+          return;
+        }
         const url = new URL(req.url || "/", `http://${req.headers.host}`);
         const projectId = url.searchParams.get("projectId");
+        log(`[ws-upgrade] /ws session loaded userId=${req.session?.userId} projectId=${projectId}`, "websocket");
         if (!req.session?.userId || !projectId) {
+          log(`[ws-upgrade] /ws 401 — no session or projectId`, "websocket");
           socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
           socket.destroy();
           return;
         }
         storage.getProject(projectId).then(async (project) => {
           if (!project || !(await canAccessProject(req.session.userId, project))) {
+            log(`[ws-upgrade] /ws 403 — project access denied`, "websocket");
             socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
             socket.destroy();
             return;
           }
+          log(`[ws-upgrade] /ws upgrading socket for project ${projectId}`, "websocket");
           wss.handleUpgrade(req, socket, head, (ws) => {
             wss.emit("connection", ws, req);
           });
-        }).catch(() => {
+        }).catch((e) => {
+          log(`[ws-upgrade] /ws error: ${e?.message}`, "websocket");
           socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
           socket.destroy();
         });
       });
     } else if (pathname === "/ws/terminal") {
-      sessionMiddleware(req, {} as any, () => {
+      sessionMiddleware(req, fakeRes(), () => {
         const url = new URL(req.url || "/", `http://${req.headers.host}`);
         const projectId = url.searchParams.get("projectId");
         if (!req.session?.userId || !projectId) {
@@ -209,7 +269,7 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
         });
       });
     } else if (pathname === "/ws/collab") {
-      sessionMiddleware(req, {} as any, () => {
+      sessionMiddleware(req, fakeRes(), () => {
         const url = new URL(req.url || "/", `http://${req.headers.host}`);
         const projectId = url.searchParams.get("projectId");
         if (!req.session?.userId || !projectId) {
@@ -234,7 +294,7 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
         });
       });
     } else if (pathname === "/ws/lsp") {
-      sessionMiddleware(req, {} as any, () => {
+      sessionMiddleware(req, fakeRes(), () => {
         const url = new URL(req.url || "/", `http://${req.headers.host}`);
         const projectId = url.searchParams.get("projectId");
         if (!req.session?.userId || !projectId) {
@@ -257,7 +317,7 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
         });
       });
     } else if (pathname === "/ws/debugger") {
-      sessionMiddleware(req, {} as any, () => {
+      sessionMiddleware(req, fakeRes(), () => {
         const url = new URL(req.url || "/", `http://${req.headers.host}`);
         const projectId = url.searchParams.get("projectId");
         if (!req.session?.userId || !projectId) {

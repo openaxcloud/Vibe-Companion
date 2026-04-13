@@ -1,10 +1,11 @@
-let pty: any = null;
-try { pty = require("node-pty"); } catch { /* node-pty not available, using child_process fallback */ }
 import * as fs from "fs";
 import * as path from "path";
 import { spawn, type ChildProcess } from "child_process";
 import { EventEmitter } from "events";
 import { log } from "./index";
+
+const MAX_RETRY = 3;
+const CRASH_WINDOW_MS = 2000;
 
 interface IPtyLike {
   pid: number;
@@ -16,29 +17,86 @@ interface IPtyLike {
 }
 
 class ChildProcessPty extends EventEmitter implements IPtyLike {
-  private proc: ChildProcess;
-  pid: number;
+  private proc: ChildProcess | null = null;
+  private _killed = false;
+  private _stopped = false;
+  private retryCount = 0;
+  private spawnTime = 0;
+  pid: number = 0;
+  private shell: string;
+  private args: string[];
+  private opts: { cwd: string; env: Record<string, string>; cols: number; rows: number };
 
   constructor(shell: string, args: string[], opts: { cwd: string; env: Record<string, string>; cols?: number; rows?: number }) {
     super();
-    this.proc = spawn(shell, args, {
+    this.shell = shell;
+    this.args = args;
+    this.opts = {
       cwd: opts.cwd,
-      env: { ...opts.env, COLUMNS: String(opts.cols || 80), LINES: String(opts.rows || 24) },
-      stdio: ["pipe", "pipe", "pipe"],
-      shell: false,
-    });
+      env: opts.env,
+      cols: opts.cols || 80,
+      rows: opts.rows || 24,
+    };
+    this.spawnChild();
+  }
+
+  private spawnChild() {
+    if (this._killed || this._stopped) return;
+
+    this.spawnTime = Date.now();
+
+    try {
+      this.proc = spawn(this.shell, this.args, {
+        cwd: this.opts.cwd,
+        env: { ...this.opts.env, COLUMNS: String(this.opts.cols), LINES: String(this.opts.rows) },
+        stdio: ["pipe", "pipe", "pipe"],
+        shell: false,
+      });
+    } catch (err: any) {
+      log(`[terminal] spawn failed: ${err.message}`, "terminal");
+      this.emit("data", `\r\n\x1b[31mShell spawn failed: ${err.message}\x1b[0m\r\n`);
+      this._stopped = true;
+      this.emit("exit", { exitCode: 1 });
+      return;
+    }
+
     this.pid = this.proc.pid || 0;
+    log(`[terminal] bash spawned pid=${this.pid} retry=${this.retryCount}`, "terminal");
 
     this.proc.stdout?.setEncoding("utf-8");
     this.proc.stderr?.setEncoding("utf-8");
     this.proc.stdout?.on("data", (data: string) => this.emit("data", data));
     this.proc.stderr?.on("data", (data: string) => this.emit("data", data));
+
     this.proc.on("exit", (code, signal) => {
-      this.emit("exit", { exitCode: code ?? 0, signal: signal ? 1 : undefined });
+      if (this._killed) {
+        this.emit("exit", { exitCode: code ?? 0, signal: signal ? 1 : undefined });
+        return;
+      }
+
+      const uptime = Date.now() - this.spawnTime;
+      const isCrash = uptime < CRASH_WINDOW_MS;
+
+      if (isCrash && this.retryCount < MAX_RETRY) {
+        this.retryCount++;
+        const delay = this.retryCount * 500;
+        log(`[terminal] bash exited after ${uptime}ms (crash), retry ${this.retryCount}/${MAX_RETRY} in ${delay}ms`, "terminal");
+        this.emit("data", `\r\n\x1b[33m[terminal] Shell restarting (${this.retryCount}/${MAX_RETRY})...\x1b[0m\r\n`);
+        setTimeout(() => this.spawnChild(), delay);
+      } else if (isCrash) {
+        log(`[terminal] bash crashed ${MAX_RETRY} times, stopped`, "terminal");
+        this.emit("data", `\r\n\x1b[31m[terminal] Shell crashed ${MAX_RETRY} times. Session stopped.\x1b[0m\r\n`);
+        this._stopped = true;
+        this.emit("exit", { exitCode: code ?? 1 });
+      } else {
+        this.retryCount = 0;
+        this.emit("exit", { exitCode: code ?? 0, signal: signal ? 1 : undefined });
+      }
     });
+
     this.proc.on("error", (err) => {
+      log(`[terminal] process error: ${err.message}`, "terminal");
       this.emit("data", `\r\n\x1b[31mShell error: ${err.message}\x1b[0m\r\n`);
-      this.emit("exit", { exitCode: 1 });
     });
   }
 
@@ -54,16 +112,22 @@ class ChildProcessPty extends EventEmitter implements IPtyLike {
 
   write(data: string) {
     try {
-      this.proc.stdin?.write(data);
+      if (this.proc && !this._killed && !this._stopped && this.proc.stdin?.writable) {
+        this.proc.stdin.write(data);
+      }
     } catch {}
   }
 
-  resize(_cols: number, _rows: number) {
+  resize(cols: number, rows: number) {
+    this.opts.cols = cols;
+    this.opts.rows = rows;
   }
 
   kill(signal?: string) {
+    this._killed = true;
+    this._stopped = true;
     try {
-      this.proc.kill(signal as NodeJS.Signals || "SIGTERM");
+      this.proc?.kill(signal as NodeJS.Signals || "SIGTERM");
     } catch {}
   }
 }
@@ -175,19 +239,13 @@ function sessionKey(projectId: string, userId: string, sessionId: string): strin
 }
 
 function spawnTerminal(shell: string, workspaceDir: string, safeEnv: Record<string, string>): IPtyLike {
-  if (pty) {
-    return pty.spawn(shell, [], {
-      name: "xterm-256color",
-      cols: 80,
-      rows: 24,
-      cwd: workspaceDir,
-      env: safeEnv,
-    });
-  }
-  log("node-pty not available, using child_process fallback for terminal", "terminal");
-  return new ChildProcessPty(shell, ["-i"], {
+  return new ChildProcessPty(shell, ["--login"], {
     cwd: workspaceDir,
-    env: safeEnv,
+    env: {
+      ...safeEnv,
+      PS1: "\\[\\033[01;32m\\]\\u@ecode\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ ",
+      BASH_SILENCE_DEPRECATION_WARNING: "1",
+    },
     cols: 80,
     rows: 24,
   });

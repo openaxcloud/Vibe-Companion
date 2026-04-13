@@ -80,9 +80,30 @@ router.delete('/:projectId/networking/ports/:id', ensureAuthenticated, async (re
 
 router.post('/:projectId/networking/ports/scan', ensureAuthenticated, async (req: Request, res: Response) => {
   try {
-    // Stub definition for auto port scanning
-    // In a real environment, this would run netstat/lsof inside the container
-    res.json({ success: true, message: 'Scan complete' });
+    const projectId = req.params.projectId;
+    const { autoDetectPorts, probePort } = await import('../portDetection');
+
+    const results: Array<{ port: number; listening: boolean }> = [];
+    const PORTS_TO_SCAN = [3000, 3001, 3002, 3003, 4200, 5000, 5173, 6000, 6800, 8000, 8008, 8080, 8081];
+
+    const probes = PORTS_TO_SCAN.map(async (port) => {
+      const listening = await probePort(port, '127.0.0.1');
+      results.push({ port, listening });
+    });
+    await Promise.all(probes);
+
+    try {
+      await autoDetectPorts(projectId);
+    } catch (e: any) {
+      logger.warn('autoDetectPorts partial failure (non-fatal):', e.message);
+    }
+
+    const listeningPorts = results.filter(r => r.listening);
+    res.json({
+      success: true,
+      message: `Scan complete — ${listeningPorts.length} port(s) listening`,
+      ports: results.sort((a, b) => a.port - b.port),
+    });
   } catch (error: any) {
     logger.error('Failed to scan ports', error);
     res.status(500).json({ error: error.message });

@@ -72,8 +72,8 @@ export function useIDEWorkspace(projectId: string) {
   // ═══════════════════════════════════════════════
   // CORE STATE
   // ═══════════════════════════════════════════════
-  const [openTabs, setOpenTabs] = useState<string[]>([]);
-  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const [openTabs, setOpenTabs] = useState<string[]>(['preview']);
+  const [activeFileId, setActiveFileId] = useState<string | null>('preview');
   const [fileContents, setFileContents] = useState<Record<string, string>>({});
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   const [isRunning, setIsRunning] = useState(false);
@@ -374,6 +374,35 @@ export function useIDEWorkspace(projectId: string) {
       }
       if (msg.type === 'deploy_status') {
         queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'deployments'] });
+      }
+      if (msg.type?.startsWith('claude_agent:file_created') || msg.type?.startsWith('claude_agent:file_updated')) {
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'files'] });
+        const fileName = (msg as any).data?.name;
+        if (fileName) {
+          setFileContents(prev => {
+            if ((msg as any).data?.content) {
+              return { ...prev, [fileName]: (msg as any).data.content };
+            }
+            return prev;
+          });
+        }
+      }
+      if (msg.type === 'claude_agent:preview_refresh') {
+        queryClient.invalidateQueries({ queryKey: [`/api/preview/projects/${projectId}`] });
+      }
+      if (msg.type === 'claude_agent:packages_refresh') {
+        queryClient.invalidateQueries({ queryKey: [`/api/packages`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/packages`] });
+      }
+      if (msg.type === 'claude_agent:database_refresh') {
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/database`] });
+      }
+      if (msg.type === 'claude_agent:terminal_command' || msg.type === 'claude_agent:terminal_output') {
+        const text = (msg as any).data?.command || (msg as any).data?.output || '';
+        if (text) {
+          setLogs(prev => [...prev, { id: Date.now() + Math.random(), text, type: 'info' }]);
+        }
       }
     }
   }, [messages, projectId, queryClient]);
@@ -730,6 +759,14 @@ export function useIDEWorkspace(projectId: string) {
     }
   }, [workspaceStatusQuery.data]);
 
+  useEffect(() => {
+    if (wsStatus !== 'starting') return;
+    const timeout = setTimeout(() => {
+      setWsStatus((prev) => prev === 'starting' ? 'stopped' : prev);
+    }, 30000);
+    return () => clearTimeout(timeout);
+  }, [wsStatus]);
+
   const initWorkspaceMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('POST', `/api/workspaces/${projectId}`);
@@ -917,6 +954,15 @@ export function useIDEWorkspace(projectId: string) {
       localStorage.setItem(`workspace-mode-${projectId}`, workspaceMode);
     } catch {}
   }, [workspaceMode, projectId]);
+
+  useEffect(() => {
+    if (!activeFileId || !filesQuery.data) return;
+    if (fileContents[activeFileId] !== undefined) return;
+    const file = filesQuery.data.find(f => String(f.id) === activeFileId);
+    if (file) {
+      setFileContents(prev => ({ ...prev, [activeFileId]: file.content ?? '' }));
+    }
+  }, [activeFileId, filesQuery.data]);
 
   // ═══════════════════════════════════════════════
   // TAB MANAGEMENT

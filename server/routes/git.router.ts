@@ -123,12 +123,17 @@ async function initGitRepo(): Promise<void> {
   }
 }
 
+async function ensureGitRepoOrInit(): Promise<void> {
+  const isRepo = await ensureGitRepo();
+  if (!isRepo) {
+    logger.info('[Git] Repository not initialized, auto-initializing...');
+    await initGitRepo();
+  }
+}
+
 router.get('/status', ensureAuthenticated, async (req: Request, res: Response) => {
   try {
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      await initGitRepo();
-    }
+    await ensureGitRepoOrInit();
 
     const [branchResult, statusResult, aheadBehind] = await Promise.all([
       execa('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: PROJECT_ROOT }),
@@ -186,10 +191,7 @@ router.get('/diff/{*filePath}', ensureAuthenticated, async (req: Request, res: R
       return res.status(400).json({ error: validation.error });
     }
 
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
 
     const args = staged === 'true' 
       ? ['diff', '--cached', '--', filePath]
@@ -282,10 +284,7 @@ router.post('/stage', ensureAuthenticated, csrfProtection, async (req: Request, 
       return res.status(400).json({ error: validation.error });
     }
 
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
 
     // SECURITY: Use '--' to separate options from file paths to prevent option injection
     await execa('git', ['add', '--', ...validation.validatedFiles], { cwd: PROJECT_ROOT });
@@ -311,10 +310,7 @@ router.post('/unstage', ensureAuthenticated, csrfProtection, async (req: Request
       return res.status(400).json({ error: validation.error });
     }
 
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
 
     // SECURITY: Use '--' to separate options from file paths to prevent option injection
     await execa('git', ['reset', 'HEAD', '--', ...validation.validatedFiles], { cwd: PROJECT_ROOT });
@@ -334,10 +330,7 @@ router.post('/commit', ensureAuthenticated, csrfProtection, async (req: Request,
       return res.status(400).json({ error: 'Commit message required' });
     }
 
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
 
     const { stdout: statusCheck } = await execa('git', ['diff', '--cached', '--name-only'], { cwd: PROJECT_ROOT });
     if (!statusCheck.trim()) {
@@ -360,10 +353,7 @@ router.post('/push', ensureAuthenticated, csrfProtection, async (req: Request, r
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
 
     const { stdout: remoteCheck } = await execa('git', ['remote', 'get-url', 'origin'], { 
       cwd: PROJECT_ROOT, 
@@ -432,10 +422,7 @@ router.post('/pull', ensureAuthenticated, csrfProtection, async (req: Request, r
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
 
     const { stdout: remoteCheck } = await execa('git', ['remote', 'get-url', 'origin'], { 
       cwd: PROJECT_ROOT, 
@@ -504,10 +491,7 @@ router.post('/fetch', ensureAuthenticated, csrfProtection, async (req: Request, 
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
 
     const { stdout: remoteCheck } = await execa('git', ['remote', 'get-url', 'origin'], { 
       cwd: PROJECT_ROOT, 
@@ -676,10 +660,7 @@ async function parseBranchInfo(branchLine: string, currentBranch: string): Promi
 
 router.get('/branches', ensureAuthenticated, async (req: Request, res: Response) => {
   try {
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      await initGitRepo();
-    }
+    await ensureGitRepoOrInit();
 
     const { stdout: currentBranch } = await execa('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: PROJECT_ROOT });
     
@@ -717,10 +698,7 @@ router.post('/branches', ensureAuthenticated, csrfProtection, async (req: Reques
       return res.status(400).json({ error: 'Invalid branch name' });
     }
     
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
     
     const args = ['checkout', '-b', name];
     if (startPoint) {
@@ -745,10 +723,7 @@ router.delete('/branches/{*name}', ensureAuthenticated, csrfProtection, async (r
       return res.status(400).json({ error: 'Branch name required' });
     }
     
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
     
     const { stdout: currentBranch } = await execa('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: PROJECT_ROOT });
     if (name === currentBranch.trim()) {
@@ -773,10 +748,7 @@ router.post('/checkout', ensureAuthenticated, csrfProtection, async (req: Reques
       return res.status(400).json({ error: 'Branch name required' });
     }
     
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
     
     await execa('git', ['checkout', branch], { cwd: PROJECT_ROOT });
     
@@ -795,10 +767,7 @@ router.post('/merge', ensureAuthenticated, csrfProtection, async (req: Request, 
       return res.status(400).json({ error: 'Branch name required' });
     }
     
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
     
     const args = ['merge', branch];
     if (message) {
@@ -825,10 +794,7 @@ router.get('/log', ensureAuthenticated, async (req: Request, res: Response) => {
   try {
     const { limit = '100', branch, stream } = req.query;
     
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
 
     const limitNum = Math.min(parseInt(limit as string, 10) || 100, 1000);
     const args = ['log', '--format=%H|%s|%an|%aI', `-n`, `${limitNum}`];
@@ -913,10 +879,7 @@ router.get('/log/stream', ensureAuthenticated, async (req: Request, res: Respons
   try {
     const { limit = '100', branch } = req.query;
     
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
 
     const limitNum = Math.min(parseInt(limit as string, 10) || 100, 1000);
     const args = ['log', '--format=%H|%s|%an|%aI', `-n`, `${limitNum}`];
@@ -977,10 +940,7 @@ router.get('/diff/stream/{*filePath}', ensureAuthenticated, async (req: Request,
       return res.status(400).json({ error: validation.error });
     }
 
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
 
     const args = staged === 'true' 
       ? ['diff', '--cached', '--', filePath]
@@ -1030,10 +990,7 @@ router.get('/diff/stream/{*filePath}', ensureAuthenticated, async (req: Request,
 
 router.get('/remotes', ensureAuthenticated, async (req: Request, res: Response) => {
   try {
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
     
     const { stdout } = await execa('git', ['remote', '-v'], { cwd: PROJECT_ROOT });
     
@@ -1064,10 +1021,7 @@ router.post('/remotes', ensureAuthenticated, csrfProtection, async (req: Request
       return res.status(400).json({ error: 'Remote name and URL required' });
     }
     
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
     
     await execa('git', ['remote', 'add', name, url], { cwd: PROJECT_ROOT });
     
@@ -1103,10 +1057,7 @@ router.get('/blame/{*filePath}', ensureAuthenticated, async (req: Request, res: 
       return res.status(400).json({ error: validation.error });
     }
     
-    const isRepo = await ensureGitRepo();
-    if (!isRepo) {
-      return res.status(400).json({ error: 'Not a git repository' });
-    }
+    await ensureGitRepoOrInit();
     
     const fullPath = path.join(PROJECT_ROOT, filePath);
     

@@ -1298,7 +1298,7 @@ Any closing remarks...`;
       const outputTokens = result.usage?.completion_tokens || 0;
       const completeTokenCredits = calculateTokenCredits("gpt-4o-mini", inputTokens, outputTokens);
       const completeEstCost = completeTokenCredits;
-      const effectiveCompleteCredMode = completeByokNoKey ? "managed" : completeCredMode;
+      const effectiveCompleteCredMode = completeCredMode;
       if (effectiveCompleteCredMode === "managed") {
         storage.deductMonthlyCreditsFromRoute(req.session.userId!, completeTokenCredits, "ai-complete", "gpt-4o-mini").catch(() => {});
       }
@@ -1708,7 +1708,7 @@ Rules:
 
       const chatPricing = getProviderPricing(actualProvider);
       const chatEstimatedCost = Math.round((chatInputTokens * chatPricing.input / 1000 + chatOutputTokens * chatPricing.output / 1000) * 100);
-      const effectiveChatCredMode = chatByokNoKey ? "managed" : chatCredMode;
+      const effectiveChatCredMode = chatCredMode;
       const chatLoggedModel = usedFallback ? actualModelId : (selectedModel === "openrouter" ? "openai/gpt-4o" : modelId);
       if (effectiveChatCredMode === "managed") {
         const chatTokenCredits = Math.max(1, chatEstimatedCost);
@@ -4013,7 +4013,7 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
       const agentEstInputTokens = Math.ceil(JSON.stringify(messages).length / 4);
       const agentEstOutputTokens = agentModifiedFiles.size * 200;
       const agentEstCost = Math.round((agentEstInputTokens * agentPriceEntry.input / 1000 + agentEstOutputTokens * agentPriceEntry.output / 1000) * 100);
-      const effectiveAgentCredMode = agentByokNoKey ? "managed" : agentCredMode;
+      const effectiveAgentCredMode = agentCredMode;
       if (effectiveAgentCredMode === "managed") {
         const agentTokenCredits = Math.max(1, agentEstCost);
         storage.deductMonthlyCreditsFromRoute(req.session.userId!, agentTokenCredits, "ai-agent", agentModelId).catch(() => {});
@@ -4442,7 +4442,7 @@ DESIGN QUALITY (for web projects):
       const liteEstInputTokens = Math.ceil(JSON.stringify(messages).length / 4);
       const liteEstOutputTokens = liteModifiedFiles.size * 150;
       const liteEstCost = Math.round((liteEstInputTokens * litePriceEntry.input / 1000 + liteEstOutputTokens * litePriceEntry.output / 1000) * 100);
-      const effectiveLiteCredMode = liteByokNoKey ? "managed" : liteCredMode;
+      const effectiveLiteCredMode = liteCredMode;
       if (effectiveLiteCredMode === "managed") {
         const liteTokenCredits = Math.max(1, liteEstCost);
         storage.deductMonthlyCreditsFromRoute(req.session.userId!, liteTokenCredits, "ai-lite", requestedModel || "claude-sonnet-4-6").catch(() => {});

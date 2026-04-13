@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Restaurant website with online menu, res — E-Code</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23F26522'/><text x='16' y='23' font-family='sans-serif' font-size='20' font-weight='bold' fill='white' text-anchor='middle'>E</text></svg>">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0E1525; color: #F5F9FC; min-height: 100vh; display: flex; flex-direction: column; }
+    .header { padding: 16px 24px; border-bottom: 1px solid #2B3245; display: flex; align-items: center; gap: 12px; background: #1C2333; }
+    .logo { width: 28px; height: 28px; border-radius: 6px; background: #F26522; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; color: white; }
+    .title { font-size: 14px; font-weight: 600; }
+    .badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; background: #3178C620; color: #3178C6; border: 1px solid #3178C640; font-weight: 600; text-transform: uppercase; }
+    .live-badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; background: #0CCE6B20; color: #0CCE6B; border: 1px solid #0CCE6B40; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #0CCE6B; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; }
+    .card { background: #1C2333; border: 1px solid #2B3245; border-radius: 16px; padding: 40px; max-width: 480px; width: 100%; text-align: center; }
+    .card h2 { font-size: 20px; margin-bottom: 8px; }
+    .card p { font-size: 13px; color: #9DA2B0; margin-bottom: 24px; line-height: 1.6; }
+    .files { text-align: left; background: #0E1525; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; }
+    .file { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #9DA2B0; padding: 4px 0; display: flex; align-items: center; gap: 8px; }
+    .file-icon { width: 14px; height: 14px; border-radius: 3px; background: #3178C6; display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: bold; color: white; flex-shrink: 0; }
+    .powered { font-size: 11px; color: #4A5068; margin-top: 24px; }
+    .powered a { color: #0079F2; text-decoration: none; }
+    .footer { padding: 12px 24px; border-top: 1px solid #2B3245; text-align: center; font-size: 11px; color: #4A5068; background: #1C2333; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">E</div>
+    <span class="title">Restaurant website with online menu, res</span>
+    <span class="badge">typescript</span>
+    <span class="live-badge"><span class="live-dot"></span> Live</span>
+  </div>
+  <div class="content">
+    <div class="card">
+      <h2>Restaurant website with online menu, res</h2>
+      <p>This typescript application has been deployed with E-Code. The source code is available for viewing.</p>
+      <div class="files">
+        <div class="file"><div class="file-icon">&lt;&gt;</div> index.ts</div>
+      </div>
+      <div class="powered">Deployed with <a href="/">E-Code</a></div>
+    </div>
+  </div>
+  <div class="footer">© 2026 E-Code — Cloud IDE & Deployment Platform</div>
+</body>
+</html>

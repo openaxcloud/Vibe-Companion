@@ -846,6 +846,55 @@ export async function registerSecurityScannerRoutes(app: Express, ctx: any): Pro
       const packageLock = projectFiles.find(f => f.filename === "package-lock.json");
       if (packageJson) {
         findings.push(...scanNodeDeps(packageJson, packageLock));
+
+        const wsDir = path.join(process.cwd(), 'project-workspaces', String(projectId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+        try {
+          const fsMod = await import("fs");
+          if (fsMod.existsSync(path.join(wsDir, 'package.json'))) {
+            const { spawn } = await import("child_process");
+            const auditFindings = await new Promise<FindingEntry[]>((resolve) => {
+              let stdout = '';
+              const child = spawn('npm', ['audit', '--json', '--production'], { cwd: wsDir, shell: false, env: { ...process.env, HOME: wsDir } });
+              const timer = setTimeout(() => { child.kill('SIGTERM'); resolve([]); }, 30000);
+              child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+              child.on('close', () => {
+                clearTimeout(timer);
+                try {
+                  const audit = JSON.parse(stdout);
+                  const results: FindingEntry[] = [];
+                  const vulns = audit.vulnerabilities || {};
+                  for (const [pkgName, info] of Object.entries(vulns) as [string, any][]) {
+                    const sev = info.severity || 'medium';
+                    const via = Array.isArray(info.via) ? info.via.filter((v: any) => typeof v === 'object') : [];
+                    const firstCve = via[0]?.url || '';
+                    const desc = via[0]?.title || `Vulnerability in ${pkgName}`;
+                    const isDirect = info.isDirect || false;
+                    const existing = findings.find(f => f.title.includes(pkgName) && f.category === 'dependency');
+                    if (!existing) {
+                      results.push({
+                        severity: sev,
+                        title: `npm audit: ${pkgName}@${info.range || 'unknown'}`,
+                        description: `${desc}${firstCve ? ` (${firstCve})` : ''}. ${isDirect ? 'Direct dependency.' : 'Transitive dependency.'}`,
+                        file: 'package.json',
+                        line: null,
+                        code: `${pkgName}: ${info.range || 'unknown'} → fix: ${info.fixAvailable ? JSON.stringify(info.fixAvailable).slice(0, 100) : 'no fix available'}`,
+                        suggestion: info.fixAvailable ? `Run: npm audit fix` : `Review and manually update ${pkgName}.`,
+                        category: 'dependency',
+                        isDirect,
+                      });
+                    }
+                  }
+                  resolve(results);
+                } catch { resolve([]); }
+              });
+              child.on('error', () => { clearTimeout(timer); resolve([]); });
+            });
+            findings.push(...auditFindings);
+            log(`npm audit found ${auditFindings.length} additional vulnerabilities for project ${projectId}`, "security");
+          }
+        } catch (auditErr: any) {
+          log(`npm audit skipped: ${auditErr.message}`, "security");
+        }
       }
 
       const requirementsTxt = projectFiles.find(f => f.filename === "requirements.txt" || f.filename === "Pipfile");
