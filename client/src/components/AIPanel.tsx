@@ -3401,264 +3401,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
   return (
     <div className="flex flex-col h-full bg-[var(--ide-panel)]">
-      <div className="flex items-center justify-between px-3 min-h-10 py-1.5 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0 gap-x-1 gap-y-1 flex-wrap">
-        <div className="flex items-center gap-1 flex-wrap min-w-0">
-          {projectId && (
-            ecodeStatus.exists ? (
-              <div className="flex items-center gap-0.5" data-testid="ecode-controls">
-                <button
-                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-l bg-[#0CCE6B]/10 text-[#0CCE6B] hover:bg-[#0CCE6B]/20 transition-all whitespace-nowrap"
-                  onClick={() => {
-                    if (ecodeStatus.fileId && files) {
-                      const f = files.find(f => f.filename === "ecode.md");
-                      if (f) onApplyCode?.("ecode.md", f.content);
-                    }
-                  }}
-                  title={ecodeLastUpdated ? `ecode.md — auto-synced ${new Date(ecodeLastUpdated).toLocaleTimeString()}` : "ecode.md is active — click to open"}
-                  data-testid="badge-ecode-active"
-                >
-                  <FileText className="w-2.5 h-2.5" />
-                  ecode.md
-                  {ecodeLastUpdated && <span className="text-[8px] opacity-60 ml-0.5">synced</span>}
-                </button>
-                <button
-                  className="flex items-center text-[10px] px-1 py-0.5 rounded-r bg-[#0CCE6B]/10 text-[#0CCE6B] hover:bg-[#0CCE6B]/20 transition-all border-l border-[#0CCE6B]/20"
-                  onClick={handleRefreshEcode}
-                  disabled={ecodeRefreshing}
-                  title="Refresh project structure & dependencies in ecode.md"
-                  data-testid="button-ecode-refresh"
-                >
-                  <RefreshCw className={`w-2.5 h-2.5 ${ecodeRefreshing ? "animate-spin" : ""}`} />
-                </button>
-              </div>
-            ) : (
-              <button
-                className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 hover:opacity-80 transition-opacity"
-                onClick={handleGenerateEcode}
-                disabled={ecodeGenerating}
-                title="Generate ecode.md project guidelines"
-                data-testid="button-ecode-generate"
-              >
-                {ecodeGenerating ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <FilePlus className="w-2.5 h-2.5" />}
-                {ecodeGenerating ? "Generating..." : "Generate ecode.md"}
-              </button>
-            )
-          )}
-          {projectId && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium hover:opacity-80 transition-opacity whitespace-nowrap"
-                  style={{ color: TOP_AGENT_MODE_LABELS[topAgentMode].color, backgroundColor: `${TOP_AGENT_MODE_LABELS[topAgentMode].color}15` }}
-                  data-testid="button-agent-mode-select"
-                >
-                  {(() => { const ModeIcon = TOP_AGENT_MODE_LABELS[topAgentMode].icon; return <ModeIcon className="w-2.5 h-2.5" />; })()}
-                  {TOP_AGENT_MODE_LABELS[topAgentMode].name}
-                  {topAgentMode === "autonomous" && <span className="text-[9px] opacity-60">({AUTONOMOUS_TIER_LABELS[autonomousTier].name})</span>}
-                  <ChevronDown className="w-2.5 h-2.5 opacity-60" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 p-0 bg-[var(--ide-panel)] border-[var(--ide-border)]">
-                <div className="px-3 py-2 border-b border-[var(--ide-border)]">
-                  <span className="text-[11px] font-semibold text-[var(--ide-text)]">Agent Mode</span>
-                </div>
-                <div className="p-2 space-y-1">
-                  {(["lite", "autonomous", "max"] as TopAgentMode[]).map((m) => {
-                    const cfg = TOP_AGENT_MODE_LABELS[m];
-                    const MIcon = cfg.icon;
-                    const isActive = topAgentMode === m;
-                    return (
-                      <button
-                        key={m}
-                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all ${
-                          isActive ? "ring-1" : "hover:bg-[var(--ide-surface)]"
-                        }`}
-                        style={isActive ? { backgroundColor: `${cfg.color}10`, borderColor: `${cfg.color}30`, ringColor: `${cfg.color}30` } as React.CSSProperties : {}}
-                        onClick={() => handleTopAgentModeChange(m)}
-                        data-testid={`agent-mode-${m}`}
-                      >
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${cfg.color}15` }}>
-                          <MIcon className="w-3.5 h-3.5" style={{ color: cfg.color }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[11px] font-medium text-[var(--ide-text)]">{cfg.name}</div>
-                          <div className="text-[9px] text-[var(--ide-text-muted)]">{cfg.description}</div>
-                        </div>
-                        {isActive && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: cfg.color }} />}
-                      </button>
-                    );
-                  })}
-                </div>
-                {topAgentMode === "autonomous" && (
-                  <>
-                    <div className="px-3 py-1.5 border-t border-[var(--ide-border)]">
-                      <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Tier</span>
-                    </div>
-                    <div className="px-2 pb-2 flex gap-1">
-                      {(["economy", "power"] as AutonomousTier[]).map((tier) => {
-                        const tcfg = AUTONOMOUS_TIER_LABELS[tier];
-                        const isTierActive = autonomousTier === tier && !agentToolsConfig.turbo;
-                        return (
-                          <button
-                            key={tier}
-                            className={`flex-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all text-center ${
-                              isTierActive
-                                ? "bg-[var(--ide-surface)] text-[var(--ide-text)] ring-1 ring-[var(--ide-border)] shadow-sm"
-                                : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50"
-                            }`}
-                            onClick={() => handleAutonomousTierChange(tier)}
-                            data-testid={`tier-${tier}`}
-                          >
-                            <span style={isTierActive ? { color: tcfg.color } : {}}>{tcfg.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-                <div className="px-3 py-1.5 border-t border-[var(--ide-border)]">
-                  <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Switches</span>
-                </div>
-                <div className="px-2 pb-2 space-y-0.5">
-                  {[
-                    { key: "turbo" as const, label: "Turbo", desc: "Prioritize speed", icon: Zap, color: "#F59E0B", disabled: topAgentMode === "lite" },
-                    { key: "appTesting" as const, label: "App Testing", desc: "Validate after changes", icon: FlaskConical, color: "#0CCE6B", disabled: topAgentMode === "lite" },
-                    { key: "codeOptimizations" as const, label: "Code Optimizations", desc: "Auto-review code", icon: Gauge, color: "#0CCE6B", disabled: topAgentMode === "lite" },
-                  ].map((sw) => {
-                    const isOn = sw.key === "turbo" ? agentToolsConfig.turbo
-                      : sw.key === "codeOptimizations" ? codeOptimizations
-                      : agentToolsConfig[sw.key];
-                    return (
-                      <button
-                        key={sw.key}
-                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all ${
-                          sw.disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--ide-surface)] cursor-pointer"
-                        }`}
-                        onClick={() => {
-                          if (sw.disabled) return;
-                          if (sw.key === "turbo") handleTurboToggle();
-                          else if (sw.key === "codeOptimizations") toggleCodeOptimizations();
-                          else updateAgentToolsConfig({ [sw.key]: !agentToolsConfig[sw.key] });
-                        }}
-                        data-testid={`toggle-switch-${sw.key}`}
-                      >
-                        <sw.icon className="w-3 h-3 shrink-0" style={{ color: sw.color }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-medium text-[var(--ide-text)]">{sw.label}</div>
-                        </div>
-                        <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
-                          isOn && !sw.disabled ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
-                        }`}>
-                          <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-900 mx-0.5 shadow-sm" />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
-
-          {projectId && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  className="w-7 h-7 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all mr-0.5"
-                  title="Agent Tools"
-                  data-testid="button-agent-tools"
-                >
-                  <Settings2 className="w-3.5 h-3.5" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 p-0 bg-[var(--ide-panel)] border-[var(--ide-border)]">
-                <div className="px-3 py-2 border-b border-[var(--ide-border)]">
-                  <span className="text-[11px] font-semibold text-[var(--ide-text)]">Agent Tools</span>
-                </div>
-                <div className="p-2 space-y-1">
-                  {[
-                    { key: "webSearch" as const, label: "Web Search", desc: "Search-informed answers", icon: Globe, color: "#0079F2" },
-                    { key: "architect" as const, label: "Architect", desc: "Architecture analysis", icon: Brain, color: "#7C65CB", disabledInLite: true },
-                  ].map((tool) => {
-                    const isDisabledByLite = topAgentMode === "lite" && tool.disabledInLite;
-                    const isActive = agentToolsConfig[tool.key];
-                    return (
-                      <button
-                        key={tool.key}
-                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all ${
-                          isDisabledByLite
-                            ? "opacity-40 cursor-not-allowed"
-                            : "hover:bg-[var(--ide-surface)] cursor-pointer"
-                        }`}
-                        onClick={() => {
-                          if (isDisabledByLite) return;
-                          updateAgentToolsConfig({ [tool.key]: !agentToolsConfig[tool.key] });
-                        }}
-                        data-testid={`toggle-agent-tool-${tool.key}`}
-                      >
-                        <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: `${tool.color}15` }}>
-                          <tool.icon className="w-3.5 h-3.5" style={{ color: tool.color }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[11px] font-medium text-[var(--ide-text)]">{tool.label}</div>
-                          <div className="text-[9px] text-[var(--ide-text-muted)]">
-                            {isDisabledByLite ? "Disabled in Lite Mode" : tool.desc}
-                          </div>
-                        </div>
-                        <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
-                          isActive && !isDisabledByLite ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
-                        }`}>
-                          <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-900 mx-0.5 shadow-sm" />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="px-3 py-1.5 border-t border-[var(--ide-border)]">
-                  <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Audio Output</span>
-                </div>
-                <div className="p-2 space-y-1">
-                  <button
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all hover:bg-[var(--ide-surface)] cursor-pointer"
-                    onClick={toggleAudioOutput}
-                    data-testid="toggle-audio-output"
-                  >
-                    <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 bg-[#7C65CB]/15">
-                      <Volume2 className="w-3.5 h-3.5 text-[#7C65CB]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-medium text-[var(--ide-text)]">Audio Responses</div>
-                      <div className="text-[9px] text-[var(--ide-text-muted)]">Auto-play voice with responses</div>
-                    </div>
-                    <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
-                      audioOutputEnabled ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
-                    }`}>
-                      <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-900 mx-0.5 shadow-sm" />
-                    </div>
-                  </button>
-                  <div className="px-2.5 pt-1">
-                    <div className="text-[9px] text-[var(--ide-text-muted)] mb-1.5">Voice</div>
-                    <div className="grid grid-cols-3 gap-1">
-                      {VOICE_OPTIONS.map((v) => (
-                        <button
-                          key={v.value}
-                          className={`px-2 py-1.5 rounded-md text-[10px] font-medium transition-all text-center ${
-                            selectedVoice === v.value
-                              ? "bg-[#7C65CB]/20 text-[#7C65CB] ring-1 ring-[#7C65CB]/30"
-                              : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
-                          }`}
-                          onClick={() => handleVoiceChange(v.value)}
-                          title={v.desc}
-                          data-testid={`voice-option-${v.value}`}
-                        >
-                          {v.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
+      <div className="flex items-center justify-end px-2 min-h-8 py-1 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0 gap-1">
           {activeMessages.length > 0 && (
             <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => {
               if (topMode === "plan") {
@@ -3686,7 +3429,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={onClose} data-testid="button-close-ai">
             <X className="w-4 h-4" />
           </Button>
-        </div>
       </div>
 
       {context && topMode === "build" && mode === "chat" && (
@@ -4458,6 +4200,220 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   </button>
                 </div>
               </div>
+            )}
+            {projectId && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium hover:opacity-80 transition-opacity whitespace-nowrap"
+                    style={{ color: TOP_AGENT_MODE_LABELS[topAgentMode].color, backgroundColor: `${TOP_AGENT_MODE_LABELS[topAgentMode].color}15` }}
+                    data-testid="button-agent-mode-select"
+                  >
+                    {(() => { const ModeIcon = TOP_AGENT_MODE_LABELS[topAgentMode].icon; return <ModeIcon className="w-2.5 h-2.5" />; })()}
+                    {TOP_AGENT_MODE_LABELS[topAgentMode].name}
+                    {topAgentMode === "autonomous" && <span className="text-[9px] opacity-60">({AUTONOMOUS_TIER_LABELS[autonomousTier].name})</span>}
+                    <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-0 bg-[var(--ide-panel)] border-[var(--ide-border)]">
+                  <div className="px-3 py-2 border-b border-[var(--ide-border)]">
+                    <span className="text-[11px] font-semibold text-[var(--ide-text)]">Agent Mode</span>
+                  </div>
+                  <div className="p-2 space-y-1">
+                    {(["lite", "autonomous", "max"] as TopAgentMode[]).map((m) => {
+                      const cfg = TOP_AGENT_MODE_LABELS[m];
+                      const MIcon = cfg.icon;
+                      const isActive = topAgentMode === m;
+                      return (
+                        <button
+                          key={m}
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all ${
+                            isActive ? "ring-1" : "hover:bg-[var(--ide-surface)]"
+                          }`}
+                          style={isActive ? { backgroundColor: `${cfg.color}10`, borderColor: `${cfg.color}30`, ringColor: `${cfg.color}30` } as React.CSSProperties : {}}
+                          onClick={() => handleTopAgentModeChange(m)}
+                          data-testid={`agent-mode-${m}`}
+                        >
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${cfg.color}15` }}>
+                            <MIcon className="w-3.5 h-3.5" style={{ color: cfg.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[11px] font-medium text-[var(--ide-text)]">{cfg.name}</div>
+                            <div className="text-[9px] text-[var(--ide-text-muted)]">{cfg.description}</div>
+                          </div>
+                          {isActive && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: cfg.color }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {topAgentMode === "autonomous" && (
+                    <>
+                      <div className="px-3 py-1.5 border-t border-[var(--ide-border)]">
+                        <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Tier</span>
+                      </div>
+                      <div className="px-2 pb-2 flex gap-1">
+                        {(["economy", "power"] as AutonomousTier[]).map((tier) => {
+                          const tcfg = AUTONOMOUS_TIER_LABELS[tier];
+                          const isTierActive = autonomousTier === tier && !agentToolsConfig.turbo;
+                          return (
+                            <button
+                              key={tier}
+                              className={`flex-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all text-center ${
+                                isTierActive
+                                  ? "bg-[var(--ide-surface)] text-[var(--ide-text)] ring-1 ring-[var(--ide-border)] shadow-sm"
+                                  : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]/50"
+                              }`}
+                              onClick={() => handleAutonomousTierChange(tier)}
+                              data-testid={`tier-${tier}`}
+                            >
+                              <span style={isTierActive ? { color: tcfg.color } : {}}>{tcfg.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <div className="px-3 py-1.5 border-t border-[var(--ide-border)]">
+                    <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Switches</span>
+                  </div>
+                  <div className="px-2 pb-2 space-y-0.5">
+                    {[
+                      { key: "turbo" as const, label: "Turbo", desc: "Prioritize speed", icon: Zap, color: "#F59E0B", disabled: topAgentMode === "lite" },
+                      { key: "appTesting" as const, label: "App Testing", desc: "Validate after changes", icon: FlaskConical, color: "#0CCE6B", disabled: topAgentMode === "lite" },
+                      { key: "codeOptimizations" as const, label: "Code Optimizations", desc: "Auto-review code", icon: Gauge, color: "#0CCE6B", disabled: topAgentMode === "lite" },
+                    ].map((sw) => {
+                      const isOn = sw.key === "turbo" ? agentToolsConfig.turbo
+                        : sw.key === "codeOptimizations" ? codeOptimizations
+                        : agentToolsConfig[sw.key];
+                      return (
+                        <button
+                          key={sw.key}
+                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all ${
+                            sw.disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--ide-surface)] cursor-pointer"
+                          }`}
+                          onClick={() => {
+                            if (sw.disabled) return;
+                            if (sw.key === "turbo") handleTurboToggle();
+                            else if (sw.key === "codeOptimizations") toggleCodeOptimizations();
+                            else updateAgentToolsConfig({ [sw.key]: !agentToolsConfig[sw.key] });
+                          }}
+                          data-testid={`toggle-switch-${sw.key}`}
+                        >
+                          <sw.icon className="w-3 h-3 shrink-0" style={{ color: sw.color }} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[10px] font-medium text-[var(--ide-text)]">{sw.label}</div>
+                          </div>
+                          <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
+                            isOn && !sw.disabled ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
+                          }`}>
+                            <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-900 mx-0.5 shadow-sm" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+            {projectId && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all"
+                    title="Agent Tools"
+                    data-testid="button-agent-tools"
+                  >
+                    <Settings2 className="w-3.5 h-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-64 p-0 bg-[var(--ide-panel)] border-[var(--ide-border)]">
+                  <div className="px-3 py-2 border-b border-[var(--ide-border)]">
+                    <span className="text-[11px] font-semibold text-[var(--ide-text)]">Agent Tools</span>
+                  </div>
+                  <div className="p-2 space-y-1">
+                    {[
+                      { key: "webSearch" as const, label: "Web Search", desc: "Search-informed answers", icon: Globe, color: "#0079F2" },
+                      { key: "architect" as const, label: "Architect", desc: "Architecture analysis", icon: Brain, color: "#7C65CB", disabledInLite: true },
+                    ].map((tool) => {
+                      const isDisabledByLite = topAgentMode === "lite" && tool.disabledInLite;
+                      const isActive = agentToolsConfig[tool.key];
+                      return (
+                        <button
+                          key={tool.key}
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all ${
+                            isDisabledByLite
+                              ? "opacity-40 cursor-not-allowed"
+                              : "hover:bg-[var(--ide-surface)] cursor-pointer"
+                          }`}
+                          onClick={() => {
+                            if (isDisabledByLite) return;
+                            updateAgentToolsConfig({ [tool.key]: !agentToolsConfig[tool.key] });
+                          }}
+                          data-testid={`toggle-agent-tool-${tool.key}`}
+                        >
+                          <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: `${tool.color}15` }}>
+                            <tool.icon className="w-3.5 h-3.5" style={{ color: tool.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[11px] font-medium text-[var(--ide-text)]">{tool.label}</div>
+                            <div className="text-[9px] text-[var(--ide-text-muted)]">
+                              {isDisabledByLite ? "Disabled in Lite Mode" : tool.desc}
+                            </div>
+                          </div>
+                          <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
+                            isActive && !isDisabledByLite ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
+                          }`}>
+                            <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-900 mx-0.5 shadow-sm" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="px-3 py-1.5 border-t border-[var(--ide-border)]">
+                    <span className="text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">Audio Output</span>
+                  </div>
+                  <div className="p-2 space-y-1">
+                    <button
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all hover:bg-[var(--ide-surface)] cursor-pointer"
+                      onClick={toggleAudioOutput}
+                      data-testid="toggle-audio-output"
+                    >
+                      <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 bg-[#7C65CB]/15">
+                        <Volume2 className="w-3.5 h-3.5 text-[#7C65CB]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-medium text-[var(--ide-text)]">Audio Responses</div>
+                        <div className="text-[9px] text-[var(--ide-text-muted)]">Auto-play voice with responses</div>
+                      </div>
+                      <div className={`w-7 h-4 rounded-full transition-colors flex items-center ${
+                        audioOutputEnabled ? "bg-[#0CCE6B] justify-end" : "bg-[var(--ide-border)] justify-start"
+                      }`}>
+                        <div className="w-3 h-3 rounded-full bg-white dark:bg-gray-900 mx-0.5 shadow-sm" />
+                      </div>
+                    </button>
+                    <div className="px-2.5 pt-1">
+                      <div className="text-[9px] text-[var(--ide-text-muted)] mb-1.5">Voice</div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {VOICE_OPTIONS.map((v) => (
+                          <button
+                            key={v.value}
+                            className={`px-2 py-1.5 rounded-md text-[10px] font-medium transition-all text-center ${
+                              selectedVoice === v.value
+                                ? "bg-[#7C65CB]/20 text-[#7C65CB] ring-1 ring-[#7C65CB]/30"
+                                : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+                            }`}
+                            onClick={() => handleVoiceChange(v.value)}
+                            title={v.desc}
+                            data-testid={`voice-option-${v.value}`}
+                          >
+                            {v.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
             {topMode === "build" && (
               <>
