@@ -226,7 +226,8 @@ export function useIDEWorkspace(projectId: string) {
   const ensuredTabs = restoredTabs.some((t: Tab) => t.id === 'preview')
     ? restoredTabs
     : [{ id: 'preview', label: 'Preview', closable: false }, ...restoredTabs];
-  const [activeTab, setActiveTab] = useState(validatedState?.activeTab || 'preview');
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
+  const [activeTab, setActiveTab] = useState(isDesktop ? 'preview' : (validatedState?.activeTab || 'preview'));
   const [tabs, setTabs] = useState<Tab[]>(ensuredTabs);
   const [selectedFileId, setSelectedFileId] = useState<string | undefined>(validatedState?.selectedFileId);
   const [showFileExplorer, setShowFileExplorer] = useState(validatedState?.showFileExplorer ?? true);
