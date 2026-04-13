@@ -24,7 +24,6 @@ import {
   ResizablePanel, 
   ResizablePanelGroup 
 } from '@/components/ui/resizable';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -85,8 +84,6 @@ import { AgentPanelErrorBoundary } from '@/components/ai/AgentPanelErrorBoundary
 import { OptimizedErrorBoundary } from '@/components/OptimizedErrorBoundary';
 import type { ExternalInputHandlers } from '@/components/ai/ReplitAgentPanelV3';
 const ResponsiveWebPreview = instrumentedLazy(() => import('@/components/editor/ResponsiveWebPreview').then(mod => ({ default: mod.ResponsiveWebPreview })), 'ResponsiveWebPreview');
-const AgentActionsPanel = instrumentedLazy(() => import('@/components/ide/AgentActionsPanel').then(mod => ({ default: mod.AgentActionsPanel })), 'AgentActionsPanel');
-const ToolsPanel = instrumentedLazy(() => import('@/components/ide/ToolsPanel').then(mod => ({ default: mod.ToolsPanel })), 'ToolsPanel');
 
 const EnhancedMobileFileExplorer = instrumentedLazy(() => import('@/components/mobile/EnhancedMobileFileExplorer').then(mod => ({ default: mod.EnhancedMobileFileExplorer })), 'EnhancedMobileFileExplorer');
 const LazyMobileCodeEditor = instrumentedLazy(() => import('@/components/mobile/LazyMobileCodeEditor').then(mod => ({ default: mod.LazyMobileCodeEditor })), 'LazyMobileCodeEditor');
@@ -1175,9 +1172,9 @@ function UnifiedIDELayout({
               onOpenCheckpoints={() => { handleAddTool('checkpoints'); setTabletPanel('editor'); }}
               onOpenExtensions={() => { setActiveActivityItem('extensions'); handleAddTool('extensions'); setTabletPanel('editor'); }}
               onOpenSecurity={() => { handleAddTool('security'); setTabletPanel('editor'); }}
-              onOpenActions={() => { setLeftPanelTab('actions'); setTabletPanel('agent'); }}
-              onOpenTools={() => { setLeftPanelTab('tools'); setTabletPanel('agent'); }}
-              onOpenDeploy={() => { setLeftPanelTab('deployment'); setTabletPanel('agent'); }}
+              onOpenActions={() => { handleAddTool('actions'); setTabletPanel('editor'); }}
+              onOpenTools={() => { setShowToolsSheet(true); setTabletPanel('editor'); }}
+              onOpenDeploy={() => { handleAddTool('deployment'); setTabletPanel('editor'); }}
               onOpenCommandPalette={() => setShowCommandPalette(true)}
               onOpenGlobalSearch={() => { setIsSidebarCollapsed(false); setLeftPanelTab('agent'); setTabletPanel('agent'); }}
               onOpenQuickFileSearch={() => setShowQuickFileSearch(true)}
@@ -1985,81 +1982,16 @@ function UnifiedIDELayout({
           {!isSidebarCollapsed && (
             <ResizablePanel defaultSize={30} minSize={20} maxSize={40} data-testid="desktop-left-panel">
               <div className="h-full flex flex-col border-r border-[var(--ecode-border)]">
-                <Tabs value={leftPanelTab} onValueChange={setLeftPanelTab} className="h-full flex flex-col">
-                  <TabsList className="w-full h-9 justify-start rounded-none border-b border-[var(--ecode-border)] bg-[var(--ecode-surface)] p-0 px-1 overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                    <TabsTrigger 
-                      value="agent" 
-                      className="gap-1.5 h-7 px-2.5 text-xs font-medium data-[state=active]:bg-[var(--ecode-surface)] data-[state=active]:shadow-none rounded-md" 
-                      data-testid="tab-agent"
-                    >
-                      <Brain className="h-3.5 w-3.5" />
-                      Agent
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="actions" 
-                      className="gap-1.5 h-7 px-2.5 text-xs font-medium data-[state=active]:bg-[var(--ecode-surface)] data-[state=active]:shadow-none rounded-md" 
-                      data-testid="tab-actions"
-                    >
-                      <Zap className="h-3.5 w-3.5" />
-                      Actions
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="tools" 
-                      className="gap-1.5 h-7 px-2.5 text-xs font-medium data-[state=active]:bg-[var(--ecode-surface)] data-[state=active]:shadow-none rounded-md" 
-                      data-testid="tab-tools"
-                    >
-                      <Layers className="h-3.5 w-3.5" />
-                      Tools
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="deployment" 
-                      className="gap-1.5 h-7 px-2.5 text-xs font-medium data-[state=active]:bg-[var(--ecode-surface)] data-[state=active]:shadow-none rounded-md" 
-                      data-testid="tab-deployment"
-                      onClick={() => setDeploymentTab('deploy')}
-                    >
-                      <Rocket className="h-3.5 w-3.5" />
-                      Deploy
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="agent" className="flex-1 mt-0 overflow-hidden" forceMount>
-                    <ReplitAgentPanelV3
-                      key={`agent-${projectId}`}
-                      projectId={projectId}
-                      mode="desktop"
-                      agentToolsSettings={agentToolsSettings}
-                      onAgentToolsSettingsChange={setAgentToolsSettings}
-                      isBootstrapping={!!bootstrapToken}
-                      bootstrapToken={bootstrapToken}
-                      onBootstrapFailure={onBootstrapFailure}
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="actions" className="flex-1 mt-0 overflow-hidden">
-                    <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Actions..." /></div>}>
-                      <AgentActionsPanel projectId={projectId} />
-                    </Suspense>
-                  </TabsContent>
-                  
-                  <TabsContent value="tools" className="flex-1 mt-0 overflow-hidden">
-                    <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Tools..." /></div>}>
-                      <ToolsPanel
-                        availableTools={availableTools}
-                        onSelectTool={handleAddTool}
-                        activeTabs={tabs.map(t => t.id)}
-                      />
-                    </Suspense>
-                  </TabsContent>
-                  
-                  <TabsContent value="deployment" className="flex-1 mt-0 overflow-hidden">
-                    <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Deploy..." /></div>}>
-                      <ReplitDeploymentPanel
-                        projectId={projectId}
-                        defaultTab={deploymentTab || 'deploy'}
-                      />
-                    </Suspense>
-                  </TabsContent>
-                </Tabs>
+                <ReplitAgentPanelV3
+                  key={`agent-${projectId}`}
+                  projectId={projectId}
+                  mode="desktop"
+                  agentToolsSettings={agentToolsSettings}
+                  onAgentToolsSettingsChange={setAgentToolsSettings}
+                  isBootstrapping={!!bootstrapToken}
+                  bootstrapToken={bootstrapToken}
+                  onBootstrapFailure={onBootstrapFailure}
+                />
               </div>
             </ResizablePanel>
           )}
@@ -2124,7 +2056,7 @@ function UnifiedIDELayout({
           deploymentStatus={deploymentStatus}
           deploymentUrl={publishState?.url}
           onDeployClick={() => {
-            setLeftPanelTab('deployment');
+            handleAddTool('deployment');
             setDeploymentTab('logs');
           }}
         />
