@@ -523,6 +523,14 @@ function UnifiedIDELayout({
   // Mobile agent input handlers - exposed from ReplitAgentPanelV3 to ReplitMobileInputBar
   const [mobileAgentHandlers, setMobileAgentHandlers] = useState<ExternalInputHandlers | null>(null);
 
+  // Open preview tab by default on desktop
+  const previewOpenedRef = useRef(false);
+  useEffect(() => {
+    if (previewOpenedRef.current || deviceType !== 'desktop') return;
+    previewOpenedRef.current = true;
+    handleAddTool('preview');
+  }, [deviceType, handleAddTool]);
+
   // Force agent tab when bootstrapToken is present for inline chat experience
   useEffect(() => {
     if (bootstrapToken) {
