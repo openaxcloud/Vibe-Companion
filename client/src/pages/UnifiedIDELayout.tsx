@@ -1380,85 +1380,35 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
 
         {/* Main Resizable Panels */}
         <ResizablePanelGroup direction="horizontal" className="flex-1" data-testid="desktop-panel-group">
-          {/* Left Panel: AI Agent / Actions / Tools / Deploy */}
+          {/* Left Panel: Agent only */}
           {!isSidebarCollapsed && (
             <ResizablePanel defaultSize={25} minSize={18} maxSize={40} data-testid="desktop-left-panel">
               <div className="h-full flex flex-col border-r border-[var(--ide-border)]">
-                <Tabs value={leftPanelTab} onValueChange={setLeftPanelTab} className="h-full flex flex-col">
-                  <TabsList className="w-full h-9 justify-start rounded-none border-b border-[var(--ide-border)] bg-[var(--ide-panel)] p-0 px-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                    <TabsTrigger value="agent" className="gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md" data-testid="tab-agent">
-                      <Brain className="h-3.5 w-3.5" /> Agent
-                    </TabsTrigger>
-                    <TabsTrigger value="actions" className="gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md" data-testid="tab-actions">
-                      <Zap className="h-3.5 w-3.5" /> Actions
-                    </TabsTrigger>
-                    <TabsTrigger value="tools" className="gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md" data-testid="tab-tools">
-                      <Layers className="h-3.5 w-3.5" /> Tools
-                    </TabsTrigger>
-                    <TabsTrigger value="deployment" className="gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md" data-testid="tab-deployment" onClick={() => setDeploymentTab('deploy')}>
-                      <Rocket className="h-3.5 w-3.5" /> Deploy
-                    </TabsTrigger>
-                    <TabsTrigger value="tasks" className="gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md" data-testid="tab-tasks">
-                      <ListTodo className="h-3.5 w-3.5" /> Tasks
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="agent" className="flex-1 mt-0 overflow-hidden" forceMount>
-                    <AgentPanelErrorBoundary>
-                    <ReplitAgentPanelV3
-                      key={`agent-${projectId}`}
-                      projectId={projectId}
-                      mode="desktop"
-                      activeFileId={activeFileId}
-                      activeFileName={activeFileName}
-                      activeFileContent={activeFileContent}
-                      activeFileLanguage={activeFileLanguage}
-                      files={Array.isArray(filesRaw) ? filesRaw.map((f: any) => ({ id: String(f.id), filename: f.filename, content: f.content })) : []}
-                      onFileCreated={(file: any) => { workspace.createFileMutation?.reset(); }}
-                      onFileUpdated={(file: any) => { }}
-                      onApplyCode={(filename: string, code: string) => {
-                        const file = filesRaw?.find((f: any) => f.filename === filename);
-                        if (file) {
-                          workspace.saveMutation.mutate({ fileId: String(file.id), content: code });
-                        }
-                      }}
-                      pendingMessage={pendingAIMessage}
-                      onPendingMessageConsumed={() => setPendingAIMessage(null)}
-                      agentToolsSettings={agentToolsSettings}
-                      onAgentToolsSettingsChange={setAgentToolsSettings}
-                      onExternalInput={setMobileAgentHandlers}
-                    />
-                    </AgentPanelErrorBoundary>
-                  </TabsContent>
-
-                  <TabsContent value="actions" className="flex-1 mt-0 overflow-hidden">
-                    <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Actions..." /></div>}>
-                      <AgentActionsPanel projectId={projectId} />
-                    </Suspense>
-                  </TabsContent>
-
-                  <TabsContent value="tools" className="flex-1 mt-0 overflow-hidden">
-                    <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Tools..." /></div>}>
-                      <ToolsPanel
-                        availableTools={availableTools}
-                        onSelectTool={handleAddTool}
-                        activeTabs={tabs.map(t => t.id)}
-                      />
-                    </Suspense>
-                  </TabsContent>
-
-                  <TabsContent value="deployment" className="flex-1 mt-0 overflow-hidden">
-                    <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Deploy..." /></div>}>
-                      <ReplitDeploymentPanel projectId={projectId} defaultTab={deploymentTab || 'deploy'} />
-                    </Suspense>
-                  </TabsContent>
-
-                  <TabsContent value="tasks" className="flex-1 mt-0 overflow-hidden">
-                    <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="sm" text="Loading Tasks..." /></div>}>
-                      <TaskBoard projectId={projectId} onClose={() => setLeftPanelTab('agent')} />
-                    </Suspense>
-                  </TabsContent>
-                </Tabs>
+                <AgentPanelErrorBoundary>
+                  <ReplitAgentPanelV3
+                    key={`agent-${projectId}`}
+                    projectId={projectId}
+                    mode="desktop"
+                    activeFileId={activeFileId}
+                    activeFileName={activeFileName}
+                    activeFileContent={activeFileContent}
+                    activeFileLanguage={activeFileLanguage}
+                    files={Array.isArray(filesRaw) ? filesRaw.map((f: any) => ({ id: String(f.id), filename: f.filename, content: f.content })) : []}
+                    onFileCreated={(file: any) => { workspace.createFileMutation?.reset(); }}
+                    onFileUpdated={(file: any) => { }}
+                    onApplyCode={(filename: string, code: string) => {
+                      const file = filesRaw?.find((f: any) => f.filename === filename);
+                      if (file) {
+                        workspace.saveMutation.mutate({ fileId: String(file.id), content: code });
+                      }
+                    }}
+                    pendingMessage={pendingAIMessage}
+                    onPendingMessageConsumed={() => setPendingAIMessage(null)}
+                    agentToolsSettings={agentToolsSettings}
+                    onAgentToolsSettingsChange={setAgentToolsSettings}
+                    onExternalInput={setMobileAgentHandlers}
+                  />
+                </AgentPanelErrorBoundary>
               </div>
             </ResizablePanel>
           )}
