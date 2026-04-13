@@ -63,7 +63,6 @@ import { ReplitMobileInputBar } from '@/components/mobile/ReplitMobileInputBar';
 import { ReplitMobileHeader } from '@/components/mobile/ReplitMobileHeader';
 import { type MobileTab } from '@/components/mobile/ReplitMobileNavigation';
 import { ReplitBottomTabs } from '@/components/mobile/ReplitBottomTabs';
-import { MobileFAB } from '@/components/mobile/MobileFAB';
 
 import { ReplitMonacoEditor } from '@/components/editor/ReplitMonacoEditor';
 import { ReplitTerminalPanel } from '@/components/editor/ReplitTerminalPanel';
@@ -1094,12 +1093,6 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           isConnected={isConnected}
         />
 
-        <MobileFAB
-          projectId={projectId}
-          isRunning={isRunning}
-          onPlayStop={handleRunStop}
-        />
-
         <MobileMoreMenu
           projectId={projectId}
           isOpen={showMobileMoreMenu}
@@ -1270,12 +1263,6 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             errors: errorsCount > 0 ? errorsCount : undefined,
           }}
           isConnected={isConnected}
-        />
-
-        <MobileFAB
-          projectId={projectId}
-          isRunning={isRunning}
-          onPlayStop={handleRunStop}
         />
 
         <MobileMoreMenu

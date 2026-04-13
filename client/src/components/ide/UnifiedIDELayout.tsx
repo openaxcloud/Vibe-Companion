@@ -66,7 +66,6 @@ import { ReplitMobileInputBar } from '@/components/mobile/ReplitMobileInputBar';
 import { ReplitMobileHeader } from '@/components/mobile/ReplitMobileHeader';
 import { type MobileTab } from '@/components/mobile/ReplitMobileNavigation';
 import { ReplitBottomTabs } from '@/components/mobile/ReplitBottomTabs';
-import { MobileFAB } from '@/components/mobile/MobileFAB';
 import {
   FileExplorerSkeleton, EditorSkeleton, TerminalSkeleton,
   PreviewSkeleton, AgentSkeleton, DeploySkeleton,
