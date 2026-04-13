@@ -64,7 +64,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
 
   // --- WORKSPACE / RUNNER ---
-  app.get("/api/runner/status", requireAuth, async (_req: Request, res: Response) => {
+  app.get("/api/runner/status", async (req: Request, res: Response) => {
     const runnerMode = process.env.RUNNER_MODE || "local";
     if (runnerMode === "local") {
       return res.json({ online: true, baseUrl: `http://localhost:${process.env.PORT || 5000}`, localMode: true });
