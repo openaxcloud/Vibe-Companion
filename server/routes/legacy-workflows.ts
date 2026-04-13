@@ -365,4 +365,184 @@ export async function registerWorkflowsRoutes(app: Express, ctx: any): Promise<v
     res.json(WORKFLOW_TEMPLATES);
   });
 
+  const runningCommandProcesses = new Map<string, { process: any; command: string; name: string; startedAt: number }>();
+
+  app.post("/api/projects/:id/workflows/execute-command", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.id;
+      const userId = req.session.userId!;
+      if (!await verifyProjectAccess(projectId, userId)) return res.status(403).json({ message: "Access denied" });
+
+      const { command, name, workflowId } = req.body;
+      if (!command || typeof command !== "string") return res.status(400).json({ message: "command is required" });
+
+      const { spawn } = await import("child_process");
+      const { materializeProjectFiles, getProjectWorkspaceDir } = await import("../terminal");
+      const fsMod = await import("fs");
+
+      const wsDir = getProjectWorkspaceDir(projectId);
+      if (!fsMod.existsSync(wsDir)) {
+        broadcastToProject(projectId, { type: "workflow_log", workflowId: workflowId || "cmd", workflowName: name || command, message: "Materializing project files...", logType: "info", timestamp: Date.now() });
+        await materializeProjectFiles(projectId, () => storage.getFiles(projectId));
+      }
+
+      const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const wfName = name || command;
+      const wfId = workflowId || `cmd-${runId}`;
+
+      const existingProc = runningCommandProcesses.get(`${projectId}:${wfId}`);
+      if (existingProc) {
+        try { existingProc.process.kill("SIGTERM"); } catch {}
+        runningCommandProcesses.delete(`${projectId}:${wfId}`);
+      }
+
+      broadcastToProject(projectId, { type: "workflow_status", workflowId: wfId, workflowName: wfName, status: "running" });
+      broadcastToProject(projectId, { type: "workflow_log", workflowId: wfId, workflowName: wfName, message: `\x1b[36m$ ${command}\x1b[0m`, logType: "info", timestamp: Date.now() });
+
+      const isLongRunning = /\b(dev|start|serve|watch|preview)\b/.test(command);
+
+      const envVars = await storage.getProjectEnvVars(projectId);
+      const envObj: Record<string, string> = {};
+      for (const ev of envVars) {
+        try {
+          envObj[ev.key] = ev.encryptedValue ? decrypt(ev.encryptedValue) : ev.value || "";
+        } catch {
+          envObj[ev.key] = ev.value || "";
+        }
+      }
+
+      const safeEnv: Record<string, string> = {
+        HOME: wsDir,
+        PATH: `${wsDir}/node_modules/.bin:/usr/local/bin:/usr/bin:/bin`,
+        NODE_ENV: "development",
+        LANG: "en_US.UTF-8",
+        TERM: "xterm-256color",
+        SHELL: "/bin/bash",
+        TMPDIR: `${wsDir}/.tmp`,
+        NODE_PATH: `${wsDir}/node_modules`,
+        npm_config_prefix: wsDir,
+      };
+      if (process.env.NVM_DIR) safeEnv.NVM_DIR = process.env.NVM_DIR;
+      if (process.env.NIX_PATH) safeEnv.NIX_PATH = process.env.NIX_PATH;
+      for (const [k, v] of Object.entries(envObj)) { safeEnv[k] = v; }
+
+      const proc = spawn("bash", ["-c", command], {
+        cwd: wsDir,
+        env: safeEnv,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      runningCommandProcesses.set(`${projectId}:${wfId}`, { process: proc, command, name: wfName, startedAt: Date.now() });
+
+      let stdout = "";
+      let stderr = "";
+      let finished = false;
+
+      proc.stdout?.on("data", (data: Buffer) => {
+        const text = data.toString();
+        stdout += text;
+        const lines = text.split("\n").filter((l: string) => l.length > 0);
+        for (const line of lines) {
+          broadcastToProject(projectId, { type: "workflow_log", workflowId: wfId, workflowName: wfName, message: line, logType: "info", timestamp: Date.now() });
+        }
+      });
+
+      proc.stderr?.on("data", (data: Buffer) => {
+        const text = data.toString();
+        stderr += text;
+        const lines = text.split("\n").filter((l: string) => l.length > 0);
+        for (const line of lines) {
+          broadcastToProject(projectId, { type: "workflow_log", workflowId: wfId, workflowName: wfName, message: line, logType: "error", timestamp: Date.now() });
+        }
+      });
+
+      proc.on("close", (exitCode: number | null) => {
+        finished = true;
+        runningCommandProcesses.delete(`${projectId}:${wfId}`);
+        const success = exitCode === 0;
+        broadcastToProject(projectId, { type: "workflow_log", workflowId: wfId, workflowName: wfName, message: `\x1b[${success ? "32" : "31"}m━━━ ${wfName} ${success ? "completed successfully" : `exited with code ${exitCode}`} ━━━\x1b[0m`, logType: success ? "success" : "error", timestamp: Date.now() });
+        broadcastToProject(projectId, { type: "workflow_status", workflowId: wfId, workflowName: wfName, status: success ? "completed" : "failed", exitCode });
+      });
+
+      proc.on("error", (err: any) => {
+        finished = true;
+        runningCommandProcesses.delete(`${projectId}:${wfId}`);
+        broadcastToProject(projectId, { type: "workflow_log", workflowId: wfId, workflowName: wfName, message: `Process error: ${err.message}`, logType: "error", timestamp: Date.now() });
+        broadcastToProject(projectId, { type: "workflow_status", workflowId: wfId, workflowName: wfName, status: "failed" });
+      });
+
+      if (isLongRunning) {
+        res.json({ success: true, runId, workflowId: wfId, status: "running", message: `${wfName} started` });
+      } else {
+        const timeout = setTimeout(() => {
+          if (!finished) {
+            try { proc.kill("SIGKILL"); } catch {}
+            res.json({ success: false, runId, workflowId: wfId, status: "timeout", message: "Command timed out after 120s" });
+          }
+        }, 120000);
+
+        proc.on("close", (exitCode: number | null) => {
+          clearTimeout(timeout);
+          if (!res.headersSent) {
+            res.json({ success: exitCode === 0, runId, workflowId: wfId, status: exitCode === 0 ? "completed" : "failed", exitCode, stdout: stdout.slice(-4096), stderr: stderr.slice(-4096) });
+          }
+        });
+
+        proc.on("error", (err: any) => {
+          clearTimeout(timeout);
+          if (!res.headersSent) {
+            res.json({ success: false, runId, workflowId: wfId, status: "failed", message: err.message });
+          }
+        });
+      }
+    } catch (err: any) {
+      log(`Workflow execute-command error: ${err.message}`, "workflow");
+      res.status(500).json({ message: "Failed to execute command: " + (err.message || "Unknown error") });
+    }
+  });
+
+  app.post("/api/projects/:id/workflows/stop-command", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.id;
+      const userId = req.session.userId!;
+      if (!await verifyProjectAccess(projectId, userId)) return res.status(403).json({ message: "Access denied" });
+
+      const { workflowId } = req.body;
+      if (!workflowId) return res.status(400).json({ message: "workflowId is required" });
+
+      const key = `${projectId}:${workflowId}`;
+      const entry = runningCommandProcesses.get(key);
+      if (!entry) return res.json({ success: true, message: "No running process found" });
+
+      try { entry.process.kill("SIGTERM"); } catch {}
+      setTimeout(() => {
+        try { if (!entry.process.killed) entry.process.kill("SIGKILL"); } catch {}
+      }, 3000);
+      runningCommandProcesses.delete(key);
+
+      broadcastToProject(projectId, { type: "workflow_status", workflowId, workflowName: entry.name, status: "stopped" });
+      res.json({ success: true, message: "Process stopped" });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to stop command" });
+    }
+  });
+
+  app.get("/api/projects/:id/workflows/running", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.id;
+      const userId = req.session.userId!;
+      if (!await verifyProjectAccess(projectId, userId)) return res.status(403).json({ message: "Access denied" });
+
+      const running: any[] = [];
+      for (const [key, entry] of runningCommandProcesses.entries()) {
+        if (key.startsWith(`${projectId}:`)) {
+          running.push({ workflowId: key.split(":")[1], command: entry.command, name: entry.name, startedAt: entry.startedAt, durationMs: Date.now() - entry.startedAt });
+        }
+      }
+      res.json(running);
+    } catch {
+      res.json([]);
+    }
+  });
+
 }

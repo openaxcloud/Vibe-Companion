@@ -1392,9 +1392,10 @@ function _projectPage() {
           setIsRunning(true);
           setTerminalVisible(true);
           setBottomTab("terminal");
-        } else if (msg.status === "completed" || msg.status === "failed") {
+        } else if (msg.status === "completed" || msg.status === "failed" || msg.status === "stopped") {
           setIsRunning(false);
         }
+        window.dispatchEvent(new CustomEvent("workflow-status", { detail: msg }));
       }
       if (msg.type === "notification") {
         queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });

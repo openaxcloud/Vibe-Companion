@@ -365,9 +365,10 @@ export function useIDEWorkspace(projectId: string) {
         if ((msg as any).status === 'running') {
           setIsRunning(true);
           setTerminalVisible(true);
-        } else if ((msg as any).status === 'completed' || (msg as any).status === 'failed') {
+        } else if ((msg as any).status === 'completed' || (msg as any).status === 'failed' || (msg as any).status === 'stopped') {
           setIsRunning(false);
         }
+        window.dispatchEvent(new CustomEvent('workflow-status', { detail: msg }));
       }
       if (msg.type === 'deploy_log' && (msg as any).line) {
         // Handled by deployment panel

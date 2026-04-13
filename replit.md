@@ -53,7 +53,7 @@ Editor engine preference stored in `localStorage("editor-engine")`. Toggle avail
 **Storage and Database**: Every project automatically gets its own PostgreSQL schema (`proj_{projectId}`) on creation via `autoProvisionProjectDatabase()` in `server/utils/project-db-provision.ts`. The `DATABASE_URL` and `PGSCHEMA` are stored as encrypted project env vars. The Database Panel shows "Tables (0)" with a SQL Runner link when empty (not "No database"). Legacy `ensureProjectSchema` in `legacy-database-viewer.ts` lazy-creates schemas for older projects. An App Storage v2 system offers bucket-based object storage with folder organization, access management, and quota enforcement.
 
 **Key Features**:
-- **Workflows**: Multi-step build/run pipelines with configurable triggers and execution modes.
+- **Workflows**: Multi-step build/run pipelines with configurable triggers and execution modes. System workflows (Development, Build, Test, Preview) and custom workflows execute commands via `child_process.spawn` in the project workspace (`project-workspaces/{projectId}/`). The execute-command endpoint at `POST /api/projects/:id/workflows/execute-command` materializes files, spawns the command with a sandboxed env (no host secrets), and streams output via WebSocket `workflow_log`/`workflow_status` messages. Long-running commands (dev/serve/watch) return immediately; short-lived commands wait for completion. Stop via `POST /api/projects/:id/workflows/stop-command`.
 - **Monitoring**: Metrics collection (CPU, memory, load, requests) for deployed projects with configurable alerts.
 - **Threads**: Code discussion threads with line number references.
 - **Build in Parallel (Tasks)**: Kanban board for parallel task execution with AI plan integration.

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +24,7 @@ import {
 import {
   Play, Plus, Zap, Terminal, MoreVertical, Trash2, Edit2,
   Globe, TestTube, Package, Database, Loader2, Check,
-  Settings, Clock, Star, Copy
+  Square, Clock, Star, Copy, CheckCircle, XCircle, AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -43,6 +42,11 @@ interface Workflow {
   runOnStart?: boolean;
   lastRun?: string;
   runCount?: number;
+}
+
+interface WorkflowStatus {
+  status: 'idle' | 'running' | 'completed' | 'failed' | 'stopped';
+  startedAt?: number;
 }
 
 interface WorkflowsPanelProps {
@@ -73,13 +77,60 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
   const [isCreating, setIsCreating] = useState(false);
   const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null);
   const [formData, setFormData] = useState({ name: '', command: '', description: '', icon: 'play' });
+  const [workflowStatuses, setWorkflowStatuses] = useState<Record<string, WorkflowStatus>>({});
+
+  useEffect(() => {
+    function handleWorkflowStatus(event: Event) {
+      const msg = (event as CustomEvent).detail;
+      if (msg?.workflowId) {
+        setWorkflowStatuses(prev => ({
+          ...prev,
+          [msg.workflowId]: {
+            status: msg.status === 'running' ? 'running' :
+                    msg.status === 'completed' ? 'completed' :
+                    msg.status === 'failed' ? 'failed' :
+                    msg.status === 'stopped' ? 'stopped' : 'idle',
+            startedAt: msg.status === 'running' ? Date.now() : prev[msg.workflowId]?.startedAt,
+          }
+        }));
+      }
+    }
+
+    window.addEventListener('workflow-status', handleWorkflowStatus);
+    return () => window.removeEventListener('workflow-status', handleWorkflowStatus);
+  }, []);
+
+  const { data: runningWorkflows } = useQuery<any[]>({
+    queryKey: ['/api/projects', projectId, 'workflows/running'],
+    queryFn: async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/workflows/running`, { credentials: 'include' });
+        if (!response.ok) return [];
+        return response.json();
+      } catch { return []; }
+    },
+    enabled: !!projectId,
+    refetchInterval: 10000,
+  });
+
+  useEffect(() => {
+    if (runningWorkflows && runningWorkflows.length > 0) {
+      setWorkflowStatuses(prev => {
+        const next = { ...prev };
+        for (const rw of runningWorkflows) {
+          if (!next[rw.workflowId] || next[rw.workflowId].status !== 'running') {
+            next[rw.workflowId] = { status: 'running', startedAt: rw.startedAt };
+          }
+        }
+        return next;
+      });
+    }
+  }, [runningWorkflows]);
 
   const { data: customWorkflows, isLoading } = useQuery<Workflow[]>({
     queryKey: ['/api/workflows', projectId],
     queryFn: async () => {
-      const response = await fetch(`/api/workflows?projectId=${projectId}`, {
-        credentials: 'include'
-      });
+      const response = await fetch(`/api/workflows?projectId=${projectId}`, { credentials: 'include' });
       if (!response.ok) return [];
       return response.json();
     },
@@ -88,10 +139,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
 
   const createMutation = useMutation({
     mutationFn: async (workflow: Omit<Workflow, 'id'>) => {
-      return apiRequest('POST', '/api/workflows', {
-        ...workflow,
-        projectId
-      });
+      return apiRequest('POST', '/api/workflows', { ...workflow, projectId });
     },
     onSuccess: () => {
       toast({ title: 'Workflow created' });
@@ -106,10 +154,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
 
   const updateMutation = useMutation({
     mutationFn: async (workflow: Workflow) => {
-      return apiRequest('PUT', `/api/workflows/${workflow.id}`, {
-        ...workflow,
-        projectId
-      });
+      return apiRequest('PUT', `/api/workflows/${workflow.id}`, { ...workflow, projectId });
     },
     onSuccess: () => {
       toast({ title: 'Workflow updated' });
@@ -130,17 +175,43 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
 
   const runMutation = useMutation({
     mutationFn: async (workflow: Workflow) => {
-      return apiRequest('POST', `/api/preview/projects/${projectId}/preview/start`, {
-        workflow: workflow.id,
-        command: workflow.command
+      return apiRequest('POST', `/api/projects/${projectId}/workflows/execute-command`, {
+        command: workflow.command,
+        name: workflow.name,
+        workflowId: workflow.id,
+      });
+    },
+    onSuccess: (data: any, workflow) => {
+      setWorkflowStatuses(prev => ({
+        ...prev,
+        [workflow.id]: { status: 'running', startedAt: Date.now() }
+      }));
+      onRunWorkflow?.(workflow);
+    },
+    onError: (error: any, workflow) => {
+      toast({ title: 'Failed to run workflow', description: error.message, variant: 'destructive' });
+      setWorkflowStatuses(prev => ({
+        ...prev,
+        [workflow.id]: { status: 'failed' }
+      }));
+    }
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: async (workflow: Workflow) => {
+      return apiRequest('POST', `/api/projects/${projectId}/workflows/stop-command`, {
+        workflowId: workflow.id,
       });
     },
     onSuccess: (_, workflow) => {
-      toast({ title: `Running: ${workflow.name}` });
-      onRunWorkflow?.(workflow);
+      setWorkflowStatuses(prev => ({
+        ...prev,
+        [workflow.id]: { status: 'stopped' }
+      }));
+      toast({ title: `Stopped: ${workflow.name}` });
     },
     onError: (error: any) => {
-      toast({ title: 'Failed to run workflow', description: error.message, variant: 'destructive' });
+      toast({ title: 'Failed to stop workflow', description: error.message, variant: 'destructive' });
     }
   });
 
@@ -148,14 +219,53 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
     return ICON_OPTIONS.find(o => o.id === iconId)?.icon || Terminal;
   };
 
+  const getStatusBadge = (workflowId: string) => {
+    const status = workflowStatuses[workflowId];
+    if (!status || status.status === 'idle') return null;
+
+    switch (status.status) {
+      case 'running':
+        return (
+          <Badge variant="outline" className="text-[9px] h-4 bg-blue-500/10 text-blue-400 border-blue-500/30" data-testid={`badge-running-${workflowId}`}>
+            <Loader2 className="h-2 w-2 mr-0.5 animate-spin" />
+            Running
+          </Badge>
+        );
+      case 'completed':
+        return (
+          <Badge variant="outline" className="text-[9px] h-4 bg-green-500/10 text-green-400 border-green-500/30" data-testid={`badge-completed-${workflowId}`}>
+            <CheckCircle className="h-2 w-2 mr-0.5" />
+            Done
+          </Badge>
+        );
+      case 'failed':
+        return (
+          <Badge variant="outline" className="text-[9px] h-4 bg-red-500/10 text-red-400 border-red-500/30" data-testid={`badge-failed-${workflowId}`}>
+            <XCircle className="h-2 w-2 mr-0.5" />
+            Failed
+          </Badge>
+        );
+      case 'stopped':
+        return (
+          <Badge variant="outline" className="text-[9px] h-4 bg-yellow-500/10 text-yellow-400 border-yellow-500/30" data-testid={`badge-stopped-${workflowId}`}>
+            <AlertCircle className="h-2 w-2 mr-0.5" />
+            Stopped
+          </Badge>
+        );
+      default:
+        return null;
+    }
+  };
+
   const allWorkflows = [...SYSTEM_WORKFLOWS, ...(customWorkflows || [])];
 
   const WorkflowCard = ({ workflow }: { workflow: Workflow }) => {
     const Icon = getIcon(workflow.icon || 'terminal');
-    const isRunning = runMutation.isPending && runMutation.variables?.id === workflow.id;
+    const isRunning = workflowStatuses[workflow.id]?.status === 'running';
+    const isMutating = runMutation.isPending && runMutation.variables?.id === workflow.id;
 
     return (
-      <Card className={cn("group hover:shadow-md transition-all", workflow.isDefault && "ring-1 ring-primary/20")}>
+      <Card className={cn("group hover:shadow-md transition-all", workflow.isDefault && "ring-1 ring-primary/20")} data-testid={`card-workflow-${workflow.id}`}>
         <CardContent className="p-3">
           <div className="flex items-start gap-3">
             <div className={cn(
@@ -166,7 +276,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[13px] font-medium truncate">{workflow.name}</span>
                 {workflow.isDefault && (
                   <Badge variant="outline" className="text-[10px] h-4">
@@ -177,6 +287,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
                 {workflow.isSystem && (
                   <Badge variant="secondary" className="text-[10px] h-4">System</Badge>
                 )}
+                {getStatusBadge(workflow.id)}
               </div>
               {workflow.description && (
                 <p className="text-[11px] text-muted-foreground truncate mt-0.5">
@@ -189,19 +300,33 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
             </div>
 
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => runMutation.mutate(workflow)}
-                disabled={isRunning}
-                className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-              >
-                {isRunning ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Play className="h-3.5 w-3.5" />
-                )}
-              </Button>
+              {isRunning ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => stopMutation.mutate(workflow)}
+                  disabled={stopMutation.isPending}
+                  className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                  data-testid={`button-stop-${workflow.id}`}
+                >
+                  <Square className="h-3.5 w-3.5" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => runMutation.mutate(workflow)}
+                  disabled={isMutating}
+                  className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  data-testid={`button-run-${workflow.id}`}
+                >
+                  {isMutating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              )}
               
               {!workflow.isSystem && (
                 <DropdownMenu>
@@ -260,6 +385,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
           onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
           placeholder="e.g., Deploy to Production"
           className="h-8 text-[13px]"
+          data-testid="input-workflow-name"
         />
       </div>
 
@@ -270,6 +396,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
           onChange={(e) => setFormData(prev => ({ ...prev, command: e.target.value }))}
           placeholder="e.g., npm run deploy"
           className="h-8 text-[13px] font-mono"
+          data-testid="input-workflow-command"
         />
       </div>
 
@@ -280,6 +407,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
           onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
           placeholder="Brief description of what this workflow does"
           className="h-8 text-[13px]"
+          data-testid="input-workflow-description"
         />
       </div>
 
@@ -287,7 +415,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
         <Label className="text-[11px]">Icon</Label>
         <div className="flex gap-1">
           {ICON_OPTIONS.map(option => {
-            const Icon = option.icon;
+            const IconComp = option.icon;
             return (
               <Button
                 key={option.id}
@@ -296,7 +424,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
                 className="h-8 w-8 p-0"
                 onClick={() => setFormData(prev => ({ ...prev, icon: option.id }))}
               >
-                <Icon className="h-3.5 w-3.5" />
+                <IconComp className="h-3.5 w-3.5" />
               </Button>
             );
           })}
@@ -311,6 +439,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
           size="sm"
           onClick={onSubmit}
           disabled={!formData.name || !formData.command}
+          data-testid="button-submit-workflow"
         >
           {isEdit ? 'Update' : 'Create'} Workflow
         </Button>
@@ -330,7 +459,7 @@ export function WorkflowsPanel({ projectId, onRunWorkflow, className }: Workflow
         </div>
         <Dialog open={isCreating} onOpenChange={setIsCreating}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 text-[11px]">
+            <Button variant="outline" size="sm" className="h-7 text-[11px]" data-testid="button-new-workflow">
               <Plus className="h-3.5 w-3.5 mr-1" />
               New
             </Button>
