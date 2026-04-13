@@ -951,11 +951,25 @@ export function useIDEWorkspace(projectId: string) {
 
   // Auto-open first file
   useEffect(() => {
-    if (filesQuery.data && filesQuery.data.length > 0 && openTabs.length === 0) {
-      const first = filesQuery.data[0];
-      setOpenTabs([String(first.id)]);
-      setActiveFileId(String(first.id));
-      setFileContents(prev => ({ ...prev, [String(first.id)]: first.content }));
+    if (filesQuery.data && filesQuery.data.length > 0) {
+      const hasFileTab = openTabs.some(t => {
+        return !['preview', 'terminal', 'git', 'packages', 'secrets', 'database',
+          'deployment', 'search', 'debugger', 'settings', 'history', 'tasks',
+          'checkpoints', 'workflows', 'extensions', 'collaboration',
+          'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
+          'automations', 'config', 'feedback', 'github', 'integrations',
+          'mcp', 'merge-conflicts', 'monitoring', 'networking', 'publishing',
+          'skills', 'ssh', 'threads', 'test-runner', 'security-scanner', 'backup',
+          'slides', 'video', 'animation', 'design', 'storage', 'themes',
+          'testing', 'auth'].includes(t);
+      });
+      if (!hasFileTab) {
+        const first = filesQuery.data[0];
+        const fid = String(first.id);
+        setOpenTabs(prev => prev.includes(fid) ? prev : [...prev, fid]);
+        setActiveFileId(fid);
+        setFileContents(prev => ({ ...prev, [fid]: first.content }));
+      }
     }
   }, [filesQuery.data]);
 
@@ -982,7 +996,7 @@ export function useIDEWorkspace(projectId: string) {
   const tabs: TabItem[] = useMemo(() => {
     return openTabs.map(tabId => {
       const isFileTab = !tabId.startsWith('__') && !['preview', 'terminal', 'git', 'packages', 'secrets', 'database',
-        'deployment', 'search', 'debugger', 'settings', 'history', 'checkpoints', 'workflows', 'extensions',
+        'deployment', 'search', 'debugger', 'settings', 'history', 'tasks', 'checkpoints', 'workflows', 'extensions',
         'collaboration', 'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
         'automations', 'config', 'feedback', 'github', 'integrations', 'mcp', 'merge-conflicts',
         'monitoring', 'networking', 'publishing', 'skills', 'ssh', 'threads', 'test-runner',
@@ -1027,7 +1041,7 @@ export function useIDEWorkspace(projectId: string) {
   const activeTab = useMemo(() => {
     if (!activeFileId) return '';
     const isFile = !['preview', 'terminal', 'git', 'packages', 'secrets', 'database',
-      'deployment', 'search', 'debugger', 'settings', 'history', 'checkpoints', 'workflows', 'extensions',
+      'deployment', 'search', 'debugger', 'settings', 'history', 'tasks', 'checkpoints', 'workflows', 'extensions',
       'collaboration', 'security', 'shell', 'console', 'resources', 'logs', 'visual-editor',
       'automations', 'config', 'feedback', 'github', 'integrations', 'mcp', 'merge-conflicts',
       'monitoring', 'networking', 'publishing', 'skills', 'ssh', 'threads', 'test-runner',
