@@ -69,6 +69,9 @@ export default defineConfig({
           if (id.includes("@codemirror") || id.includes("@lezer")) {
             return "codemirror";
           }
+          if (id.includes("node_modules/react-dom")) {
+            return "react-dom";
+          }
         },
       },
     },

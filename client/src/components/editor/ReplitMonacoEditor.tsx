@@ -1,5 +1,6 @@
 import { useMemo, useCallback, lazy, Suspense } from 'react';
-import CodeEditor, { detectLanguage } from '@/components/CodeEditor';
+import CodeEditor from '@/components/CodeEditor';
+import { detectLanguage } from '@/lib/detect-language';
 
 const MonacoCodeEditor = lazy(() => import('./MonacoCodeEditor'));
 

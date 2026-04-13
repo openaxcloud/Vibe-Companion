@@ -8,7 +8,7 @@ import { toast } from '@/hooks/use-toast';
 import type { Project as ProjectType, File, ProjectGuest, Artifact } from '@shared/schema';
 import type { UserPreferences, MergeConflictFile, MergeResolution } from '@shared/schema';
 import { DEFAULT_PREFERENCES, COMMUNITY_THEMES } from '@shared/schema';
-import { detectLanguage } from '@/components/CodeEditor';
+import { detectLanguage } from '@/lib/detect-language';
 import type { SelectedElement, VisualEdit } from '@/components/VisualEditor';
 import { injectVisualEditorScript, activateVisualEditor, deactivateVisualEditor } from '@/components/VisualEditor';
 

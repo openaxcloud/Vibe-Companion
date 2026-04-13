@@ -9,7 +9,8 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import CodeEditor, { detectLanguage } from "@/components/CodeEditor";
+import CodeEditor from "@/components/CodeEditor";
+import { detectLanguage } from "@/lib/detect-language";
 import type { Project, File } from "@shared/schema";
 
 interface SharedData {

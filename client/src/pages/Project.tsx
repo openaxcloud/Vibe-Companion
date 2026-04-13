@@ -78,7 +78,8 @@ import { ReplitActivityBar, type ActivityItem } from "@/components/ide/ReplitAct
 import { StatusBar } from "@/components/ide/StatusBar";
 import { playNotificationSound, sendPushNotification } from "@/lib/notifications";
 import ConsolePanel from "@/components/ConsolePanel";
-import CodeEditor, { detectLanguage, type BlameEntry } from "@/components/CodeEditor";
+import CodeEditor, { type BlameEntry } from "@/components/CodeEditor";
+import { detectLanguage } from "@/lib/detect-language";
 import { LSPClient, detectLSPLanguage, type LSPLanguage } from "@/lib/lspClient";
 import WorkspaceTerminal, { type WorkspaceTerminalHandle } from "@/components/WorkspaceTerminal";
 import CommandPalette from "@/components/CommandPalette";

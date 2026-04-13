@@ -6,7 +6,8 @@ import {
   File as FileIcon, X, RefreshCw, Globe
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import CodeEditor, { detectLanguage } from "@/components/CodeEditor";
+import CodeEditor from "@/components/CodeEditor";
+import { detectLanguage } from "@/lib/detect-language";
 import type { Project, File } from "@shared/schema";
 
 export default function DemoProject() {
