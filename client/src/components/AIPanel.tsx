@@ -4459,42 +4459,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 </div>
               </div>
             )}
-            <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className={`flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded-md border transition-all ${
-                        agentProvider === "openhands"
-                          ? "border-green-500/50 bg-green-500/10 text-green-400 hover:bg-green-500/20"
-                          : agentProvider === "goose"
-                          ? "border-orange-500/50 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
-                          : "border-blue-500/50 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
-                      }`}
-                      data-testid="button-agent-provider"
-                    >
-                      {agentProvider === "builtin" ? <Zap className="w-3 h-3" /> : agentProvider === "openhands" ? <Globe className="w-3 h-3" /> : <Server className="w-3 h-3" />}
-                      <span>{agentProvider === "builtin" ? "E-Code" : agentProvider === "openhands" ? "OpenHands" : "Goose"}</span>
-                      <ChevronDown className="w-3 h-3 opacity-70" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-64 bg-[var(--ide-panel)] border-[var(--ide-border)] p-1.5">
-                    <div className="px-2 py-1 mb-1 text-[10px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">AI Provider</div>
-                    <DropdownMenuItem className="gap-2.5 text-xs cursor-pointer rounded-md px-2.5 py-2" onClick={() => { setAgentProvider("builtin"); setProviderSessionId(null); try { localStorage.setItem("ai-agent-provider", "builtin"); } catch {} }} data-testid="provider-builtin">
-                      <div className="w-7 h-7 rounded-md bg-blue-500/15 flex items-center justify-center shrink-0"><Zap className="w-4 h-4 text-blue-400" /></div>
-                      <div className="flex flex-col flex-1"><span className="font-semibold text-[var(--ide-text)]">E-Code AI</span><span className="text-[10px] text-[var(--ide-text-muted)]">Built-in GPT-4 / Claude agent</span></div>
-                      {agentProvider === "builtin" && <Check className="w-4 h-4 text-[#0CCE6B]" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2.5 text-xs cursor-pointer rounded-md px-2.5 py-2" onClick={() => { setAgentProvider("openhands"); setProviderSessionId(null); try { localStorage.setItem("ai-agent-provider", "openhands"); } catch {} }} data-testid="provider-openhands">
-                      <div className="w-7 h-7 rounded-md bg-green-500/15 flex items-center justify-center shrink-0"><Globe className="w-4 h-4 text-green-400" /></div>
-                      <div className="flex flex-col flex-1"><span className="font-semibold text-[var(--ide-text)]">OpenHands</span><span className="text-[10px] text-[var(--ide-text-muted)]">Autonomous AI engineer (MIT, 70k+)</span></div>
-                      {agentProvider === "openhands" && <Check className="w-4 h-4 text-[#0CCE6B]" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2.5 text-xs cursor-pointer rounded-md px-2.5 py-2" onClick={() => { setAgentProvider("goose"); setProviderSessionId(null); try { localStorage.setItem("ai-agent-provider", "goose"); } catch {} }} data-testid="provider-goose">
-                      <div className="w-7 h-7 rounded-md bg-orange-500/15 flex items-center justify-center shrink-0"><Server className="w-4 h-4 text-orange-400" /></div>
-                      <div className="flex flex-col flex-1"><span className="font-semibold text-[var(--ide-text)]">Goose</span><span className="text-[10px] text-[var(--ide-text-muted)]">Block / Linux Foundation (Apache 2.0)</span></div>
-                      {agentProvider === "goose" && <Check className="w-4 h-4 text-[#0CCE6B]" />}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
             {topMode === "build" && (
               <>
                 <button
