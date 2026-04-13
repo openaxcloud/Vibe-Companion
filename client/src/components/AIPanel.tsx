@@ -854,8 +854,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
   const [conversationLoaded, setConversationLoaded] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [chatHistory, setChatHistory] = useState<{ id: string; title: string; createdAt: string; updatedAt: string; model: string }[]>([]);
+  const [chatHistory, setChatHistory] = useState<{ id: string; title: string; createdAt: string; updatedAt: string; model: string; messageCount: number; firstMessage?: string }[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -1102,6 +1103,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         const data = await res.json();
         if (cancelled) return;
         if (data.conversation) {
+          setActiveConversationId(data.conversation.id);
           if (data.conversation.model) setModel(data.conversation.model as AIModel);
           if (data.messages && data.messages.length > 0) {
             setMessages(data.messages.map((m: { id: string; role: string; content: string; model?: string; fileOps?: { type: "created" | "updated"; filename: string }[] }) => ({
@@ -1270,19 +1272,37 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
   const handleNewChat = useCallback(() => {
     setMessages([]);
+    setActiveConversationId(null);
     setShowHistory(false);
-    if (projectId) {
-      const ct = getCsrfToken();
-      const h: Record<string, string> = {};
-      if (ct) h["X-CSRF-Token"] = ct;
-      fetch(`/api/ai/conversations/${projectId}`, { method: "DELETE", credentials: "include", headers: h }).catch(() => {});
-    }
-  }, [projectId]);
+    setInput("");
+  }, []);
 
   const handleOpenHistory = useCallback(() => {
     setShowHistory(true);
     loadChatHistory();
   }, [loadChatHistory]);
+
+  const loadConversation = useCallback(async (conversationId: string) => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`/api/ai/conversations/${projectId}/load/${conversationId}`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.conversation && data.messages) {
+          setActiveConversationId(conversationId);
+          const loaded: ChatMessage[] = data.messages.map((m: any) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            model: m.model || undefined,
+            timestamp: new Date(m.createdAt),
+          }));
+          setMessages(loaded);
+        }
+      }
+    } catch {}
+    setShowHistory(false);
+  }, [projectId]);
 
   const persistMessage = useCallback(async (role: string, content: string, msgModel?: string, fileOps?: { type: "created" | "updated"; filename: string }[] | null) => {
     if (!projectId || !content) return;
@@ -1290,14 +1310,20 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const csrfToken = getCsrfToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
-      await fetch(`/api/ai/conversations/${projectId}/messages`, {
+      const res = await fetch(`/api/ai/conversations/${projectId}/messages`, {
         method: "POST",
         headers,
         credentials: "include",
-        body: JSON.stringify({ role, content, model: msgModel || null, fileOps: fileOps || null }),
+        body: JSON.stringify({ role, content, model: msgModel || null, fileOps: fileOps || null, conversationId: activeConversationId || null, newConversation: !activeConversationId }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.conversationId && !activeConversationId) {
+          setActiveConversationId(data.conversationId);
+        }
+      }
     } catch {}
-  }, [projectId]);
+  }, [projectId, activeConversationId]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -3433,7 +3459,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     : mode === "agent" ? agentSuggestions : chatSuggestions;
 
   return (
-    <div className="flex flex-col h-full bg-[var(--ide-panel)]">
+    <div className="flex flex-col h-full bg-[var(--ide-panel)] relative">
 
       {context && topMode === "build" && mode === "chat" && (
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--ide-border)] bg-[var(--ide-bg)]/50 text-[10px] text-[var(--ide-text-secondary)] shrink-0">
@@ -3491,68 +3517,69 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       )}
 
       {showHistory && (
-        <div className="flex-1 flex flex-col overflow-hidden bg-[var(--ide-panel)]">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--ide-border)] shrink-0">
-            <div className="flex items-center gap-2 text-sm font-medium text-[var(--ide-text)]">
+        <div className="absolute inset-0 z-50 flex flex-col bg-[var(--ide-bg)]">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--ide-border)] shrink-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ide-text)]">
               <History className="w-4 h-4" />
-              <span>History</span>
+              <span>Chat History</span>
             </div>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="w-7 h-7 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]" onClick={() => setShowHistory(false)} title="Close history" data-testid="button-close-history">
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
+            <Button variant="ghost" size="icon" className="w-8 h-8 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => setShowHistory(false)} title="Close history" data-testid="button-close-history">
+              <X className="w-4 h-4" />
+            </Button>
           </div>
+          {activeMessages.length > 0 && (
+            <div className="px-4 py-2 border-b border-[var(--ide-border)] bg-[var(--ide-surface)]/50">
+              <button
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] text-[13px] font-medium hover:bg-[var(--ide-accent)]/20 transition-colors"
+                onClick={() => setShowHistory(false)}
+                data-testid="button-continue-chat"
+              >
+                <ArrowRight className="w-3.5 h-3.5" />
+                Continue current chat
+              </button>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto">
             {historyLoading ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex items-center justify-center py-16">
                 <Loader2 className="w-5 h-5 animate-spin text-[var(--ide-text-muted)]" />
               </div>
             ) : chatHistory.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                <History className="w-8 h-8 text-[var(--ide-text-muted)] mb-3 opacity-40" />
-                <p className="text-sm text-[var(--ide-text-muted)]">No conversation history yet</p>
-                <p className="text-xs text-[var(--ide-text-muted)] mt-1 opacity-70">Start a conversation to see it here</p>
+              <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                <History className="w-10 h-10 text-[var(--ide-text-muted)] mb-4 opacity-30" />
+                <p className="text-sm text-[var(--ide-text-muted)]">No chat history yet</p>
+                <p className="text-xs text-[var(--ide-text-muted)] mt-1 opacity-60">Your conversations will appear here</p>
               </div>
             ) : (
-              <div className="divide-y divide-[var(--ide-border)]">
+              <div className="py-1">
                 {chatHistory.map((conv) => (
                   <button
                     key={conv.id}
-                    className="w-full text-left px-4 py-3 hover:bg-[var(--ide-surface)] transition-colors group"
-                    onClick={() => {
-                      setShowHistory(false);
-                    }}
+                    className={`w-full text-left px-4 py-3 hover:bg-[var(--ide-surface)] transition-colors group ${activeConversationId === conv.id ? 'bg-[var(--ide-accent)]/5 border-l-2 border-[var(--ide-accent)]' : ''}`}
+                    onClick={() => loadConversation(conv.id)}
                     data-testid={`history-item-${conv.id}`}
                   >
                     <div className="flex items-start gap-3">
                       <div className="shrink-0 mt-0.5">
-                        <div className="w-6 h-6 rounded-full bg-[var(--ide-accent)]/10 flex items-center justify-center">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[var(--ide-accent)]" />
+                        <div className="w-7 h-7 rounded-lg bg-[var(--ide-accent)]/10 flex items-center justify-center">
+                          <MessageSquare className="w-3.5 h-3.5 text-[var(--ide-accent)]" />
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-[var(--ide-text)] truncate">{conv.title || "Untitled conversation"}</p>
-                        <p className="text-[11px] text-[var(--ide-text-muted)] mt-0.5">
-                          {new Date(conv.updatedAt || conv.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                          {' '}
-                          {new Date(conv.updatedAt || conv.createdAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                        </p>
+                        <p className="text-[13px] font-medium text-[var(--ide-text)] line-clamp-2 leading-snug">{conv.title || conv.firstMessage || "Untitled conversation"}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[11px] text-[var(--ide-text-muted)]">
+                            {new Date(conv.updatedAt || conv.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </span>
+                          <span className="text-[10px] text-[var(--ide-text-muted)] opacity-50">·</span>
+                          <span className="text-[11px] text-[var(--ide-text-muted)]">
+                            {conv.messageCount} message{conv.messageCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </button>
                 ))}
-              </div>
-            )}
-            {activeMessages.length > 0 && (
-              <div className="px-4 py-3 border-t border-[var(--ide-border)]">
-                <button
-                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] text-sm font-medium hover:bg-[var(--ide-accent)]/20 transition-colors"
-                  onClick={() => setShowHistory(false)}
-                  data-testid="button-continue-chat"
-                >
-                  Continue chat <ArrowRight className="w-3.5 h-3.5" />
-                </button>
               </div>
             )}
           </div>

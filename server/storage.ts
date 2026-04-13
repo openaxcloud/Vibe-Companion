@@ -1790,8 +1790,8 @@ export class DatabaseStorage implements IStorage {
     return conv;
   }
 
-  async getProjectConversationHistory(projectId: string, userId: string): Promise<AiConversation[]> {
-    return db.select().from(aiConversations)
+  async getProjectConversationHistory(projectId: string, userId: string): Promise<(AiConversation & { messageCount: number; firstMessage?: string })[]> {
+    const convs = await db.select().from(aiConversations)
       .where(and(
         eq(aiConversations.projectId, projectId),
         eq(aiConversations.userId, userId),
@@ -1799,6 +1799,22 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(desc(aiConversations.updatedAt))
       .limit(50);
+    const results: (AiConversation & { messageCount: number; firstMessage?: string })[] = [];
+    for (const conv of convs) {
+      const msgs = await db.select({ id: aiMessages.id, content: aiMessages.content, role: aiMessages.role })
+        .from(aiMessages).where(eq(aiMessages.conversationId, conv.id)).orderBy(aiMessages.createdAt).limit(2);
+      const userMsg = msgs.find(m => m.role === "user");
+      results.push({ ...conv, messageCount: msgs.length > 1 ? msgs.length : msgs.length, firstMessage: userMsg?.content?.slice(0, 120) });
+    }
+    const countMap = new Map<string, number>();
+    for (const conv of convs) {
+      const [row] = await db.select({ count: sql<number>`count(*)` }).from(aiMessages).where(eq(aiMessages.conversationId, conv.id));
+      countMap.set(conv.id, Number(row?.count ?? 0));
+    }
+    for (const r of results) {
+      r.messageCount = countMap.get(r.id) ?? 0;
+    }
+    return results.filter(r => r.messageCount > 0);
   }
 
   async createConversation(data: InsertAiConversation): Promise<AiConversation> {

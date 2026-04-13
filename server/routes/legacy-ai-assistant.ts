@@ -722,17 +722,27 @@ ${formatInstruction}`;
     if (!project || project.userId !== req.session.userId) {
       return res.status(403).json({ message: "Access denied" });
     }
-    let conversation = await storage.getConversation(req.params.projectId, req.session.userId!);
+    const { role, content, model: msgModel, fileOps, conversationId: reqConvId } = req.body;
+    if (!role || !content) {
+      return res.status(400).json({ message: "role and content required" });
+    }
+    const forceNew = req.body.newConversation === true;
+    let conversation: any = null;
+    if (reqConvId && !forceNew) {
+      conversation = await storage.getConversationById(reqConvId);
+      if (!conversation || conversation.userId !== req.session.userId) {
+        conversation = null;
+      }
+    }
+    if (!conversation && !forceNew) {
+      conversation = await storage.getConversation(req.params.projectId, req.session.userId!);
+    }
     if (!conversation) {
       conversation = await storage.createConversation({
         projectId: req.params.projectId,
         userId: req.session.userId!,
-        model: req.body.model || "gpt",
+        model: msgModel || "gpt",
       });
-    }
-    const { role, content, model: msgModel, fileOps } = req.body;
-    if (!role || !content) {
-      return res.status(400).json({ message: "role and content required" });
     }
     const msg = await storage.addMessage({
       conversationId: conversation.id,
@@ -741,15 +751,24 @@ ${formatInstruction}`;
       model: msgModel || null,
       fileOps: fileOps || null,
     });
-    return res.status(201).json(msg);
+    if (role === "user" && (!conversation.title || conversation.title === "")) {
+      const titleText = typeof content === "string" ? content.slice(0, 100).split("\n")[0] : "Untitled";
+      await storage.updateConversation(conversation.id, { title: titleText });
+    }
+    return res.status(201).json({ ...msg, conversationId: conversation.id });
+  });
+
+  app.get("/api/ai/conversations/:projectId/load/:conversationId", requireAuth, async (req: Request, res: Response) => {
+    const conv = await storage.getConversationById(req.params.conversationId);
+    if (!conv || conv.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+    const msgs = await storage.getMessages(conv.id);
+    return res.json({ conversation: conv, messages: msgs });
   });
 
   app.delete("/api/ai/conversations/:projectId", requireAuth, async (req: Request, res: Response) => {
-    const conversation = await storage.getConversation(req.params.projectId, req.session.userId!);
-    if (conversation) {
-      await storage.deleteConversation(conversation.id);
-    }
-    return res.json({ message: "Conversation cleared" });
+    return res.json({ message: "New conversation started" });
   });
 
   app.get("/api/ai/queue/:projectId", requireAuth, async (req: Request, res: Response) => {
