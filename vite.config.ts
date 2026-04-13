@@ -63,14 +63,8 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
         manualChunks(id) {
-          if (id.includes("@xterm")) {
-            return "xterm";
-          }
-          if (id.includes("@codemirror") || id.includes("@lezer")) {
-            return "codemirror";
-          }
-          if (id.includes("node_modules/react-dom")) {
-            return "react-dom";
+          if (id.includes("node_modules")) {
+            return "vendor";
           }
         },
       },
