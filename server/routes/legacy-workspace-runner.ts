@@ -190,6 +190,10 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
   });
 
   app.get("/api/workspaces/:projectId/status", requireAuth, async (req: Request, res: Response) => {
+    const runnerMode = process.env.RUNNER_MODE || "local";
+    if (runnerMode === "local") {
+      return res.json({ status: "running", localMode: true });
+    }
     const project = await storage.getProject(req.params.projectId);
     if (!project || project.userId !== req.session.userId) {
       return res.status(404).json({ message: "Project not found" });

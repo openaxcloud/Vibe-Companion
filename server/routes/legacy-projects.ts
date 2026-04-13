@@ -479,6 +479,10 @@ export async function registerProjectsRoutes(app: Express, ctx: any): Promise<vo
   });
 
   app.get("/api/workspaces/:id/status", requireAuth, async (_req: Request, res: Response) => {
+    const runnerMode = process.env.RUNNER_MODE || "local";
+    if (runnerMode === "local") {
+      return res.json({ status: "running", localMode: true });
+    }
     return res.json({ status: 'none' });
   });
 
