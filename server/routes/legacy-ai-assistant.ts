@@ -2510,6 +2510,13 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
         ? `\n\nThis is a VIDEO project. The user is creating a video composition. You have access to the create_video_scene and edit_video_scene tools to create/modify video scenes. Each scene has an id, order, duration (seconds), backgroundColor, elements array, and transition type. Element types: text, image, shape, overlay. Each element has position (x, y as %), size (width, height as %), startTime, endTime, style, and animation.`
         : (outputTypeContextMap[(project as any).outputType] || "");
 
+      let secretNamesForPrompt = "(none configured yet)";
+      try {
+        const { getProjectSecretNames } = await import("../utils/secrets");
+        const secretNames = await getProjectSecretNames(projectId);
+        secretNamesForPrompt = secretNames.length > 0 ? secretNames.join(", ") : "(none configured yet)";
+      } catch {}
+
       const agentSystemPrompt = `${agentResolved.systemPromptPrefix}You are an AI coding agent inside E-Code IDE. You can create and edit files in the user's project.
 
 Current project: "${project.name}" (${project.language}, type: ${project.projectType || "web-app"}${isMobileProject ? ", mobile-app" : ""})
@@ -2570,6 +2577,16 @@ You have access to execute_command to run shell commands in the project workspac
 - If a command fails, read the error output carefully. Use read_terminal_output to inspect the last command's output if needed.
 - Fix the underlying issue (wrong package name, missing file, syntax error, etc.) and retry. You may retry up to 3 times before asking the user for help.
 - After starting the dev server, the preview panel will automatically update.
+
+## ENVIRONMENT VARIABLES & SECRETS
+When you generate code that references process.env.VARIABLE_NAME or import.meta.env.VARIABLE_NAME:
+1. After creating/editing files, review ALL environment variable references (process.env.XXX, import.meta.env.XXX) in the code you wrote.
+2. Check if those variables are already configured in the project secrets. The following secrets are currently configured: ${secretNamesForPrompt}
+3. For ANY referenced variable that is NOT in the list above, you MUST inform the user:
+   - Tell them exactly which secrets they need to add (e.g., "Your project needs STRIPE_SECRET_KEY and OPENAI_API_KEY. Please add them in the Secrets panel (lock icon in the left sidebar).")
+   - Explain briefly what each secret is for and where to get it
+4. NEVER hardcode API keys, tokens, passwords, or sensitive values directly in code — always use environment variables.
+5. You cannot read secret values (they are encrypted), but you can see their names to verify they exist.
 
 ## DESIGN QUALITY (CRITICAL — THIS IS YOUR #1 PRIORITY):
 You are building apps that compete with the world's best AI-generated UIs (Replit, v0, Bolt).

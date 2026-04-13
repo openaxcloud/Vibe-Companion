@@ -401,15 +401,8 @@ export async function registerWorkflowsRoutes(app: Express, ctx: any): Promise<v
 
       const isLongRunning = /\b(dev|start|serve|watch|preview)\b/.test(command);
 
-      const envVars = await storage.getProjectEnvVars(projectId);
-      const envObj: Record<string, string> = {};
-      for (const ev of envVars) {
-        try {
-          envObj[ev.key] = ev.encryptedValue ? decrypt(ev.encryptedValue) : ev.value || "";
-        } catch {
-          envObj[ev.key] = ev.value || "";
-        }
-      }
+      const { fetchAllProjectSecrets } = await import("../utils/secrets");
+      const envObj = await fetchAllProjectSecrets(projectId);
 
       const safeEnv: Record<string, string> = {
         HOME: wsDir,
