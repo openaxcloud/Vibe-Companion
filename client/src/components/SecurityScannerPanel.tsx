@@ -118,21 +118,19 @@ export default function SecurityScannerPanel({ projectId, onClose }: SecuritySca
 
   const scanMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/security/scan`);
-      return res.json();
+      return await apiRequest("POST", `/api/projects/${projectId}/security/scan`);
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       setSelectedScanId(data.id);
       setShowHistory(false);
       setShowRescanBanner(false);
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "security/scans"] });
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "security/scans", data.id, "findings"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "security/scans"] });
-      }, 500);
+      if (data.timedOut) {
+        toast({ title: "Scan completed (partial)", description: "Some checks were skipped due to time limit. Results may be incomplete." });
+      }
     },
     onError: (err: any) => {
-      toast({ title: "Scan failed", description: err.message, variant: "destructive" });
+      toast({ title: "Scan failed", description: err.message || "Unknown error", variant: "destructive" });
     },
   });
 
@@ -358,10 +356,20 @@ export default function SecurityScannerPanel({ projectId, onClose }: SecuritySca
           </div>
         )}
 
+        {!scanMutation.isPending && activeScan && activeScan.status === "running" && (
+          <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+            <Shield className="w-8 h-8 text-[var(--ide-text-muted)] mb-2 opacity-30" />
+            <p className="text-xs text-[var(--ide-text-muted)]">Previous scan did not complete</p>
+            <p className="text-[10px] text-[var(--ide-text-muted)] mt-1 opacity-60">
+              Click "Scan Project" to run a new scan
+            </p>
+          </div>
+        )}
+
         {!scanMutation.isPending && activeScan && activeScan.status === "completed" && filteredFindings.length === 0 && (
           <div className="flex flex-col items-center justify-center py-8 text-center px-4">
             <ShieldCheck className="w-8 h-8 text-[#0CCE6B] mb-2" />
-            <p className="text-xs text-[var(--ide-text)]">
+            <p className="text-xs text-[var(--ide-text)]" data-testid="text-scan-clean">
               {activeTab === "hidden" ? "No hidden findings" : currentFindings.length === 0 ? "No vulnerabilities found" : "No critical/high findings"}
             </p>
             <p className="text-[10px] text-[var(--ide-text-muted)] mt-1">

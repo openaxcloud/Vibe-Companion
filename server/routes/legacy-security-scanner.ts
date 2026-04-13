@@ -90,6 +90,18 @@ export async function registerSecurityScannerRoutes(app: Express, ctx: any): Pro
       const userId = req.session.userId!;
       if (!await verifyProjectAccess(projectId, userId)) return res.status(403).json({ message: "Access denied" });
 
+      const SCAN_TIMEOUT_MS = 25000;
+      const scanStartTime = Date.now();
+      let timedOut = false;
+
+      function checkTimeout(): boolean {
+        if (Date.now() - scanStartTime > SCAN_TIMEOUT_MS) {
+          timedOut = true;
+          return true;
+        }
+        return false;
+      }
+
       const scan = await storage.createSecurityScan({ projectId, userId });
       const projectFiles = await storage.getFiles(projectId);
 
@@ -782,8 +794,10 @@ export async function registerSecurityScannerRoutes(app: Express, ctx: any): Pro
       const allSupportedExts = ["js", "ts", "jsx", "tsx", "py", "html", "css", "json", "mjs", "cjs", "go", "rs", "php", "rb", "java", "c", "cpp", "cc", "cxx", "h", "hpp"];
 
       for (const file of projectFiles) {
+        if (checkTimeout()) break;
         const ext = file.filename.split(".").pop()?.toLowerCase();
         if (!ext || !allSupportedExts.includes(ext)) continue;
+        if (file.content.length > 512 * 1024) continue;
 
         const isJsLike = ["js", "ts", "jsx", "tsx", "mjs", "cjs"].includes(ext);
         const isPython = ext === "py";
@@ -839,90 +853,100 @@ export async function registerSecurityScannerRoutes(app: Express, ctx: any): Pro
         }
       }
 
-      const maliciousResults = runMaliciousFileScan(projectFiles);
-      findings.push(...maliciousResults);
+      if (!checkTimeout()) {
+        const maliciousResults = runMaliciousFileScan(projectFiles);
+        findings.push(...maliciousResults);
+      }
 
       const packageJson = projectFiles.find(f => f.filename === "package.json");
       const packageLock = projectFiles.find(f => f.filename === "package-lock.json");
-      if (packageJson) {
+      if (packageJson && !checkTimeout()) {
         findings.push(...scanNodeDeps(packageJson, packageLock));
 
-        const wsDir = path.join(process.cwd(), 'project-workspaces', String(projectId).replace(/[^a-zA-Z0-9_-]/g, '_'));
-        try {
-          const fsMod = await import("fs");
-          if (fsMod.existsSync(path.join(wsDir, 'package.json'))) {
-            const { spawn } = await import("child_process");
-            const auditFindings = await new Promise<FindingEntry[]>((resolve) => {
-              let stdout = '';
-              const child = spawn('npm', ['audit', '--json', '--production'], { cwd: wsDir, shell: false, env: { ...process.env, HOME: wsDir } });
-              const timer = setTimeout(() => { child.kill('SIGTERM'); resolve([]); }, 30000);
-              child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
-              child.on('close', () => {
-                clearTimeout(timer);
-                try {
-                  const audit = JSON.parse(stdout);
-                  const results: FindingEntry[] = [];
-                  const vulns = audit.vulnerabilities || {};
-                  for (const [pkgName, info] of Object.entries(vulns) as [string, any][]) {
-                    const sev = info.severity || 'medium';
-                    const via = Array.isArray(info.via) ? info.via.filter((v: any) => typeof v === 'object') : [];
-                    const firstCve = via[0]?.url || '';
-                    const desc = via[0]?.title || `Vulnerability in ${pkgName}`;
-                    const isDirect = info.isDirect || false;
-                    const existing = findings.find(f => f.title.includes(pkgName) && f.category === 'dependency');
-                    if (!existing) {
-                      results.push({
-                        severity: sev,
-                        title: `npm audit: ${pkgName}@${info.range || 'unknown'}`,
-                        description: `${desc}${firstCve ? ` (${firstCve})` : ''}. ${isDirect ? 'Direct dependency.' : 'Transitive dependency.'}`,
-                        file: 'package.json',
-                        line: null,
-                        code: `${pkgName}: ${info.range || 'unknown'} → fix: ${info.fixAvailable ? JSON.stringify(info.fixAvailable).slice(0, 100) : 'no fix available'}`,
-                        suggestion: info.fixAvailable ? `Run: npm audit fix` : `Review and manually update ${pkgName}.`,
-                        category: 'dependency',
-                        isDirect,
-                      });
-                    }
-                  }
-                  resolve(results);
-                } catch { resolve([]); }
-              });
-              child.on('error', () => { clearTimeout(timer); resolve([]); });
-            });
-            findings.push(...auditFindings);
-            log(`npm audit found ${auditFindings.length} additional vulnerabilities for project ${projectId}`, "security");
+        if (!checkTimeout()) {
+          const wsDir = path.join(process.cwd(), 'project-workspaces', String(projectId).replace(/[^a-zA-Z0-9_-]/g, '_'));
+          try {
+            const fsMod = await import("fs");
+            if (fsMod.existsSync(path.join(wsDir, 'node_modules')) && fsMod.existsSync(path.join(wsDir, 'package.json'))) {
+              const { spawn } = await import("child_process");
+              const auditTimeoutMs = Math.min(8000, SCAN_TIMEOUT_MS - (Date.now() - scanStartTime) - 2000);
+              if (auditTimeoutMs > 2000) {
+                const auditFindings = await new Promise<FindingEntry[]>((resolve) => {
+                  let stdout = '';
+                  let resolved = false;
+                  const child = spawn('npm', ['audit', '--json', '--production'], { cwd: wsDir, shell: false, env: { ...process.env, HOME: wsDir }, timeout: auditTimeoutMs });
+                  const timer = setTimeout(() => { if (!resolved) { resolved = true; try { child.kill('SIGKILL'); } catch {} resolve([]); } }, auditTimeoutMs);
+                  child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); if (stdout.length > 1024 * 1024) { resolved = true; clearTimeout(timer); try { child.kill('SIGKILL'); } catch {} resolve([]); } });
+                  child.on('close', () => {
+                    if (resolved) return;
+                    resolved = true;
+                    clearTimeout(timer);
+                    try {
+                      const audit = JSON.parse(stdout);
+                      const results: FindingEntry[] = [];
+                      const vulns = audit.vulnerabilities || {};
+                      for (const [pkgName, info] of Object.entries(vulns) as [string, any][]) {
+                        const sev = info.severity || 'medium';
+                        const via = Array.isArray(info.via) ? info.via.filter((v: any) => typeof v === 'object') : [];
+                        const firstCve = via[0]?.url || '';
+                        const desc = via[0]?.title || `Vulnerability in ${pkgName}`;
+                        const isDirect = info.isDirect || false;
+                        const existing = findings.find(f => f.title.includes(pkgName) && f.category === 'dependency');
+                        if (!existing) {
+                          results.push({
+                            severity: sev,
+                            title: `npm audit: ${pkgName}@${info.range || 'unknown'}`,
+                            description: `${desc}${firstCve ? ` (${firstCve})` : ''}. ${isDirect ? 'Direct dependency.' : 'Transitive dependency.'}`,
+                            file: 'package.json',
+                            line: null,
+                            code: `${pkgName}: ${info.range || 'unknown'} → fix: ${info.fixAvailable ? JSON.stringify(info.fixAvailable).slice(0, 100) : 'no fix available'}`,
+                            suggestion: info.fixAvailable ? `Run: npm audit fix` : `Review and manually update ${pkgName}.`,
+                            category: 'dependency',
+                            isDirect,
+                          });
+                        }
+                      }
+                      resolve(results);
+                    } catch { resolve([]); }
+                  });
+                  child.on('error', () => { if (!resolved) { resolved = true; clearTimeout(timer); resolve([]); } });
+                });
+                findings.push(...auditFindings);
+                log(`npm audit found ${auditFindings.length} additional vulnerabilities for project ${projectId}`, "security");
+              }
+            }
+          } catch (auditErr: any) {
+            log(`npm audit skipped: ${auditErr.message}`, "security");
           }
-        } catch (auditErr: any) {
-          log(`npm audit skipped: ${auditErr.message}`, "security");
         }
       }
 
-      const requirementsTxt = projectFiles.find(f => f.filename === "requirements.txt" || f.filename === "Pipfile");
-      if (requirementsTxt) {
-        findings.push(...scanPythonDeps(requirementsTxt));
+      if (!checkTimeout()) {
+        const requirementsTxt = projectFiles.find(f => f.filename === "requirements.txt" || f.filename === "Pipfile");
+        if (requirementsTxt) findings.push(...scanPythonDeps(requirementsTxt));
       }
 
-      const goSum = projectFiles.find(f => f.filename === "go.sum");
-      const goMod = projectFiles.find(f => f.filename === "go.mod");
-      if (goSum) {
-        findings.push(...scanGoModDeps(goSum, goMod));
+      if (!checkTimeout()) {
+        const goSum = projectFiles.find(f => f.filename === "go.sum");
+        const goMod = projectFiles.find(f => f.filename === "go.mod");
+        if (goSum) findings.push(...scanGoModDeps(goSum, goMod));
       }
 
-      const cargoLock = projectFiles.find(f => f.filename === "Cargo.lock");
-      const cargoToml = projectFiles.find(f => f.filename === "Cargo.toml");
-      if (cargoLock) {
-        findings.push(...scanCargoLockDeps(cargoLock, cargoToml));
+      if (!checkTimeout()) {
+        const cargoLock = projectFiles.find(f => f.filename === "Cargo.lock");
+        const cargoToml = projectFiles.find(f => f.filename === "Cargo.toml");
+        if (cargoLock) findings.push(...scanCargoLockDeps(cargoLock, cargoToml));
       }
 
-      const composerLock = projectFiles.find(f => f.filename === "composer.lock");
-      const composerJson = projectFiles.find(f => f.filename === "composer.json");
-      if (composerLock) {
-        findings.push(...scanComposerLockDeps(composerLock, composerJson));
+      if (!checkTimeout()) {
+        const composerLock = projectFiles.find(f => f.filename === "composer.lock");
+        const composerJson = projectFiles.find(f => f.filename === "composer.json");
+        if (composerLock) findings.push(...scanComposerLockDeps(composerLock, composerJson));
       }
 
-      const gemfileLock = projectFiles.find(f => f.filename === "Gemfile.lock");
-      if (gemfileLock) {
-        findings.push(...scanGemfileLockDeps(gemfileLock));
+      if (!checkTimeout()) {
+        const gemfileLock = projectFiles.find(f => f.filename === "Gemfile.lock");
+        if (gemfileLock) findings.push(...scanGemfileLockDeps(gemfileLock));
       }
 
       const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
@@ -952,10 +976,14 @@ export async function registerSecurityScannerRoutes(app: Express, ctx: any): Pro
         finishedAt: new Date(),
       });
 
-      res.json(updated);
+      if (timedOut) {
+        log(`Security scan timed out for project ${projectId} after ${Date.now() - scanStartTime}ms, returning ${findings.length} partial findings`, "security");
+      }
+
+      res.json({ ...updated, timedOut, scanDuration: Date.now() - scanStartTime });
     } catch (err: any) {
       log(`Security scan error: ${err.message}`, "security");
-      res.status(500).json({ message: "Scan failed" });
+      res.status(500).json({ message: "Scan failed: " + (err.message || "Unknown error") });
     }
   });
 
