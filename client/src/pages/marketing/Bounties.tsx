@@ -91,7 +91,7 @@ export default function MarketingBounties() {
           <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top,_#ffffff55,_transparent_60%)]" />
           <div className="relative mx-auto flex max-w-6xl flex-col gap-6 px-4 py-12 lg:flex-row lg:items-center">
             <div className="flex-1 space-y-6">
-              <Badge className="bg-white dark:bg-gray-900/10 text-white hover:bg-white dark:bg-gray-900/20">Developer marketplace</Badge>
+              <Badge className="bg-white/20 text-white hover:bg-white/30 border-white/30">Developer marketplace</Badge>
               <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-6xl">
                 Ship features faster with outcome-based bounties
               </h1>
@@ -100,12 +100,12 @@ export default function MarketingBounties() {
               </p>
               <div className="flex flex-wrap gap-4">
                 <Link href="/register">
-                  <Button size="lg" className="bg-white dark:bg-gray-900 text-purple-700 hover:bg-white dark:bg-gray-900/90">
+                  <Button size="lg" className="bg-white text-purple-700 hover:bg-white/90">
                     Launch your first bounty
                   </Button>
                 </Link>
                 <Link href="/contact-sales">
-                  <Button size="lg" variant="outline" className="bg-transparent border-white/40 text-white hover:bg-white dark:bg-gray-900/10">
+                  <Button size="lg" variant="outline" className="bg-transparent border-white/40 text-white hover:bg-white/10">
                     Talk to our team
                   </Button>
                 </Link>
@@ -125,7 +125,7 @@ export default function MarketingBounties() {
                 </div>
               </div>
             </div>
-            <Card className="flex-1 border-white/20 bg-white dark:bg-gray-900/10 backdrop-blur">
+            <Card className="flex-1 border-white/20 bg-white/10 backdrop-blur">
               <CardContent className="space-y-6 p-8 text-white">
                 <div className="flex items-center justify-between">
                   <div>
@@ -250,20 +250,20 @@ export default function MarketingBounties() {
           </div>
         </section>
 
-        <section className="bg-foreground py-20 text-background">
+        <section className="bg-gradient-to-br from-purple-700 via-purple-600 to-blue-600 py-20 text-white">
           <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 px-4 text-center">
             <h2 className="text-3xl font-bold md:text-4xl">Ready to supercharge your roadmap?</h2>
-            <p className="text-[15px] text-background/80 md:text-xl">
+            <p className="text-[15px] text-white/80 md:text-xl">
               Spin up a bounty, invite your team, and start reviewing submissions in minutes.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <Link href="/register">
-                <Button size="lg" variant="secondary" className="bg-background text-foreground hover:bg-background/90">
+                <Button size="lg" className="bg-white text-purple-700 hover:bg-white/90">
                   Create an account
                 </Button>
               </Link>
               <Link href="/contact-sales">
-                <Button size="lg" variant="outline" className="bg-transparent border-white text-white hover:bg-white dark:bg-gray-900/10">
+                <Button size="lg" variant="outline" className="bg-transparent border-white/40 text-white hover:bg-white/10">
                   Book a demo
                 </Button>
               </Link>
