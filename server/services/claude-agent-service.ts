@@ -5,8 +5,11 @@ import { eq, and } from 'drizzle-orm';
 import { syncFileToWorkspace } from '../terminal';
 import { checkpointService } from './checkpoint-service';
 import { createLogger } from '../utils/logger';
+import { getProjectWorkspacePath } from '../utils/project-fs-sync';
+import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const client = new Anthropic();
 const logger = createLogger('claude-agent-service');
 
 const RISKY_COMMANDS = [
@@ -48,39 +51,115 @@ export function setClaudeAgentBroadcastFn(fn: BroadcastFn) {
   broadcastFn = fn;
 }
 
-const activeSessions = new Map<string, { controller: AbortController; streaming: boolean }>();
+const activeSessions = new Map<string, { controller: AbortController; streaming: boolean; messages: any[] }>();
+
+const AGENT_TOOLS: Anthropic.Tool[] = [
+  {
+    name: 'create_file',
+    description: 'Create a new file or overwrite an existing file with the given content.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        path: { type: 'string', description: 'File path relative to project root' },
+        content: { type: 'string', description: 'File content' },
+      },
+      required: ['path', 'content'],
+    },
+  },
+  {
+    name: 'edit_file',
+    description: 'Edit an existing file by replacing old_string with new_string. The old_string must match exactly.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        path: { type: 'string', description: 'File path relative to project root' },
+        old_string: { type: 'string', description: 'Exact string to find and replace' },
+        new_string: { type: 'string', description: 'Replacement string' },
+      },
+      required: ['path', 'old_string', 'new_string'],
+    },
+  },
+  {
+    name: 'read_file',
+    description: 'Read the contents of a file.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        path: { type: 'string', description: 'File path relative to project root' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'list_files',
+    description: 'List files and directories in a given path.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        path: { type: 'string', description: 'Directory path relative to project root. Use "." for root.' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'execute_command',
+    description: 'Execute a shell command in the project workspace. Returns stdout and stderr.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        command: { type: 'string', description: 'Shell command to execute' },
+      },
+      required: ['command'],
+    },
+  },
+  {
+    name: 'delete_file',
+    description: 'Delete a file from the project.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        path: { type: 'string', description: 'File path relative to project root' },
+      },
+      required: ['path'],
+    },
+  },
+];
+
+const AGENT_SYSTEM = `You are E-Code AI Agent (Claude), an expert full-stack software engineer.
+You are working inside a project workspace. Use the provided tools to read, create, edit, and delete files, and to execute shell commands.
+Always read relevant files before editing. Prefer precise edits over full rewrites.
+When creating web apps, use modern best practices (React, TypeScript, Tailwind CSS).
+Execute "npm install" or equivalent when adding new dependencies.
+Keep your text responses concise and action-oriented.`;
 
 export class ClaudeAgentService {
-  private agentId = process.env.CLAUDE_AGENT_ID || '';
-  private environmentId = process.env.CLAUDE_ENVIRONMENT_ID || '';
-  private vaultId = process.env.CLAUDE_VAULT_ID || '';
+  private model = 'claude-sonnet-4-20250514';
 
   isConfigured(): boolean {
-    return !!(this.agentId && this.environmentId && process.env.ANTHROPIC_API_KEY);
+    return !!process.env.ANTHROPIC_API_KEY;
+  }
+
+  private getClient(): Anthropic {
+    return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
 
   async createSession(projectId: string, userId: string): Promise<{ sessionId: string; claudeSessionId: string }> {
     if (!this.isConfigured()) {
-      throw new Error('Claude Agent SDK is not configured. Missing required environment variables.');
+      throw new Error('Claude Agent is not configured. Set ANTHROPIC_API_KEY.');
     }
 
-    const session = await (client.beta as any).sessions.create({
-      agent: this.agentId,
-      environment_id: this.environmentId,
-      vault_ids: this.vaultId ? [this.vaultId] : [],
-      title: `project-${projectId}-user-${userId}`,
-    });
+    const claudeSessionId = `claude-${projectId}-${Date.now()}`;
 
     const [dbSession] = await db.insert(agentSessions).values({
       projectId,
       userId,
-      claudeSessionId: session.id,
+      claudeSessionId,
       mode: 'agent',
       status: 'active',
-      metadata: { claudeSessionId: session.id, createdAt: new Date().toISOString() },
+      metadata: { claudeSessionId, createdAt: new Date().toISOString() },
     }).returning();
 
-    return { sessionId: dbSession.id, claudeSessionId: session.id };
+    return { sessionId: dbSession.id, claudeSessionId };
   }
 
   async getOrCreateSession(projectId: string, userId: string): Promise<{ sessionId: string; claudeSessionId: string }> {
@@ -102,26 +181,168 @@ export class ClaudeAgentService {
 
   async sendMessage(claudeSessionId: string, message: string): Promise<any> {
     if (!this.isConfigured()) {
-      throw new Error('Claude Agent SDK is not configured.');
+      throw new Error('Claude Agent is not configured.');
     }
 
-    const response = await (client.beta as any).sessions.events.create(claudeSessionId, {
-      events: [{
-        type: 'user.message',
-        content: [{ type: 'text', text: message }],
-      }],
-    });
+    const session = [...activeSessions.values()].find((_, _i, arr) => true) ||
+      { messages: [] };
 
-    return response;
+    for (const [key, val] of activeSessions.entries()) {
+      if (key.includes(claudeSessionId) || val.messages) {
+        val.messages.push({ role: 'user' as const, content: message });
+        return { queued: true };
+      }
+    }
+
+    return { queued: true, note: 'Message will be processed in stream' };
   }
 
-  async streamEvents(claudeSessionId: string): Promise<AsyncIterable<any>> {
-    if (!this.isConfigured()) {
-      throw new Error('Claude Agent SDK is not configured.');
-    }
+  private async executeTool(
+    projectId: string,
+    toolName: string,
+    toolInput: any,
+    broadcast: (type: AgentEventType, data: any) => void,
+    userId?: number,
+  ): Promise<string> {
+    const workspacePath = getProjectWorkspacePath(projectId);
 
-    const stream = await (client.beta as any).sessions.events.stream(claudeSessionId);
-    return stream;
+    switch (toolName) {
+      case 'create_file': {
+        const filePath = toolInput.path || '';
+        const content = toolInput.content || '';
+        const fullPath = path.join(workspacePath, filePath);
+        try {
+          fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+          fs.writeFileSync(fullPath, content, 'utf-8');
+          await this.handleFileEvent(projectId, 'create_file', { filename: filePath, content }, broadcast);
+          return `File created: ${filePath}`;
+        } catch (err: any) {
+          return `Error creating file: ${err.message}`;
+        }
+      }
+
+      case 'edit_file': {
+        const filePath = toolInput.path || '';
+        const fullPath = path.join(workspacePath, filePath);
+        try {
+          const existing = fs.readFileSync(fullPath, 'utf-8');
+          if (!existing.includes(toolInput.old_string)) {
+            return `Error: old_string not found in ${filePath}`;
+          }
+          const updated = existing.replace(toolInput.old_string, toolInput.new_string);
+          fs.writeFileSync(fullPath, updated, 'utf-8');
+          await this.handleFileEvent(projectId, 'edit_file', { filename: filePath, content: updated }, broadcast);
+          return `File edited: ${filePath}`;
+        } catch (err: any) {
+          return `Error editing file: ${err.message}`;
+        }
+      }
+
+      case 'read_file': {
+        const filePath = toolInput.path || '';
+        const fullPath = path.join(workspacePath, filePath);
+        try {
+          const content = fs.readFileSync(fullPath, 'utf-8');
+          return content.length > 50000 ? content.substring(0, 50000) + '\n... (truncated)' : content;
+        } catch (err: any) {
+          return `Error reading file: ${err.message}`;
+        }
+      }
+
+      case 'list_files': {
+        const dirPath = toolInput.path || '.';
+        const fullPath = path.join(workspacePath, dirPath);
+        try {
+          const entries = fs.readdirSync(fullPath, { withFileTypes: true });
+          const listing = entries.map(e => `${e.isDirectory() ? '📁' : '📄'} ${e.name}`).join('\n');
+          return listing || '(empty directory)';
+        } catch (err: any) {
+          return `Error listing files: ${err.message}`;
+        }
+      }
+
+      case 'execute_command': {
+        const command = toolInput.command || '';
+        const cmdStr = command.toLowerCase();
+
+        broadcast('terminal_command', { command, id: `tool-${Date.now()}` });
+
+        const isRisky = RISKY_COMMANDS.some(rc => cmdStr.includes(rc));
+        if (isRisky) {
+          try {
+            const numericProjectId = parseInt(projectId, 10);
+            if (!isNaN(numericProjectId)) {
+              await checkpointService.createCheckpoint({
+                projectId: numericProjectId,
+                userId: userId || 0,
+                name: `Auto-checkpoint before ${command.slice(0, 50)}`,
+                description: `Automatic checkpoint before agent executed: ${command.slice(0, 100)}`,
+                type: 'before_action',
+              });
+              broadcast('checkpoint_created', { reason: `Auto-checkpoint before: ${command.slice(0, 50)}` });
+            }
+          } catch (err: any) {
+            logger.warn(`Failed to create auto-checkpoint: ${err.message}`);
+          }
+        }
+
+        try {
+          const result = execSync(command, {
+            cwd: workspacePath,
+            timeout: 30000,
+            maxBuffer: 1024 * 1024,
+            encoding: 'utf-8',
+            env: { ...process.env, HOME: workspacePath },
+          });
+
+          const output = (result || '').trim();
+          broadcast('terminal_output', { output, toolUseId: `tool-${Date.now()}` });
+
+          if (cmdStr.includes('npm install') || cmdStr.includes('yarn add') || cmdStr.includes('pnpm add')) {
+            broadcast('packages_refresh', {});
+          }
+
+          const devServerPatterns = ['npm run dev', 'npm start', 'npx vite', 'yarn dev', 'pnpm dev'];
+          if (devServerPatterns.some(p => cmdStr.includes(p))) {
+            broadcast('preview_refresh', { reason: 'Agent started dev server' });
+          }
+
+          return output || '(command completed successfully)';
+        } catch (err: any) {
+          const stderr = err.stderr || err.message || 'Command failed';
+          broadcast('terminal_output', { output: stderr, toolUseId: `tool-${Date.now()}` });
+          return `Command error:\n${stderr}`;
+        }
+      }
+
+      case 'delete_file': {
+        const filePath = toolInput.path || '';
+        const fullPath = path.join(workspacePath, filePath);
+        try {
+          const numericProjectId = parseInt(projectId, 10);
+          if (!isNaN(numericProjectId)) {
+            try {
+              await checkpointService.createCheckpoint({
+                projectId: numericProjectId,
+                userId: userId || 0,
+                name: `Auto-checkpoint before delete ${filePath}`,
+                description: `Automatic checkpoint before deleting: ${filePath}`,
+                type: 'before_action',
+              });
+              broadcast('checkpoint_created', { reason: `Auto-checkpoint before delete: ${filePath}` });
+            } catch {}
+          }
+
+          fs.unlinkSync(fullPath);
+          return `File deleted: ${filePath}`;
+        } catch (err: any) {
+          return `Error deleting file: ${err.message}`;
+        }
+      }
+
+      default:
+        return `Unknown tool: ${toolName}`;
+    }
   }
 
   async processAgentEvents(
@@ -130,6 +351,7 @@ export class ClaudeAgentService {
     dbSessionId: string,
     onEvent?: (event: AgentEvent) => void,
     userId?: number,
+    userMessage?: string,
   ) {
     const broadcast = (type: AgentEventType, data: any) => {
       const event: AgentEvent = {
@@ -149,140 +371,98 @@ export class ClaudeAgentService {
     };
 
     const controller = new AbortController();
-    activeSessions.set(dbSessionId, { controller, streaming: true });
+    const sessionData = activeSessions.get(dbSessionId);
+    const conversationMessages: any[] = sessionData?.messages || [];
+
+    if (userMessage) {
+      conversationMessages.push({ role: 'user' as const, content: userMessage });
+    }
+
+    activeSessions.set(dbSessionId, { controller, streaming: true, messages: conversationMessages });
 
     broadcast('agent_status', { status: 'processing' });
 
     try {
-      const stream = await this.streamEvents(claudeSessionId);
+      const client = this.getClient();
+      let messages = [...conversationMessages];
+      let maxTurns = 20;
 
-      for await (const event of stream) {
+      while (maxTurns-- > 0) {
         if (controller.signal.aborted) break;
 
-        switch (event.type) {
-          case 'content_block_start':
-          case 'content_block_delta': {
-            if (event.delta?.type === 'text_delta' || event.content_block?.type === 'text') {
-              broadcast('agent_message', {
-                text: event.delta?.text || '',
-                contentBlock: event.content_block,
-              });
-            }
-            if (event.delta?.type === 'thinking_delta' || event.content_block?.type === 'thinking') {
-              broadcast('agent_thinking', {
-                text: event.delta?.thinking || '',
-              });
-            }
-            break;
-          }
+        broadcast('agent_status', { status: 'processing' });
 
-          case 'tool_use': {
-            const toolName = event.name || event.tool?.name;
-            const toolInput = event.input || event.tool?.input || {};
+        const stream = client.messages.stream({
+          model: this.model,
+          max_tokens: 8192,
+          system: AGENT_SYSTEM,
+          tools: AGENT_TOOLS,
+          messages,
+        });
 
-            broadcast('agent_tool_use', {
-              tool: toolName,
-              input: toolInput,
-              id: event.id,
-            });
+        let fullText = '';
+        const toolUseBlocks: any[] = [];
+        let currentToolUse: any = null;
+        let inputJsonBuffer = '';
 
-            const cmdStr = (toolInput.command || toolInput.cmd || '').toLowerCase();
-            const isRiskyCommand = (toolName === 'execute_command' || toolName === 'bash' || toolName === 'shell') &&
-              RISKY_COMMANDS.some(rc => cmdStr.includes(rc));
-            const isRiskyFile = toolName === 'delete_file' || toolName === 'remove_file';
+        stream.on('text', (text) => {
+          fullText += text;
+          broadcast('agent_message', { text });
+        });
 
-            if (isRiskyCommand || isRiskyFile) {
-              try {
-                const numericProjectId = parseInt(projectId, 10);
-                if (!isNaN(numericProjectId)) {
-                  await checkpointService.createCheckpoint({
-                    projectId: numericProjectId,
-                    userId: userId || 0,
-                    name: `Auto-checkpoint before ${toolName}`,
-                    description: `Automatic checkpoint before agent executed: ${isRiskyCommand ? cmdStr.slice(0, 100) : toolName}`,
-                    type: 'before_action',
-                  });
-                  broadcast('checkpoint_created', {
-                    reason: `Auto-checkpoint before risky operation: ${toolName}`,
-                  });
-                  logger.info(`Auto-checkpoint created before risky operation in project ${projectId}`);
-                }
-              } catch (err: any) {
-                logger.warn(`Failed to create auto-checkpoint: ${err.message}`);
-              }
-            }
+        const finalMessage = await stream.finalMessage();
 
-            if (toolName === 'create_file' || toolName === 'write_file' || toolName === 'edit_file') {
-              await this.handleFileEvent(projectId, toolName, toolInput, broadcast);
-            }
-
-            if (toolName === 'execute_command' || toolName === 'bash' || toolName === 'shell') {
-              const rawCmd = toolInput.command || toolInput.cmd || '';
-              broadcast('terminal_command', {
-                command: rawCmd,
-                id: event.id,
-              });
-
-              const cmdLower = rawCmd.toLowerCase();
-              const devServerPatterns = ['npm run dev', 'npm start', 'npx vite', 'yarn dev', 'pnpm dev', 'node server'];
-              if (devServerPatterns.some(p => cmdLower.includes(p))) {
-                broadcast('preview_refresh', {
-                  reason: 'Agent started dev server',
-                  url: `/api/preview/projects/${projectId}/preview/`,
-                });
-              }
-            }
-            break;
-          }
-
-          case 'tool_result': {
-            broadcast('agent_tool_result', {
-              toolUseId: event.tool_use_id,
-              content: event.content,
-              isError: event.is_error,
-            });
-
-            const contentText = this.extractTextFromContent(event.content);
-
-            if (contentText) {
-              broadcast('terminal_output', {
-                output: contentText,
-                toolUseId: event.tool_use_id,
-              });
-            }
-
-            if (contentText && (contentText.includes('npm install') || contentText.includes('yarn add') || contentText.includes('pnpm add'))) {
-              broadcast('packages_refresh', {});
-            }
-
-            if (contentText && (contentText.includes('migration') || contentText.includes('CREATE TABLE') || contentText.includes('ALTER TABLE'))) {
-              broadcast('database_refresh', {});
-            }
-
-            break;
-          }
-
-          case 'message_start':
-          case 'message_delta':
-          case 'message_stop': {
-            broadcast('agent_status', {
-              status: event.type === 'message_stop' ? 'idle' : 'processing',
-              messageId: event.message?.id,
-              stopReason: event.delta?.stop_reason,
-            });
-            break;
-          }
-
-          default: {
-            broadcast('agent_status', { rawType: event.type, event });
-            break;
+        for (const block of finalMessage.content) {
+          if (block.type === 'tool_use') {
+            toolUseBlocks.push(block);
           }
         }
+
+        messages.push({ role: 'assistant' as const, content: finalMessage.content });
+
+        if (finalMessage.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
+          break;
+        }
+
+        const toolResults: any[] = [];
+        for (const toolBlock of toolUseBlocks) {
+          broadcast('agent_tool_use', {
+            tool: toolBlock.name,
+            input: toolBlock.input,
+            id: toolBlock.id,
+          });
+
+          const result = await this.executeTool(projectId, toolBlock.name, toolBlock.input, broadcast, userId);
+
+          broadcast('agent_tool_result', {
+            toolUseId: toolBlock.id,
+            content: result,
+            isError: result.startsWith('Error'),
+          });
+
+          toolResults.push({
+            type: 'tool_result' as const,
+            tool_use_id: toolBlock.id,
+            content: result,
+          });
+        }
+
+        messages.push({ role: 'user' as const, content: toolResults });
       }
+
+      const session = activeSessions.get(dbSessionId);
+      if (session) {
+        session.messages = messages;
+      }
+
     } catch (err: any) {
-      broadcast('agent_error', { message: err.message || 'Stream error' });
+      logger.error(`Claude agent error: ${err.message}`);
+      broadcast('agent_error', { message: err.message || 'Agent error' });
     } finally {
-      activeSessions.delete(dbSessionId);
+      const session = activeSessions.get(dbSessionId);
+      if (session) {
+        session.streaming = false;
+      }
       broadcast('agent_status', { status: 'idle' });
     }
   }
@@ -306,8 +486,8 @@ export class ClaudeAgentService {
       const existing = await db.select()
         .from(filesTable)
         .where(and(
-          eq(filesTable.projectId, parseInt(projectId, 10)),
-          eq(filesTable.name, filename),
+          eq(filesTable.projectId, projectId),
+          eq(filesTable.filename, filename),
         ))
         .limit(1);
 
@@ -318,18 +498,10 @@ export class ClaudeAgentService {
 
         broadcast('file_updated', { name: filename, content, action: 'modified' });
       } else {
-        const mimeTypes: Record<string, string> = {
-          ts: 'text/typescript', tsx: 'text/tsx', js: 'text/javascript', jsx: 'text/jsx',
-          html: 'text/html', css: 'text/css', json: 'application/json', md: 'text/markdown',
-          py: 'text/x-python', go: 'text/x-go', rs: 'text/x-rust',
-        };
-
         await db.insert(filesTable).values({
-          projectId: parseInt(projectId, 10),
-          name: filename,
+          projectId,
+          filename,
           content,
-          type: mimeTypes[ext] || 'text/plain',
-          isDirectory: false,
         });
 
         broadcast('file_created', { name: filename, content, action: 'created' });
@@ -340,7 +512,7 @@ export class ClaudeAgentService {
         broadcast('preview_refresh', { filename, trigger: 'file_change' });
       }
     } catch (err: any) {
-      console.error(`[claude-agent] File sync error for ${filename}:`, err.message);
+      logger.warn(`File sync error for ${filename}: ${err.message}`);
     }
   }
 
@@ -360,14 +532,6 @@ export class ClaudeAgentService {
     if (session) {
       session.controller.abort();
       activeSessions.delete(dbSessionId);
-    }
-
-    try {
-      if (this.isConfigured()) {
-        await (client.beta as any).sessions.archive(claudeSessionId);
-      }
-    } catch (err: any) {
-      console.warn(`[claude-agent] Failed to archive Claude session: ${err.message}`);
     }
 
     await db.update(agentSessions)

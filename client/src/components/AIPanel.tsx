@@ -1916,7 +1916,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       setClaudeAgentClaudeId(claudeId);
     }
 
-    const messageRes = await fetch(`/api/projects/${projectId}/agent/message`, {
+    const streamRes = await fetch(`/api/projects/${projectId}/agent/message`, {
       method: "POST",
       headers: fetchHeaders,
       credentials: "include",
@@ -1928,18 +1928,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       signal: abortRef.current?.signal,
     });
 
-    if (!messageRes.ok) {
-      const errData = await messageRes.json().catch(() => ({}));
-      throw new Error(errData.message || errData.error || "Claude Agent message failed");
-    }
-
-    const streamRes = await fetch(`/api/projects/${projectId}/agent/stream?sessionId=${sessionId}&claudeSessionId=${claudeId}`, {
-      credentials: "include",
-      signal: abortRef.current?.signal,
-    });
-
     if (!streamRes.ok) {
-      throw new Error("Failed to connect to Claude Agent stream");
+      const errData = await streamRes.json().catch(() => ({}));
+      throw new Error(errData.message || errData.error || "Claude Agent message failed");
     }
 
     const reader = streamRes.body?.getReader();

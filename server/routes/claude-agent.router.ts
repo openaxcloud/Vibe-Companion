@@ -18,8 +18,8 @@ router.post('/projects/:projectId/agent/session', async (req: Request, res: Resp
 
     if (!claudeAgentService.isConfigured()) {
       return res.status(503).json({
-        error: 'Claude Agent SDK not configured',
-        message: 'Missing ANTHROPIC_API_KEY, CLAUDE_AGENT_ID, or CLAUDE_ENVIRONMENT_ID',
+        error: 'Claude Agent not configured',
+        message: 'Missing ANTHROPIC_API_KEY environment variable',
       });
     }
 
@@ -38,32 +38,11 @@ router.post('/projects/:projectId/agent/message', async (req: Request, res: Resp
       return res.status(401).json({ error: 'Authentication required' });
     }
 
+    const { projectId } = req.params;
     const { sessionId, claudeSessionId, message } = req.body;
 
-    if (!message || !claudeSessionId) {
-      return res.status(400).json({ error: 'Missing sessionId/claudeSessionId or message' });
-    }
-
-    const sendResponse = await claudeAgentService.sendMessage(claudeSessionId, message);
-
-    res.json({ success: true, response: sendResponse });
-  } catch (err: any) {
-    console.error('[claude-agent-router] Message error:', err.message);
-    res.status(500).json({ error: 'Failed to send message', message: err.message });
-  }
-});
-
-router.get('/projects/:projectId/agent/stream', async (req: Request, res: Response) => {
-  try {
-    const userId = getAuthUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    const { projectId } = req.params;
-    const { sessionId, claudeSessionId } = req.query;
-
-    if (!claudeSessionId || !sessionId) {
-      return res.status(400).json({ error: 'Missing sessionId or claudeSessionId query param' });
+    if (!message || !sessionId) {
+      return res.status(400).json({ error: 'Missing sessionId or message' });
     }
 
     res.setHeader('Content-Type', 'text/event-stream');
@@ -82,11 +61,12 @@ router.get('/projects/:projectId/agent/stream', async (req: Request, res: Respon
 
     const numericUserId = parseInt(userId, 10);
     await claudeAgentService.processAgentEvents(
-      claudeSessionId as string,
+      claudeSessionId,
       projectId,
-      sessionId as string,
+      sessionId,
       onEvent,
       isNaN(numericUserId) ? undefined : numericUserId,
+      message,
     );
 
     if (!res.destroyed) {
@@ -94,13 +74,32 @@ router.get('/projects/:projectId/agent/stream', async (req: Request, res: Respon
       res.end();
     }
   } catch (err: any) {
-    console.error('[claude-agent-router] Stream error:', err.message);
+    console.error('[claude-agent-router] Message error:', err.message);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Stream failed', message: err.message });
+      res.status(500).json({ error: 'Failed to send message', message: err.message });
     } else if (!res.destroyed) {
       res.write(`data: ${JSON.stringify({ type: 'agent_error', data: { message: err.message } })}\n\n`);
       res.end();
     }
+  }
+});
+
+router.get('/projects/:projectId/agent/stream', async (req: Request, res: Response) => {
+  try {
+    const userId = getAuthUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const { sessionId } = req.query;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Missing sessionId query param' });
+    }
+
+    const status = await claudeAgentService.getSessionStatus(sessionId as string);
+    res.json({ streaming: status.streaming, active: status.active });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to get stream status', message: err.message });
   }
 });
 
