@@ -411,22 +411,63 @@ export function useIDEWorkspace(projectId: string) {
   // ═══════════════════════════════════════════════
   // SAVE MUTATION
   // ═══════════════════════════════════════════════
+  const [lintDiagnostics, setLintDiagnostics] = useState<Array<{ line: number; column: number; endLine?: number; endColumn?: number; message: string; severity: 'error' | 'warning'; ruleId: string | null }>>([]);
+  const [isFormatting, setIsFormatting] = useState(false);
+
   const saveMutation = useMutation({
     mutationFn: async ({ fileId, content }: { fileId: string; content: string }) => {
       if (fileId.startsWith('runner:')) {
         const path = fileId.slice(7);
         await apiRequest('POST', `/api/workspaces/${projectId}/fs/write`, { path, content });
+        return null;
       } else {
-        await apiRequest('PATCH', `/api/files/${fileId}`, { content });
+        const res = await apiRequest('PATCH', `/api/files/${fileId}`, { content });
+        return res.json();
       }
     },
-    onSuccess: (_, vars) => {
+    onSuccess: (data: any, vars) => {
       setDirtyFiles(prev => { const n = new Set(prev); n.delete(vars.fileId); return n; });
+      if (data?.formatted && data?.content) {
+        setFileContents(prev => ({ ...prev, [vars.fileId]: data.content }));
+      }
+      if (projectId) {
+        const fn = (Array.isArray(filesQuery.data) ? filesQuery.data : []).find((f: any) => String(f.id) === vars.fileId)?.filename || '';
+        const lintExts = ['.js','.jsx','.ts','.tsx','.mjs','.cjs'];
+        if (lintExts.includes((fn.match(/\.[^.]+$/) || [''])[0].toLowerCase())) {
+          apiRequest('POST', `/api/extensions/${projectId}/lint`, { content: vars.content, filename: fn })
+            .then((r: any) => r.json ? r.json() : r)
+            .then((d: any) => { if (d?.diagnostics) setLintDiagnostics(d.diagnostics); else setLintDiagnostics([]); })
+            .catch(() => setLintDiagnostics([]));
+        }
+      }
     },
     onError: (err: any) => {
       toast({ title: 'Failed to save file', description: err.message || 'Could not save changes.', variant: 'destructive' });
     },
   });
+
+  const formatDocument = useCallback(async () => {
+    if (!activeFileId || !projectId) return;
+    const content = fileContents[activeFileId];
+    if (content === undefined) return;
+    const filename = activeFileName || '';
+    setIsFormatting(true);
+    try {
+      const res = await apiRequest('POST', `/api/extensions/${projectId}/format`, { content, filename });
+      const data = await res.json();
+      if (data.changed && data.formatted) {
+        setFileContents(prev => ({ ...prev, [activeFileId]: data.formatted }));
+        saveMutation.mutate({ fileId: activeFileId, content: data.formatted });
+        toast({ title: 'Document formatted' });
+      } else if (data.message) {
+        toast({ title: data.message });
+      }
+    } catch (err: any) {
+      toast({ title: 'Format failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsFormatting(false);
+    }
+  }, [activeFileId, projectId, fileContents, activeFileName, saveMutation, toast]);
 
   const autoSave = useCallback((fileId: string, newCode: string) => {
     setDirtyFiles(prev => new Set(prev).add(fileId));
@@ -1326,6 +1367,9 @@ export function useIDEWorkspace(projectId: string) {
     problemsCount,
     handleCodeChange,
     handleCursorChange,
+    formatDocument,
+    isFormatting,
+    lintDiagnostics,
 
     // Publish
     publishState,

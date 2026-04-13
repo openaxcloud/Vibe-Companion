@@ -269,6 +269,9 @@ function UnifiedIDELayout({
     dirtyFiles,
     handleCodeChange,
     handleCursorChange,
+    formatDocument,
+    isFormatting,
+    lintDiagnostics,
     wsConnected,
     wsStatus,
     livePreviewUrl,
@@ -1281,16 +1284,49 @@ function UnifiedIDELayout({
     if (currentTab.id.startsWith('file:')) {
       const editorFileId = activeFileId || (selectedFileId ? String(selectedFileId) : null);
       return (
-        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
-          <ReplitMonacoEditor
-            projectId={projectId}
-            fileId={editorFileId}
-            fileContents={fileContents || {}}
-            onCodeChange={handleCodeChange || (() => {})}
-            onCursorChange={handleCursorChange}
-            filename={activeFileName || undefined}
-          />
-        </Suspense>
+        <div className="flex flex-col h-full">
+          <div className="flex items-center h-7 px-2 bg-[var(--ide-surface)] border-b border-[var(--ide-border)] shrink-0 justify-between">
+            <span className="text-[11px] text-[var(--ide-text-muted)] truncate" data-testid="text-editor-filepath">{activeFileName || ''}</span>
+            <div className="flex items-center gap-1">
+              {formatDocument && (
+                <button
+                  onClick={formatDocument}
+                  disabled={isFormatting}
+                  className="flex items-center gap-1 px-2 py-0.5 text-[10px] rounded hover:bg-[var(--ide-surface-hover)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors disabled:opacity-50"
+                  title="Format Document (Prettier)"
+                  data-testid="button-format-document"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="M17.8 11.8 19 13"/><path d="M15 9h.01"/><path d="M17.8 6.2 19 5"/><path d="m3 21 9-9"/><path d="M12.2 6.2 11 5"/></svg>
+                  {isFormatting ? 'Formatting...' : 'Format'}
+                </button>
+              )}
+            </div>
+          </div>
+          {lintDiagnostics && lintDiagnostics.length > 0 && (
+            <div className="max-h-24 overflow-y-auto bg-[var(--ide-surface)] border-b border-[var(--ide-border)] px-3 py-1" data-testid="lint-diagnostics-panel">
+              {lintDiagnostics.map((d: any, i: number) => (
+                <div key={i} className={`flex items-start gap-2 text-[11px] py-0.5 ${d.severity === 'error' ? 'text-red-400' : 'text-yellow-400'}`}>
+                  <span className="shrink-0">{d.severity === 'error' ? '●' : '▲'}</span>
+                  <span className="text-[var(--ide-text-muted)] shrink-0">Ln {d.line}, Col {d.column}</span>
+                  <span className="truncate">{d.message}</span>
+                  {d.ruleId && <span className="text-[var(--ide-text-muted)] shrink-0">({d.ruleId})</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex-1 min-h-0">
+            <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}>
+              <ReplitMonacoEditor
+                projectId={projectId}
+                fileId={editorFileId}
+                fileContents={fileContents || {}}
+                onCodeChange={handleCodeChange || (() => {})}
+                onCursorChange={handleCursorChange}
+                filename={activeFileName || undefined}
+              />
+            </Suspense>
+          </div>
+        </div>
       );
     }
 

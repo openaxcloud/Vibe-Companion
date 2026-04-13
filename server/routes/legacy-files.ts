@@ -158,7 +158,41 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
     }
     const { content, filename } = req.body;
     if (typeof content === "string") {
-      const sanitizedContent = sanitizeInput(content, 500000);
+      let sanitizedContent = sanitizeInput(content, 500000);
+
+      try {
+        const { projectExtensions } = await import("@shared/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const { db: dbConn } = await import("../db");
+        const prettierExt = await dbConn.query.projectExtensions.findFirst({
+          where: and(eq(projectExtensions.projectId, String(project.id)), eq(projectExtensions.extensionId, 'prettier'), eq(projectExtensions.enabled, true))
+        });
+        if (prettierExt) {
+          const extPath = require('path').extname(existingFile.filename || '').toLowerCase();
+          const fmtExts = ['.js','.jsx','.ts','.tsx','.css','.scss','.less','.html','.json','.md','.yaml','.yml','.vue','.svelte'];
+          if (fmtExts.includes(extPath)) {
+            const fsP = require('fs/promises');
+            const pathMod = require('path');
+            const wsDir = pathMod.join(process.cwd(), 'project-workspaces', String(project.id).replace(/[^a-zA-Z0-9_-]/g, '_'));
+            const prettierBin = pathMod.join(wsDir, 'node_modules', '.bin', 'prettier');
+            try {
+              await fsP.access(prettierBin);
+              const tmpFile = pathMod.join(wsDir, `.fmt-tmp-${Date.now()}${extPath}`);
+              await fsP.writeFile(tmpFile, sanitizedContent, 'utf-8');
+              const { spawn: spawnFmt } = require('child_process');
+              await new Promise<void>((resolve) => {
+                const p = spawnFmt(prettierBin, ['--write', tmpFile], { cwd: wsDir, timeout: 10000 });
+                p.on('close', () => resolve());
+                p.on('error', () => resolve());
+              });
+              const formatted = await fsP.readFile(tmpFile, 'utf-8');
+              await fsP.unlink(tmpFile).catch(() => {});
+              if (formatted && formatted.length > 0) sanitizedContent = formatted;
+            } catch {}
+          }
+        }
+      } catch {}
+
       const oldContent = existingFile.content;
       const file = await storage.updateFileContent(req.params.id, sanitizedContent);
       storage.updateStorageUsage(req.session.userId!).catch(() => {});
@@ -176,7 +210,13 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
           } catch {}
         })();
       }
-      return res.json(file);
+      const response: any = { ...file };
+      if (sanitizedContent !== content) {
+        response.formatted = true;
+        response.content = sanitizedContent;
+      }
+
+      return res.json(response);
     }
     if (typeof filename === "string" && filename.trim()) {
       const safeName = sanitizeFilename(filename.trim());

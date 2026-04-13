@@ -1,4 +1,4 @@
-import { ChevronRight, Map, FolderOpen, File } from 'lucide-react';
+import { ChevronRight, Map, FolderOpen, File, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -14,6 +14,9 @@ interface EditorToolbarProps {
   minimapEnabled: boolean;
   onToggleMinimap: () => void;
   onBreadcrumbClick?: (segment: string, index: number) => void;
+  onFormatDocument?: () => void;
+  isFormatting?: boolean;
+  formatAvailable?: boolean;
 }
 
 export function EditorToolbar({
@@ -22,8 +25,10 @@ export function EditorToolbar({
   minimapEnabled,
   onToggleMinimap,
   onBreadcrumbClick,
+  onFormatDocument,
+  isFormatting,
+  formatAvailable,
 }: EditorToolbarProps) {
-  // Parse file path into breadcrumb segments
   const getBreadcrumbs = () => {
     if (!filePath) return [];
     
@@ -35,7 +40,6 @@ export function EditorToolbar({
 
   return (
     <div className="h-8 bg-[var(--ecode-surface)] border-b border-[var(--ecode-border)] flex items-center justify-between px-3 flex-shrink-0">
-      {/* Breadcrumbs */}
       <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
         {breadcrumbs.length > 0 ? (
           <div className="flex items-center gap-1" data-testid="editor-breadcrumbs">
@@ -79,9 +83,30 @@ export function EditorToolbar({
         )}
       </div>
 
-      {/* Toolbar Actions */}
       <div className="flex items-center gap-1 flex-shrink-0 ml-2">
         <TooltipProvider>
+          {formatAvailable && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onFormatDocument}
+                  disabled={isFormatting}
+                  className="h-6 px-2 text-[11px]"
+                  data-testid="button-format-document"
+                >
+                  <Wand2 className={cn(
+                    'h-3.5 w-3.5',
+                    isFormatting ? 'animate-spin text-[var(--ecode-accent)]' : 'text-[var(--ecode-text-muted)]'
+                  )} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isFormatting ? 'Formatting...' : 'Format Document'}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

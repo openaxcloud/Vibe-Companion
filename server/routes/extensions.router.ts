@@ -9,6 +9,7 @@ import { csrfProtection } from '../middleware/csrf';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
+import { storage } from '../storage';
 
 const router = Router();
 const logger = createLogger('extensions');
@@ -42,8 +43,8 @@ const EXTENSIONS_CATALOG: ExtensionDefinition[] = [
     description: "Find and fix problems in your JavaScript/TypeScript code",
     author: "ESLint", version: "9.1.0", category: "Linting", icon: "shield",
     npmPackage: "eslint", type: "npm",
-    configFile: ".eslintrc.json",
-    configContent: JSON.stringify({ env: { browser: true, es2021: true, node: true }, extends: ["eslint:recommended"], parserOptions: { ecmaVersion: "latest", sourceType: "module" }, rules: {} }, null, 2),
+    configFile: "eslint.config.mjs",
+    configContent: `import js from "@eslint/js";\nexport default [\n  js.configs.recommended,\n  {\n    languageOptions: {\n      ecmaVersion: "latest",\n      sourceType: "module",\n      globals: {\n        console: "readonly",\n        process: "readonly",\n        __dirname: "readonly",\n        __filename: "readonly",\n        module: "readonly",\n        require: "readonly",\n        exports: "readonly",\n        window: "readonly",\n        document: "readonly",\n        fetch: "readonly",\n        setTimeout: "readonly",\n        setInterval: "readonly",\n        clearTimeout: "readonly",\n        clearInterval: "readonly",\n        URL: "readonly",\n        Buffer: "readonly",\n      },\n    },\n    rules: {},\n  },\n];\n`,
   },
   {
     extensionId: "tailwind-intellisense", name: "Tailwind CSS IntelliSense",
@@ -233,7 +234,9 @@ router.post('/:projectId/install', ensureAuthenticated, csrfProtection, async (r
         await fs.writeFile(pkgJsonPath, JSON.stringify({ name: "project", version: "1.0.0", private: true }, null, 2));
       }
 
-      npmResult = await runNpmCommand(['install', '--save-dev', catalogEntry.npmPackage], wsDir);
+      const packages = [catalogEntry.npmPackage];
+      if (catalogEntry.extensionId === 'eslint') packages.push('@eslint/js');
+      npmResult = await runNpmCommand(['install', '--save-dev', ...packages], wsDir);
       if (!npmResult.success) {
         logger.error('npm install failed', { extensionId: data.extensionId, output: npmResult.output });
         return res.status(500).json({ error: 'Failed to install npm package', details: npmResult.output.slice(-500) });
@@ -244,6 +247,44 @@ router.post('/:projectId/install', ensureAuthenticated, csrfProtection, async (r
         try { await fs.access(configPath); } catch {
           await fs.writeFile(configPath, catalogEntry.configContent, 'utf-8');
           logger.info('Created config file', { file: catalogEntry.configFile, projectId });
+        }
+        try {
+          const { files } = await import('@shared/schema');
+          const existing = await db.query.files.findFirst({
+            where: and(eq(files.projectId, String(projectId)), eq(files.filename, catalogEntry.configFile))
+          });
+          if (!existing) {
+            await db.insert(files).values({
+              projectId: String(projectId),
+              filename: catalogEntry.configFile,
+              content: catalogEntry.configContent,
+              isDirectory: false,
+            });
+            logger.info('Config file added to project tree', { file: catalogEntry.configFile, projectId });
+          }
+        } catch (dbErr: any) {
+          logger.warn('Could not add config to file tree', { error: dbErr.message });
+        }
+      }
+
+      if (catalogEntry.extensionId === 'prettier') {
+        try {
+          const { files } = await import('@shared/schema');
+          const pkgFile = await db.query.files.findFirst({
+            where: and(eq(files.projectId, String(projectId)), eq(files.filename, 'package.json'))
+          });
+          if (pkgFile && pkgFile.content) {
+            const pkg = JSON.parse(pkgFile.content);
+            if (!pkg.scripts) pkg.scripts = {};
+            if (!pkg.scripts.format) {
+              pkg.scripts.format = 'prettier --write .';
+              const updated = JSON.stringify(pkg, null, 2);
+              await storage.updateFileContent(pkgFile.id, updated);
+              logger.info('Added format script to package.json', { projectId });
+            }
+          }
+        } catch (pkgErr: any) {
+          logger.warn('Could not update package.json with format script', { error: pkgErr.message });
         }
       }
     }
@@ -366,6 +407,141 @@ router.delete('/:projectId/:extensionId', ensureAuthenticated, csrfProtection, a
     )
   );
   res.json({ success: true });
+});
+
+async function isExtensionInstalled(projectId: string, extensionId: string): Promise<boolean> {
+  const ext = await db.query.projectExtensions.findFirst({
+    where: and(eq(projectExtensions.projectId, String(projectId)), eq(projectExtensions.extensionId, extensionId), eq(projectExtensions.enabled, true))
+  });
+  return !!ext;
+}
+
+function resolveNpxBin(pkg: string, wsDir: string): string {
+  const localBin = path.join(wsDir, 'node_modules', '.bin', pkg);
+  return localBin;
+}
+
+router.post('/:projectId/format', ensureAuthenticated, csrfProtection, async (req, res) => {
+  try {
+    const projectId = req.params.projectId;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const isOwner = await verifyProjectOwnership(userId, projectId);
+    if (!isOwner) return res.status(403).json({ error: 'Access denied' });
+
+    const { content, filename } = req.body;
+    if (typeof content !== 'string' || typeof filename !== 'string') {
+      return res.status(400).json({ error: 'content and filename are required' });
+    }
+
+    const hasPrettier = await isExtensionInstalled(projectId, 'prettier');
+    if (!hasPrettier) {
+      return res.json({ formatted: content, changed: false, message: 'Prettier not installed' });
+    }
+
+    const wsDir = getProjectWorkspacePath(projectId);
+    const prettierBin = resolveNpxBin('prettier', wsDir);
+    try { await fs.access(prettierBin); } catch {
+      return res.json({ formatted: content, changed: false, message: 'Prettier binary not found' });
+    }
+
+    const ext = path.extname(filename).toLowerCase();
+    const supportedExts = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.less', '.html', '.json', '.md', '.yaml', '.yml', '.graphql', '.vue', '.svelte'];
+    if (!supportedExts.includes(ext)) {
+      return res.json({ formatted: content, changed: false, message: 'File type not supported by Prettier' });
+    }
+
+    const tmpFile = path.join(wsDir, `.prettier-tmp-${Date.now()}${ext}`);
+    await fs.writeFile(tmpFile, content, 'utf-8');
+
+    try {
+      const result = await runNpmCommand(['exec', '--', 'prettier', '--write', tmpFile], wsDir);
+      const formatted = await fs.readFile(tmpFile, 'utf-8');
+      await fs.unlink(tmpFile).catch(() => {});
+      res.json({ formatted, changed: formatted !== content });
+    } catch (err: any) {
+      await fs.unlink(tmpFile).catch(() => {});
+      res.json({ formatted: content, changed: false, error: err.message });
+    }
+  } catch (error: any) {
+    logger.error('Format error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:projectId/lint', ensureAuthenticated, csrfProtection, async (req, res) => {
+  try {
+    const projectId = req.params.projectId;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const isOwner = await verifyProjectOwnership(userId, projectId);
+    if (!isOwner) return res.status(403).json({ error: 'Access denied' });
+
+    const { content, filename } = req.body;
+    if (typeof content !== 'string' || typeof filename !== 'string') {
+      return res.status(400).json({ error: 'content and filename are required' });
+    }
+
+    const hasEslint = await isExtensionInstalled(projectId, 'eslint');
+    if (!hasEslint) {
+      return res.json({ diagnostics: [], message: 'ESLint not installed' });
+    }
+
+    const ext = path.extname(filename).toLowerCase();
+    const supportedExts = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'];
+    if (!supportedExts.includes(ext)) {
+      return res.json({ diagnostics: [], message: 'File type not supported by ESLint' });
+    }
+
+    const wsDir = getProjectWorkspacePath(projectId);
+    const tmpFile = path.join(wsDir, `.eslint-tmp-${Date.now()}${ext}`);
+    await fs.writeFile(tmpFile, content, 'utf-8');
+
+    try {
+      const result = await runNpmCommand(['exec', '--', 'eslint', '--format', 'json', '--no-error-on-unmatched-pattern', tmpFile], wsDir);
+      await fs.unlink(tmpFile).catch(() => {});
+
+      const diagnostics: Array<{ line: number; column: number; endLine?: number; endColumn?: number; message: string; severity: 'error' | 'warning' | 'info'; ruleId: string | null }> = [];
+      try {
+        const eslintOutput = JSON.parse(result.output);
+        if (Array.isArray(eslintOutput) && eslintOutput[0]?.messages) {
+          for (const msg of eslintOutput[0].messages) {
+            diagnostics.push({
+              line: msg.line || 1,
+              column: msg.column || 1,
+              endLine: msg.endLine,
+              endColumn: msg.endColumn,
+              message: msg.message,
+              severity: msg.severity === 2 ? 'error' : 'warning',
+              ruleId: msg.ruleId || null,
+            });
+          }
+        }
+      } catch {
+        logger.warn('Failed to parse ESLint output', { output: result.output.slice(0, 500) });
+      }
+      res.json({ diagnostics });
+    } catch (err: any) {
+      await fs.unlink(tmpFile).catch(() => {});
+      res.json({ diagnostics: [], error: err.message });
+    }
+  } catch (error: any) {
+    logger.error('Lint error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/:projectId/check/:extensionId', ensureAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const isOwner = await verifyProjectOwnership(userId, req.params.projectId);
+    if (!isOwner) return res.status(403).json({ error: 'Access denied' });
+    const installed = await isExtensionInstalled(req.params.projectId, req.params.extensionId);
+    res.json({ installed });
+  } catch {
+    res.json({ installed: false });
+  }
 });
 
 router.get('/', (_req, res) => {
