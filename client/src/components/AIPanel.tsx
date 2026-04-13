@@ -3998,10 +3998,40 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 : isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : isStreaming ? "Message Agent..." : liteMode && mode === "agent" ? "Quick, lightweight changes" : "Ask AI anything..."
             }
             rows={3}
-            className="w-full bg-transparent text-[13px] text-[var(--ide-text)] rounded-xl px-3.5 py-2.5 pr-12 resize-none placeholder:text-[var(--ide-text-muted)]/80 focus:outline-none min-h-[68px] max-h-[160px]"
+            className={`w-full bg-transparent text-[13px] text-[var(--ide-text)] rounded-xl ${topMode === "build" ? "pl-[4.5rem]" : "pl-3.5"} pr-12 py-2.5 resize-none placeholder:text-[var(--ide-text-muted)]/80 focus:outline-none min-h-[68px] max-h-[160px]`}
             disabled={isTranscribing || isGeneratingImage}
             data-testid="input-ai-chat"
           />
+          <div className="absolute left-2 bottom-2 flex items-center gap-0.5">
+            {topMode === "build" && (
+              <>
+                <button
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isStreaming}
+                  title="Attach files"
+                  data-testid="button-ai-attach"
+                >
+                  <Paperclip className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                    isRecording
+                      ? "bg-red-500 text-white animate-pulse"
+                      : isTranscribing
+                      ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
+                      : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+                  }`}
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isStreaming || isTranscribing}
+                  title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Voice input"}
+                  data-testid="button-ai-mic"
+                >
+                  {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                </button>
+              </>
+            )}
+          </div>
           <div className="absolute right-2 bottom-2 flex items-center gap-1">
             {mode === "agent" && projectId && !isStreaming && (
               <button
@@ -4417,30 +4447,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             )}
             {topMode === "build" && (
               <>
-                <button
-                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                    isRecording
-                      ? "bg-red-500 text-white animate-pulse"
-                      : isTranscribing
-                      ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
-                      : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
-                  }`}
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={isStreaming || isTranscribing}
-                  title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Voice input"}
-                  data-testid="button-ai-mic"
-                >
-                  {isRecording ? <MicOff className="w-3 h-3" /> : isTranscribing ? <Mic className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
-                </button>
-                <button
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isStreaming}
-                  title="Attach files"
-                  data-testid="button-ai-attach"
-                >
-                  <Paperclip className="w-3 h-3" />
-                </button>
                 <button
                   className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                     isGeneratingImage
