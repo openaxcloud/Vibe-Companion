@@ -4067,7 +4067,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             </div>
           </div>
         )}
-        <div className="relative rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50 focus-within:border-[#7C65CB]/40 focus-within:ring-1 focus-within:ring-[#7C65CB]/15 transition-all">
+        <div className="rounded-xl border border-[var(--ide-border)] bg-[var(--ide-panel)]/50 focus-within:border-[#7C65CB]/40 focus-within:ring-1 focus-within:ring-[#7C65CB]/15 transition-all">
           <textarea
             ref={inputRef}
             value={input}
@@ -4079,80 +4079,82 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 : isGeneratingImage ? "Generating image..." : isTranscribing ? "Transcribing audio..." : isRecording ? "Recording... click mic to stop" : isStreaming ? "Message Agent..." : liteMode && mode === "agent" ? "Quick, lightweight changes" : "Ask AI anything..."
             }
             rows={3}
-            className={`w-full bg-transparent text-[13px] text-[var(--ide-text)] rounded-xl ${topMode === "build" ? "pl-[4.5rem]" : "pl-3.5"} pr-12 py-2.5 resize-none placeholder:text-[var(--ide-text-muted)]/80 focus:outline-none min-h-[68px] max-h-[160px]`}
+            className="w-full bg-transparent text-[13px] text-[var(--ide-text)] rounded-t-xl pl-3.5 pr-3.5 py-2.5 resize-none placeholder:text-[var(--ide-text-muted)]/80 focus:outline-none min-h-[68px] max-h-[160px]"
             disabled={isTranscribing || isGeneratingImage}
             data-testid="input-ai-chat"
           />
-          <div className="absolute left-2 bottom-2 flex items-center gap-0.5">
-            {topMode === "build" && (
-              <>
+          <div className="flex items-center justify-between px-2 pb-2">
+            <div className="flex items-center gap-0.5">
+              {topMode === "build" && (
+                <>
+                  <button
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isStreaming}
+                    title="Attach files"
+                    data-testid="button-ai-attach"
+                  >
+                    <Paperclip className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                      isRecording
+                        ? "bg-red-500 text-white animate-pulse"
+                        : isTranscribing
+                        ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
+                        : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+                    }`}
+                    onClick={isRecording ? stopRecording : startRecording}
+                    disabled={isStreaming || isTranscribing}
+                    title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Voice input"}
+                    data-testid="button-ai-mic"
+                  >
+                    {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                  </button>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {mode === "agent" && projectId && !isStreaming && (
                 <button
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] transition-all"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isStreaming}
-                  title="Attach files"
-                  data-testid="button-ai-attach"
-                >
-                  <Paperclip className="w-3.5 h-3.5" />
-                </button>
-                <button
+                  onClick={toggleLiteMode}
                   className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                    isRecording
-                      ? "bg-red-500 text-white animate-pulse"
-                      : isTranscribing
-                      ? "bg-[#7C65CB]/20 text-[#7C65CB] animate-pulse"
-                      : "text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]"
+                    liteMode
+                      ? "bg-[#F5A623] text-white shadow-sm shadow-[#F5A623]/30"
+                      : "text-[var(--ide-text-muted)] hover:text-[#F5A623] hover:bg-[#F5A623]/10"
                   }`}
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={isStreaming || isTranscribing}
-                  title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Voice input"}
-                  data-testid="button-ai-mic"
+                  title={liteMode ? "Lite Mode active — click to switch to full Agent" : "Switch to Lite Mode for quick changes"}
+                  data-testid="button-lite-mode"
                 >
-                  {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                  <Zap className="w-3.5 h-3.5" />
                 </button>
-              </>
-            )}
-          </div>
-          <div className="absolute right-2 bottom-2 flex items-center gap-1">
-            {mode === "agent" && projectId && !isStreaming && (
-              <button
-                onClick={toggleLiteMode}
-                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                  liteMode
-                    ? "bg-[#F5A623] text-white shadow-sm shadow-[#F5A623]/30"
-                    : "text-[var(--ide-text-muted)] hover:text-[#F5A623] hover:bg-[#F5A623]/10"
-                }`}
-                title={liteMode ? "Lite Mode active — click to switch to full Agent" : "Switch to Lite Mode for quick changes"}
-                data-testid="button-lite-mode"
-              >
-                <Zap className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {isStreaming ? (
-              <Button
-                onClick={queuedMessages.length > 0 ? pauseQueue : stopStreaming}
-                size="icon"
-                className="w-7 h-7 bg-red-500/90 hover:bg-red-600 rounded-full shadow-sm"
-                data-testid="button-ai-pause"
-                title={queuedMessages.length > 0 ? "Pause queue & stop" : "Stop"}
-              >
-                {queuedMessages.length > 0 ? <Pause className="w-3.5 h-3.5 text-white" /> : <X className="w-3.5 h-3.5 text-white" />}
-              </Button>
-            ) : (
-              <Button
-                onClick={sendMessage}
-                size="icon"
-                className={`w-7 h-7 rounded-full shadow-sm disabled:opacity-30 disabled:shadow-none ${
-                  topMode === "plan"
-                    ? "bg-[#F59E0B] hover:bg-[#D97706] shadow-[#F59E0B]/20"
-                    : "bg-[#7C65CB] hover:bg-[#6B56B8] shadow-[#7C65CB]/20"
-                }`}
-                disabled={!input.trim() && attachments.length === 0}
-                data-testid="button-ai-send"
-              >
-                <Send className="w-3.5 h-3.5 text-white" />
-              </Button>
-            )}
+              )}
+              {isStreaming ? (
+                <Button
+                  onClick={queuedMessages.length > 0 ? pauseQueue : stopStreaming}
+                  size="icon"
+                  className="w-7 h-7 bg-red-500/90 hover:bg-red-600 rounded-full shadow-sm"
+                  data-testid="button-ai-pause"
+                  title={queuedMessages.length > 0 ? "Pause queue & stop" : "Stop"}
+                >
+                  {queuedMessages.length > 0 ? <Pause className="w-3.5 h-3.5 text-white" /> : <X className="w-3.5 h-3.5 text-white" />}
+                </Button>
+              ) : (
+                <Button
+                  onClick={sendMessage}
+                  size="icon"
+                  className={`w-7 h-7 rounded-full shadow-sm disabled:opacity-30 disabled:shadow-none ${
+                    topMode === "plan"
+                      ? "bg-[#F59E0B] hover:bg-[#D97706] shadow-[#F59E0B]/20"
+                      : "bg-[#7C65CB] hover:bg-[#6B56B8] shadow-[#7C65CB]/20"
+                  }`}
+                  disabled={!input.trim() && attachments.length === 0}
+                  data-testid="button-ai-send"
+                >
+                  <Send className="w-3.5 h-3.5 text-white" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
         {isStreaming && (
