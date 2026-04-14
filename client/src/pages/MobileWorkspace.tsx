@@ -180,7 +180,7 @@ export default function MobileWorkspace() {
   };
 
   return (
-    <div className="flex flex-col bg-background md:hidden overflow-hidden" style={{ height: '100dvh', paddingBottom: 'var(--mobile-nav-height, 52px)' }}>
+    <div className="flex flex-col bg-background md:hidden overflow-hidden" style={{ height: '100dvh' }}>
 
       {/* ── Top Navigation Bar ── hidden when in full preview tab (preview has its own header) */}
       {!isPreviewTab && (
@@ -233,7 +233,7 @@ export default function MobileWorkspace() {
       )}
 
       {/* ── Tab Content ── */}
-      <div className="flex-1 flex flex-col overflow-hidden relative min-h-0">
+      <div className="flex-1 flex flex-col overflow-hidden relative min-h-0" style={{ marginBottom: 'var(--mobile-nav-height, 52px)' }}>
         {renderTabContent()}
 
         {/* ── Floating Preview Overlay (split-view mode) ── */}
