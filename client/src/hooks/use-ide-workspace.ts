@@ -446,6 +446,17 @@ export function useIDEWorkspace(projectId: string) {
     },
   });
 
+  const activeFileName = useMemo(() => {
+    if (!activeFileId) return null;
+    const file = Array.isArray(filesQuery.data) ? filesQuery.data.find(f => String(f.id) === activeFileId) : undefined;
+    return file?.filename || null;
+  }, [activeFileId, filesQuery.data]);
+
+  const activeFileLanguage = useMemo(() => {
+    if (!activeFileName) return null;
+    return detectLanguage(activeFileName);
+  }, [activeFileName]);
+
   const formatDocument = useCallback(async () => {
     if (!activeFileId || !projectId) return;
     const content = fileContents[activeFileId];
@@ -1095,21 +1106,10 @@ export function useIDEWorkspace(projectId: string) {
   // ═══════════════════════════════════════════════
   // MAPPED TAB ITEMS (for new layout components)
   // ═══════════════════════════════════════════════
-  const activeFileName = useMemo(() => {
-    if (!activeFileId) return null;
-    const file = Array.isArray(filesQuery.data) ? filesQuery.data.find(f => String(f.id) === activeFileId) : undefined;
-    return file?.filename || null;
-  }, [activeFileId, filesQuery.data]);
-
   const activeFileContent = useMemo(() => {
     if (!activeFileId) return null;
     return fileContents[activeFileId] ?? null;
   }, [activeFileId, fileContents]);
-
-  const activeFileLanguage = useMemo(() => {
-    if (!activeFileName) return null;
-    return detectLanguage(activeFileName);
-  }, [activeFileName]);
 
   // Convert internal tab state to TabItem[] for new components
   const tabs: TabItem[] = useMemo(() => {
