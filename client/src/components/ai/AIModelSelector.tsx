@@ -284,7 +284,7 @@ export function AIModelSelector({
       <div className={`space-y-2 sm:space-y-3 ${className}`} data-testid="ai-model-selector-hero-container">
         {/* Header: Stack on mobile, side-by-side on sm+ */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" data-testid="ai-model-selector-hero-header">
-          <div className="flex items-center gap-2 text-white/90">
+          <div className="flex items-center gap-2 text-gray-900 dark:text-white/90">
             <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="text-[13px] sm:text-base font-semibold">Choose Your AI Model</span>
           </div>
@@ -296,7 +296,7 @@ export function AIModelSelector({
                 className="bg-surface-tertiary-solid border-border"
               />
             )}
-            <Badge variant="secondary" className="bg-surface-tertiary-solid text-white border-border w-fit">
+            <Badge variant="secondary" className="bg-gray-100 dark:bg-surface-tertiary-solid text-gray-700 dark:text-white border-gray-300 dark:border-border w-fit">
               {availableModels.length} models
             </Badge>
           </div>
@@ -304,7 +304,7 @@ export function AIModelSelector({
         
         <Select value={currentModel || undefined} onValueChange={handleModelChange}>
           <SelectTrigger 
-            className="w-full h-12 sm:h-14 bg-white dark:bg-gray-900 dark:bg-gray-900 text-foreground border-2 border-white/40 hover:border-white/60 transition-all shadow-lg"
+            className="w-full h-12 sm:h-14 bg-white dark:bg-gray-900 text-foreground border-2 border-gray-300 dark:border-white/40 hover:border-gray-400 dark:hover:border-white/60 transition-all shadow-lg"
             data-testid="select-ai-model-hero"
           >
             {currentModelData ? (
@@ -377,8 +377,8 @@ export function AIModelSelector({
         </Select>
 
         {currentModelData && (
-          <div className="flex items-center gap-2 text-[11px] sm:text-[13px] text-muted-foreground bg-surface-solid rounded-md px-2 sm:px-3 py-1.5 sm:py-2">
-            <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-400 shrink-0" />
+          <div className="flex items-center gap-2 text-[11px] sm:text-[13px] text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/60 rounded-md px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-200 dark:border-gray-700/50">
+            <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500 dark:text-green-400 shrink-0" />
             <span className="truncate">Using {currentModelData.name} for code generation</span>
           </div>
         )}
