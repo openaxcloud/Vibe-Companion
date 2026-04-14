@@ -1067,7 +1067,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   if (deviceType === 'mobile') {
     return (
       <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><ECodeLoading size="lg" text="Loading IDE..." /></div>}>
-      <div className={cn('flex flex-col w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} style={{ height: '100dvh', paddingBottom: 'var(--mobile-nav-height)' }} data-testid="mobile-layout" data-ide-layout="unified">
+      <div className={cn('flex flex-col w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} style={{ height: '100dvh', paddingBottom: 'calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px))' }} data-testid="mobile-layout" data-ide-layout="unified">
         <ReplitMobileHeader
           activeTab={mobileActiveTab}
           onBack={handleMobileBack}
@@ -1222,7 +1222,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   if (deviceType === 'tablet') {
     return (
       <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><ECodeLoading size="lg" text="Loading IDE..." /></div>}>
-      <div className={cn('flex flex-col w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} style={{ height: '100dvh', paddingBottom: 'var(--mobile-nav-height)' }} data-testid="tablet-layout" data-ide-layout="unified">
+      <div className={cn('flex flex-col w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} style={{ height: '100dvh', paddingBottom: 'calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px))' }} data-testid="tablet-layout" data-ide-layout="unified">
         <header className="flex items-center justify-between h-12 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] z-50 relative">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <Button variant="ghost" size="icon" onClick={() => setShowFileExplorer(!showFileExplorer)} className="h-9 w-9 shrink-0">
