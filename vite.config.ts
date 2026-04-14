@@ -57,6 +57,7 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: true,
     manifest: true,
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
@@ -69,6 +70,9 @@ export default defineConfig({
         },
       },
     },
+  },
+  esbuild: {
+    minifyIdentifiers: false,
   },
   server: {
     host: "0.0.0.0",
