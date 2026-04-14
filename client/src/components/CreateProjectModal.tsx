@@ -448,6 +448,11 @@ export const CreateProjectModal = ({
       // Navigate to IDE immediately - scaffolding happens in background
       setCreationProgress({ step: 'ready', progress: 100, message: 'Opening workspace...' });
       
+      // Store AI prompt in sessionStorage so the IDE agent panel auto-sends it
+      if (values.aiPrompt) {
+        sessionStorage.setItem(`agent-prompt-${project.id}`, values.aiPrompt);
+      }
+
       // Short delay for visual feedback, then navigate
       setTimeout(() => {
         onSubmit?.(project.name, project.id);
