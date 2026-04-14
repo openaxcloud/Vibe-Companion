@@ -180,7 +180,7 @@ export default function MobileWorkspace() {
   };
 
   return (
-    <div className="flex flex-col bg-background md:hidden overflow-hidden" style={{ height: '100dvh', paddingBottom: 'calc(var(--mobile-nav-height, 52px) + env(safe-area-inset-bottom, 0px))' }}>
+    <div className="flex flex-col bg-background md:hidden overflow-hidden" style={{ height: '100dvh', paddingBottom: 'var(--mobile-nav-height, 52px)' }}>
 
       {/* ── Top Navigation Bar ── hidden when in full preview tab (preview has its own header) */}
       {!isPreviewTab && (
