@@ -1118,7 +1118,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         if (cancelled) return;
         if (data.conversation) {
           setActiveConversationId(data.conversation.id);
-          if (data.conversation.model) setModel(data.conversation.model as AIModel);
+          if (data.conversation.model) {
+            let hasLocalPref = false;
+            try {
+              const lp = localStorage.getItem("ai-preferred-model");
+              if (lp && ["claude", "gpt", "gemini", "perplexity", "mistral", "openrouter"].includes(lp)) hasLocalPref = true;
+            } catch {}
+            if (!hasLocalPref) setModel(data.conversation.model as AIModel);
+          }
           if (data.messages && data.messages.length > 0) {
             setMessages(data.messages.map((m: { id: string; role: string; content: string; model?: string; fileOps?: { type: "created" | "updated"; filename: string }[] }) => ({
               id: m.id,
@@ -4512,6 +4519,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                               setModel(meta.groupKey);
                               setAgentProvider("builtin");
                               try { localStorage.setItem("ai-preferred-model", meta.groupKey); localStorage.setItem("ai-agent-provider", "builtin"); } catch {}
+                              fetch("/api/models/preferred", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ modelId: lm.id }) }).catch(() => {});
                             }
                           }} data-testid={`model-${lm.id}`}>
                             <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: `${meta.color}15` }}>

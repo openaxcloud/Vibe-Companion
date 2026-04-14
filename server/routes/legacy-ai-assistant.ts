@@ -474,11 +474,12 @@ ${formatInstruction}`;
 
       const files = await storage.getFiles(project.id);
 
+      const agentConvModel = requestedModel || "claude";
       const conversation = await storage.createConversation({
         projectId: project.id,
         userId: req.session.userId!,
         title: prompt.slice(0, 100),
-        model: requestedModel || "gpt",
+        model: agentConvModel,
       });
       await storage.addMessage({
         conversationId: conversation.id,
@@ -490,7 +491,7 @@ ${formatInstruction}`;
         conversationId: conversation.id,
         role: "assistant",
         content: `I've created your project **${spec.name}** with the following files: ${fileList}.\n\nThe project is set up and ready to go! You can run it or ask me to make any changes.`,
-        model: requestedModel || "gpt",
+        model: agentConvModel,
         fileOps: files.map(f => ({ type: "created" as const, filename: f.filename })),
       });
 
@@ -708,11 +709,22 @@ ${formatInstruction}`;
       return res.json(existing);
     }
     const { title, model } = req.body;
+    let convModel = model || "claude";
+    if (!model) {
+      try {
+        const usr = await storage.getUser(req.session.userId!);
+        if (usr?.preferredAiModel) {
+          const pm = usr.preferredAiModel;
+          convModel = pm.startsWith("gpt") || pm.startsWith("o3") || pm.startsWith("o4") ? "gpt" :
+            pm.startsWith("claude") ? "claude" : pm.startsWith("gemini") ? "gemini" : "claude";
+        }
+      } catch {}
+    }
     const conversation = await storage.createConversation({
       projectId: req.params.projectId,
       userId: req.session.userId!,
       title: title || "",
-      model: model || "gpt",
+      model: convModel,
     });
     return res.status(201).json(conversation);
   });
@@ -738,10 +750,22 @@ ${formatInstruction}`;
       conversation = await storage.getConversation(req.params.projectId, req.session.userId!);
     }
     if (!conversation) {
+      let fallbackModel = msgModel || "claude";
+      if (!msgModel) {
+        try {
+          const usr = await storage.getUser(req.session.userId!);
+          if (usr?.preferredAiModel) {
+            const pm = usr.preferredAiModel;
+            fallbackModel = pm.startsWith("gpt") || pm.startsWith("o3") || pm.startsWith("o4") ? "gpt" :
+              pm.startsWith("claude") ? "claude" :
+              pm.startsWith("gemini") ? "gemini" : "claude";
+          }
+        } catch {}
+      }
       conversation = await storage.createConversation({
         projectId: req.params.projectId,
         userId: req.session.userId!,
-        model: msgModel || "gpt",
+        model: fallbackModel,
       });
     }
     const msg = await storage.addMessage({
@@ -1110,7 +1134,7 @@ Any closing remarks...`;
           projectId,
           userId,
           title: planData.title,
-          model: requestedModel || "gpt",
+          model: requestedModel || "claude",
           tasks: planData.tasks.map(t => ({ title: t.title, description: t.description, dependsOn: t.dependsOn.map(String) })),
           userMessage: messages[messages.length - 1]?.content || "",
           assistantMessage: fullContent,

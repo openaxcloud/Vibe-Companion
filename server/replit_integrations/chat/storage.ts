@@ -22,7 +22,7 @@ export const chatStorage: IChatStorage = {
   },
 
   async createConversation(title: string) {
-    const [conversation] = await db.insert(conversations).values({ title, projectId: "", userId: "", model: "gpt" } as any).returning();
+    const [conversation] = await db.insert(conversations).values({ title, projectId: "", userId: "", model: "claude" } as any).returning();
     return conversation;
   },
 
