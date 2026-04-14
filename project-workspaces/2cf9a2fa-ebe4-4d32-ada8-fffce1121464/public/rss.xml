@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title><![CDATA[My Personal Blog]]></title>
+    <link>http://localhost:5173</link>
+    <atom:link href="http://localhost:5173/rss.xml" rel="self" type="application/rss+xml" />
+    <description><![CDATA[A personal blog with posts on web development, programming, and more.]]></description>
+    <language>en-us</language>
+    <lastBuildDate>Thu, 01 Jan 2024 00:00:00 GMT</lastBuildDate>
+    
+      <item>
+        <title><![CDATA[Getting Started with TypeScript]]></title>
+        <link>http://localhost:5173/post/getting-started-with-typescript</link>
+        <guid>http://localhost:5173/post/getting-started-with-typescript</guid>
+        <pubDate>Thu, 26 Oct 2023 00:00:00 GMT</pubDate>
+        <author><![CDATA[Alice Developer]]></author>
+        <description><![CDATA[# Getting Started with TypeScript
+
+TypeScript is a superset of JavaScript that adds static typing to the language. This can help catch errors early in development and make your codebase more robust and maintainable.
+
+## Installation
+
+To get started, you can instal...]]></description>
+      </item>
+      <item>
+        <title><![CDATA[Building a Responsive Navbar with Tailwind CSS]]></title>
+        <link>http://localhost:5173/post/responsive-navbar-tailwind-css</link>
+        <guid>http://localhost:5173/post/responsive-navbar-tailwind-css</guid>
+        <pubDate>Wed, 15 Nov 2023 00:00:00 GMT</pubDate>
+        <author><![CDATA[Bob UI]]></author>
+        <description><![CDATA[# Building a Responsive Navbar with Tailwind CSS
+
+Creating a responsive navigation bar is crucial for any modern website. Tailwind CSS makes this process incredibly streamlined.
+
+## Basic Structure
+
+Let's start with a basic header and navigation links.
+
+```html...]]></description>
+      </item>
+      <item>
+        <title><![CDATA[Understanding React Hooks]]></title>
+        <link>http://localhost:5173/post/understanding-react-hooks</link>
+        <guid>http://localhost:5173/post/understanding-react-hooks</guid>
+        <pubDate>Mon, 01 Jan 2024 00:00:00 GMT</pubDate>
+        <author><![CDATA[Charlie Frontend]]></author>
+        <description><![CDATA[# Understanding React Hooks
+
+React Hooks were introduced in React 16.8, allowing you to use state and other React features without writing a class. They provide a more direct API to the React concepts you already know: props, state, context, refs, and the lifecycle.
+
+## useSta...]]></description>
+      </item>
+  </channel>
+</rss>

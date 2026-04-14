@@ -1067,7 +1067,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   if (deviceType === 'mobile') {
     return (
       <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><ECodeLoading size="lg" text="Loading IDE..." /></div>}>
-      <div className={cn('flex flex-col w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} style={{ height: '100dvh' }} data-testid="mobile-layout" data-ide-layout="unified">
+      <div className={cn('flex flex-col w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} style={{ height: '100dvh', paddingBottom: 'var(--mobile-nav-height)' }} data-testid="mobile-layout" data-ide-layout="unified">
         <ReplitMobileHeader
           activeTab={mobileActiveTab}
           onBack={handleMobileBack}
@@ -1083,13 +1083,13 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           className="flex-1 overflow-hidden min-h-0 flex flex-col"
           {...((mobileActiveTab === 'preview' || mobileActiveTab === 'agent') ? mobileSwipeHandlers : {})}
         >
-          <div key={mobileActiveTab} className="flex-1 min-h-0 overflow-auto animate-fade-in" style={{ paddingBottom: mobileActiveTab === 'agent' ? 'calc(var(--mobile-nav-height) + 60px)' : 'var(--mobile-nav-height)' }}>
+          <div key={mobileActiveTab} className="flex-1 min-h-0 overflow-auto animate-fade-in">
             {renderMobileContent()}
           </div>
         </div>
 
         {mobileActiveTab === 'agent' && (
-          <div className="fixed left-0 right-0 z-[55]" style={{ bottom: 'calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px))' }}>
+          <div className="shrink-0">
             <ReplitMobileInputBar
               placeholder="What would you like to build?"
               onSubmit={(value) => {
@@ -1222,7 +1222,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   if (deviceType === 'tablet') {
     return (
       <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--ide-bg)]"><ECodeLoading size="lg" text="Loading IDE..." /></div>}>
-      <div className={cn('flex flex-col w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} style={{ height: '100dvh' }} data-testid="tablet-layout" data-ide-layout="unified">
+      <div className={cn('flex flex-col w-screen overflow-hidden bg-[var(--ide-bg)] touch-manipulation', className)} style={{ height: '100dvh', paddingBottom: 'var(--mobile-nav-height)' }} data-testid="tablet-layout" data-ide-layout="unified">
         <header className="flex items-center justify-between h-12 px-3 bg-[var(--ide-bg)] border-b border-[var(--ide-border)] z-50 relative">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <Button variant="ghost" size="icon" onClick={() => setShowFileExplorer(!showFileExplorer)} className="h-9 w-9 shrink-0">
@@ -1254,13 +1254,13 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
         </header>
 
         <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
-          <div className="flex-1 min-h-0 overflow-auto" style={{ paddingBottom: mobileActiveTab === 'agent' ? 'calc(var(--mobile-nav-height) + 60px)' : 'var(--mobile-nav-height)' }}>
+          <div className="flex-1 min-h-0 overflow-auto">
             {renderMobileContent()}
           </div>
         </div>
 
         {mobileActiveTab === 'agent' && (
-          <div className="fixed left-0 right-0 z-[55]" style={{ bottom: 'calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px))' }}>
+          <div className="shrink-0">
             <ReplitMobileInputBar
               placeholder="What would you like to build?"
               onSubmit={(value) => {
