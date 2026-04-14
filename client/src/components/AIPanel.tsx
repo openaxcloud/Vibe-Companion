@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useCallback, Suspense, lazy } from 
 import type { ExternalInputHandlers } from "./ai/ReplitAgentPanelV3";
 import { AgentStepTracker, createStepFromSSE, completeRunningSteps, markLatestToolDone } from "./agent/AgentStepTracker";
 import type { AgentStep } from "./agent/AgentStepTracker";
+import { AgentMessageFooter } from "./agent/AgentMessageFooter";
+import type { AgentUsageStats } from "./agent/AgentMessageFooter";
 import { Button } from "@/components/ui/button";
 
 // CRITICAL: TaskBoard must be lazy-loaded at MODULE level (static), NOT inline.
@@ -101,6 +103,9 @@ interface ChatMessage {
   imageSearchResults?: ImageSearchResult[];
   generatedAudio?: GeneratedAudio[];
   agentSteps?: AgentStep[];
+  usageStats?: AgentUsageStats;
+  streamStartTime?: number;
+  collapsed?: boolean;
 }
 
 interface QueuedMsg {
@@ -1622,6 +1627,23 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               });
               setApprovedPlanTasks((prev) =>
                 (prev || []).map((t) => t.id === data.taskId ? { ...t, status: taskStatus } : t)
+              );
+            } else if (data.type === "usage_stats") {
+              const stats: AgentUsageStats = {
+                duration: data.duration,
+                inputTokens: data.inputTokens,
+                outputTokens: data.outputTokens,
+                totalTokens: data.totalTokens,
+                cost: data.cost,
+                model: data.model,
+                provider: data.provider,
+                filesCreated: data.filesCreated,
+                filesEdited: data.filesEdited,
+                commandsRun: data.commandsRun,
+                filesModified: data.filesModified,
+              };
+              setMsgs((prev) =>
+                prev.map((m) => m.id === assistantId ? { ...m, usageStats: stats } : m)
               );
             } else if (data.type === "error") {
               addStep({ id: `err-${Date.now()}`, type: "status", label: `Error: ${data.message}`, status: "error", timestamp: Date.now() });
@@ -3969,6 +3991,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         {activeMessages.map((msg, idx) => {
           const msgModel = msg.model ? MODEL_LABELS[msg.model] : null;
           const MsgModelIcon = msgModel?.icon || Sparkles;
+          const isCurrentlyStreaming = isStreaming && idx === activeMessages.length - 1;
+          const isAgentMsg = msg.role === "assistant" && msg.agentSteps && msg.agentSteps.length > 0;
+          const isPastAgentMsg = isAgentMsg && !isCurrentlyStreaming;
+          const isCollapsed = isPastAgentMsg && msg.collapsed !== false && idx < activeMessages.length - 1;
+          const stepsCount = msg.agentSteps?.filter(s => s.status === "done").length || 0;
+          const filesCount = (msg.usageStats?.filesCreated || 0) + (msg.usageStats?.filesEdited || 0) ||
+            (msg.agentSteps?.filter(s => (s.type === "create_file" || s.type === "edit_file") && s.status === "done").length || 0);
+          const msgDuration = msg.usageStats?.duration ||
+            (msg.agentSteps?.length ? msg.agentSteps.reduce((sum, s) => sum + (s.duration || 0), 0) : 0);
           return (
             <div key={msg.id} className={`flex gap-2.5 animate-[fade-in_0.2s_ease-out] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
               <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
@@ -3989,6 +4020,43 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                     </span>
                   </div>
                 )}
+
+                {isCollapsed ? (
+                  <div>
+                    <button
+                      onClick={() => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, collapsed: false } : m))}
+                      className="w-full text-left group"
+                      data-testid={`button-expand-message-${msg.id}`}
+                    >
+                      <div className="flex items-center gap-2 text-[11px] text-[var(--ide-text-muted)] mb-1">
+                        <ChevronRight className="w-3 h-3 group-hover:text-[#7C65CB] transition-colors" />
+                        <span className="group-hover:text-[var(--ide-text)] transition-colors">
+                          {stepsCount > 0 ? `${stepsCount} action${stepsCount !== 1 ? "s" : ""}` : ""}
+                          {filesCount > 0 ? ` · ${filesCount} file${filesCount !== 1 ? "s" : ""}` : ""}
+                          {msgDuration > 0 ? ` · ${msgDuration < 1000 ? `${msgDuration}ms` : msgDuration < 60000 ? `${(msgDuration / 1000).toFixed(1)}s` : `${Math.floor(msgDuration / 60000)}m ${Math.floor((msgDuration % 60000) / 1000)}s`}` : ""}
+                        </span>
+                      </div>
+                      <p className="text-[12px] text-[var(--ide-text-secondary)] line-clamp-2 leading-relaxed">
+                        {msg.content.replace(/```[\s\S]*?```/g, "[code]").replace(/[#*_`>\[\]()!]/g, "").slice(0, 200)}
+                      </p>
+                    </button>
+                    {msg.usageStats && (
+                      <AgentMessageFooter steps={msg.agentSteps || []} usageStats={msg.usageStats} isStreaming={false} />
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {isPastAgentMsg && (
+                      <button
+                        onClick={() => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, collapsed: true } : m))}
+                        className="flex items-center gap-1 text-[10px] text-[var(--ide-text-muted)] hover:text-[#7C65CB] mb-1.5 transition-colors"
+                        data-testid={`button-collapse-message-${msg.id}`}
+                      >
+                        <ChevronDown className="w-3 h-3" />
+                        <span>Collapse</span>
+                      </button>
+                    )}
+
                 {msg.role === "user" && msg.attachments && msg.attachments.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {msg.attachments.map((a) => (
@@ -4008,7 +4076,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   <div className="mt-2" data-testid={`steps-${msg.id}`}>
                     <AgentStepTracker
                       steps={msg.agentSteps}
-                      isStreaming={isStreaming && idx === activeMessages.length - 1}
+                      isStreaming={isCurrentlyStreaming}
                     />
                   </div>
                 )}
@@ -4057,6 +4125,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                       )}
                     </button>
                   </div>
+                )}
+                {msg.role === "assistant" && !isCurrentlyStreaming && (msg.agentSteps?.length || msg.usageStats) && (
+                  <AgentMessageFooter
+                    steps={msg.agentSteps || []}
+                    usageStats={msg.usageStats}
+                    isStreaming={isCurrentlyStreaming}
+                  />
+                )}
+                  </>
                 )}
                 {msg.role === "assistant" && lastFailedInput && idx === messages.length - 1 && msg.content.includes("⚠️") && (
                   <div className="mt-2 flex items-center gap-2">

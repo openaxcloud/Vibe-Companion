@@ -2396,6 +2396,7 @@ Rules:
       res.setHeader("X-Accel-Buffering", "no");
       res.flushHeaders();
       res.write(`data: ${JSON.stringify({ type: "status", message: "Preparing workspace..." })}\n\n`);
+      const agentStartTime = Date.now();
 
       const existingFiles = await storage.getFiles(projectId);
       res.write(`data: ${JSON.stringify({ type: "status", message: `Loaded ${existingFiles.length} project file${existingFiles.length !== 1 ? "s" : ""}` })}\n\n`);
@@ -4102,8 +4103,26 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         log(`Failed to auto-update ecode.md: ${ecodeErr.message}`, "ai");
       }
 
-      const agentDonePayload: { type: string } = { type: "done" };
-      res.write(`data: ${JSON.stringify(agentDonePayload)}\n\n`);
+      const agentDuration = Date.now() - agentStartTime;
+      const agentPricing = getProviderPricing(agentProvider);
+      const agentCostCents = (agentEstInputTokens * agentPricing.input / 1000 + agentEstOutputTokens * agentPricing.output / 1000);
+      const existingFileNames = new Set(existingFiles.map(f => f.filename));
+      const computedFilesCreated = [...agentModifiedFiles].filter(f => !existingFileNames.has(f)).length;
+      const computedFilesEdited = [...agentModifiedFiles].filter(f => existingFileNames.has(f)).length;
+      res.write(`data: ${JSON.stringify({
+        type: "usage_stats",
+        duration: agentDuration,
+        inputTokens: agentEstInputTokens,
+        outputTokens: agentEstOutputTokens,
+        totalTokens: agentEstInputTokens + agentEstOutputTokens,
+        cost: agentCostCents > 0 ? `$${agentCostCents.toFixed(4)}` : undefined,
+        model: agentModelId,
+        provider: agentProvider,
+        filesCreated: computedFilesCreated,
+        filesEdited: computedFilesEdited,
+        filesModified: agentModifiedFiles.size,
+      })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
       res.end();
     } catch (error: any) {
       const agentModel = req.body?.model || "claude";
