@@ -2398,6 +2398,7 @@ Rules:
       res.write(`data: ${JSON.stringify({ type: "status", message: "Preparing workspace..." })}\n\n`);
 
       const existingFiles = await storage.getFiles(projectId);
+      res.write(`data: ${JSON.stringify({ type: "status", message: `Loaded ${existingFiles.length} project file${existingFiles.length !== 1 ? "s" : ""}` })}\n\n`);
       const agentModifiedFiles = new Set<string>();
 
       let ecodeFile = existingFiles.find(f => f.filename === "ecode.md");
@@ -2733,8 +2734,11 @@ Always cite your sources in your response when using information from web search
       }
 
       if (planTasks.length > 0) {
+        res.write(`data: ${JSON.stringify({ type: "status", message: `Following plan: ${planTasks.length} task${planTasks.length !== 1 ? "s" : ""} to complete` })}\n\n`);
         await advancePlanTask();
       }
+
+      res.write(`data: ${JSON.stringify({ type: "status", message: `Thinking with ${agentSelectedModel === "gemini" ? "Gemini" : agentSelectedModel === "gpt" ? "GPT-4" : "Claude"}...` })}\n\n`);
 
       if (agentSelectedModel === "gemini") {
         const geminiToolDeclarations: FunctionDeclaration[] = [

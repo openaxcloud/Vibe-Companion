@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, Suspense, lazy } from "react";
 import type { ExternalInputHandlers } from "./ai/ReplitAgentPanelV3";
+import { AgentStepTracker, createStepFromSSE, completeRunningSteps, markLatestToolDone } from "./agent/AgentStepTracker";
+import type { AgentStep } from "./agent/AgentStepTracker";
 import { Button } from "@/components/ui/button";
 
 // CRITICAL: TaskBoard must be lazy-loaded at MODULE level (static), NOT inline.
@@ -98,6 +100,7 @@ interface ChatMessage {
   audioTranscript?: string;
   imageSearchResults?: ImageSearchResult[];
   generatedAudio?: GeneratedAudio[];
+  agentSteps?: AgentStep[];
 }
 
 interface QueuedMsg {
@@ -1401,6 +1404,31 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     const fileOps: { type: "created" | "updated"; filename: string }[] = [];
     const inlineImages: { filename: string; dataUri: string }[] = [];
     const generatedFiles: GeneratedFile[] = [];
+    const trackedSteps: AgentStep[] = [];
+
+    const addStep = (step: AgentStep) => {
+      trackedSteps.push(step);
+      setMsgs((prev) =>
+        prev.map((m) => m.id === assistantId ? { ...m, agentSteps: [...trackedSteps] } : m)
+      );
+    };
+
+    const completeStep = (type: string, filename?: string) => {
+      const now = Date.now();
+      let found = false;
+      for (let i = trackedSteps.length - 1; i >= 0; i--) {
+        const s = trackedSteps[i];
+        if (!found && s.status === "running" && s.type === type && (!filename || s.detail === filename)) {
+          trackedSteps[i] = { ...s, status: "done", duration: now - s.timestamp };
+          found = true;
+        }
+      }
+      if (found) {
+        setMsgs((prev) =>
+          prev.map((m) => m.id === assistantId ? { ...m, agentSteps: [...trackedSteps] } : m)
+        );
+      }
+    };
 
     while (true) {
       const { done, value } = await reader.read();
@@ -1441,37 +1469,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 } : m)
               );
             } else if (data.type === "tool_use") {
-              let toolMsg: string;
-              if (data.name === "create_skill") {
-                toolMsg = `\n\n> Creating skill...\n`;
-              } else if (data.name === "generate_image") {
-                toolMsg = `\n\n> Generating image \`${data.input.filename}\`...\n`;
-              } else if (data.name === "edit_image") {
-                toolMsg = `\n\n> Editing image \`${data.input.filename}\`...\n`;
-              } else if (data.name === "generate_file") {
-                toolMsg = `\n\n> Generating file \`${data.input.filename}\`...\n`;
-              } else if (data.name === "web_search") {
-                toolMsg = `\n\n> 🔍 Searching the web...\n`;
-              } else if (data.name === "fetch_url") {
-                toolMsg = `\n\n> 🌐 Fetching content...\n`;
-              } else if (data.name === "brave_image_search") {
-                toolMsg = `\n\n> 🖼️ Searching for images...\n`;
-              } else if (data.name === "text_to_speech") {
-                toolMsg = `\n\n> 🔊 Generating speech...\n`;
-              } else if (data.name === "generate_ai_image") {
-                toolMsg = `\n\n> 🎨 Generating AI image...\n`;
-              } else if (data.name?.startsWith("mcp__")) {
-                toolMsg = `\n\n> 🔧 Calling MCP tool \`${data.name}\`...\n`;
-              } else {
-                const opLabel = data.name === "create_file" ? "Creating" : "Editing";
-                toolMsg = `\n\n> ${opLabel} \`${data.input.filename}\`...\n`;
-              }
-              setMsgs((prev) =>
-                prev.map((m) => m.id === assistantId ? {
-                  ...m,
-                  content: m.content + toolMsg
-                } : m)
-              );
+              const step = createStepFromSSE(data, trackedSteps);
+              if (step) addStep(step);
             } else if (data.type === "web_search_results") {
               if (data.results && data.results.length > 0) {
                 setMessages((prev) =>
@@ -1578,8 +1577,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   ),
                 } : m)
               );
+            } else if (data.type === "status") {
+              const step = createStepFromSSE(data, trackedSteps);
+              if (step) addStep(step);
             } else if (data.type === "file_created") {
               fileOps.push({ type: "created", filename: data.file.filename });
+              completeStep("create_file", data.file.filename);
+              if (!trackedSteps.some(s => s.type === "create_file" && s.detail === data.file.filename)) {
+                addStep({ id: `fc-${Date.now()}`, type: "create_file", label: `Created ${data.file.filename}`, detail: data.file.filename, status: "done", timestamp: Date.now() });
+              }
               if (data.imageData) {
                 inlineImages.push({ filename: data.file.filename, dataUri: data.imageData });
               }
@@ -1593,19 +1599,20 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               onFileUpdated?.(data.file);
             } else if (data.type === "file_updated") {
               fileOps.push({ type: "updated", filename: data.file.filename });
+              completeStep("edit_file", data.file.filename);
+              if (!trackedSteps.some(s => s.type === "edit_file" && s.detail === data.file.filename)) {
+                addStep({ id: `fu-${Date.now()}`, type: "edit_file", label: `Updated ${data.file.filename}`, detail: data.file.filename, status: "done", timestamp: Date.now() });
+              }
               if (data.imageData) {
                 inlineImages.push({ filename: data.file.filename, dataUri: data.imageData });
               }
               onFileUpdated?.(data.file);
             } else if (data.type === "skill_created") {
-              setMsgs((prev) =>
-                prev.map((m) => m.id === assistantId ? {
-                  ...m,
-                  content: m.content + `\n\n> Created skill: **${data.skill.name}**\n`
-                } : m)
-              );
+              addStep({ id: `sk-${Date.now()}`, type: "skill", label: `Created skill: ${data.skill.name}`, status: "done", timestamp: Date.now() });
             } else if (data.type === "task_progress" && data.taskId && data.status) {
               const taskStatus = data.status as "pending" | "in-progress" | "done";
+              const step = createStepFromSSE(data, trackedSteps);
+              if (step) addStep(step);
               setCurrentPlan((prev) => {
                 if (!prev) return prev;
                 return {
@@ -1617,6 +1624,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 (prev || []).map((t) => t.id === data.taskId ? { ...t, status: taskStatus } : t)
               );
             } else if (data.type === "error") {
+              addStep({ id: `err-${Date.now()}`, type: "status", label: `Error: ${data.message}`, status: "error", timestamp: Date.now() });
               setMsgs((prev) =>
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + `\n\nError: ${data.message}` } : m)
               );
@@ -1632,15 +1640,20 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       }
     }
 
-    if (fileOps.length > 0 || inlineImages.length > 0) {
-      setMsgs((prev) =>
-        prev.map((m) => m.id === assistantId ? {
-          ...m,
-          ...(fileOps.length > 0 ? { fileOps } : {}),
-          ...(inlineImages.length > 0 ? { inlineImages } : {}),
-        } : m)
-      );
+    const now = Date.now();
+    for (let i = 0; i < trackedSteps.length; i++) {
+      if (trackedSteps[i].status === "running") {
+        trackedSteps[i] = { ...trackedSteps[i], status: "done", duration: now - trackedSteps[i].timestamp };
+      }
     }
+    setMsgs((prev) =>
+      prev.map((m) => m.id === assistantId ? {
+        ...m,
+        ...(fileOps.length > 0 ? { fileOps } : {}),
+        ...(inlineImages.length > 0 ? { inlineImages } : {}),
+        ...(trackedSteps.length > 0 ? { agentSteps: [...trackedSteps] } : {}),
+      } : m)
+    );
   }, [onFileCreated, onFileUpdated]);
 
   const submitPlanMode = async () => {
@@ -3991,6 +4004,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   </div>
                 )}
                 {msg.content ? renderContent(msg.content, msg.fileOps, msg.inlineImages, msg.generatedFiles, msg.imageSearchResults, msg.generatedAudio) : <TypingIndicator />}
+                {msg.role === "assistant" && msg.agentSteps && msg.agentSteps.length > 0 && (
+                  <div className="mt-2" data-testid={`steps-${msg.id}`}>
+                    <AgentStepTracker
+                      steps={msg.agentSteps}
+                      isStreaming={isStreaming && idx === activeMessages.length - 1}
+                    />
+                  </div>
+                )}
                 {msg.role === "assistant" && msg.mcpToolCalls && msg.mcpToolCalls.length > 0 && (
                   <McpToolCallTimeline calls={msg.mcpToolCalls} />
                 )}
