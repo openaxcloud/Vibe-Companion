@@ -1651,7 +1651,7 @@ function UnifiedIDELayout({
           className="flex-1 overflow-hidden"
           {...((mobileActiveTab === 'preview' || mobileActiveTab === 'agent') ? mobileSwipeHandlers : {})}
           data-testid="mobile-swipe-area"
-          style={{ paddingBottom: mobileActiveTab === 'agent' ? '7.5rem' : '0' }}
+          style={{ paddingBottom: mobileActiveTab === 'agent' ? '3.5rem' : '0' }}
         >
           <PageTransition
             key={mobileActiveTab}
@@ -1900,7 +1900,7 @@ function UnifiedIDELayout({
 
           <div 
             className="flex-1 overflow-auto"
-            style={{ paddingBottom: mobileActiveTab === 'agent' ? '8rem' : '3.5rem' }}
+            style={{ paddingBottom: mobileActiveTab === 'agent' ? '3.5rem' : '3.5rem' }}
           >
             <OptimizedErrorBoundary level="component">
               {renderMobileContent()}

@@ -4103,6 +4103,32 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         log(`Failed to auto-update ecode.md: ${ecodeErr.message}`, "ai");
       }
 
+      if (agentModifiedFiles.size > 0 && isLocalMode()) {
+        try {
+          const localWSMod = await import("./localWorkspaceManager");
+          const updatedFilesForPreview = await storage.getFiles(projectId);
+          const hasRunnable = updatedFilesForPreview.some((f: any) => {
+            const n = f.filename || "";
+            return n === "package.json" || n === "index.html" || n === "main.py" || n === "app.py" || n === "index.ts" || n === "index.js" || n === "main.ts" || n === "main.js" || n === "server.ts" || n === "server.js";
+          });
+          if (hasRunnable) {
+            const existing = localWSMod.getLocalWorkspace(projectId);
+            if (existing && (existing.status === "running" || existing.status === "starting")) {
+              localWSMod.touchLocalWorkspace(projectId);
+              res.write(`data: ${JSON.stringify({ type: "progress", step: "restarting_preview", message: "Restarting preview..." })}\n\n`);
+              await localWSMod.stopLocalWorkspace(projectId);
+              await localWSMod.startLocalWorkspace(projectId, () => storage.getFiles(projectId));
+            } else {
+              res.write(`data: ${JSON.stringify({ type: "progress", step: "starting_preview", message: "Starting preview..." })}\n\n`);
+              await localWSMod.startLocalWorkspace(projectId, () => storage.getFiles(projectId));
+            }
+            log(`Auto-(re)started preview for project ${projectId} after agent modified ${agentModifiedFiles.size} files`, "ai");
+          }
+        } catch (previewErr: any) {
+          log(`Failed to auto-start preview after agent: ${previewErr.message}`, "ai");
+        }
+      }
+
       const agentDuration = Date.now() - agentStartTime;
       const agentPricing = getProviderPricing(agentProvider);
       const agentCostCents = (agentEstInputTokens * agentPricing.input / 1000 + agentEstOutputTokens * agentPricing.output / 1000);
