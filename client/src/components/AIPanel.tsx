@@ -888,6 +888,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [claudeAgentClaudeId, setClaudeAgentClaudeId] = useState<string | null>(null);
 
   useEffect(() => {
+    let localModelAlreadySet = false;
+    try {
+      const localPref = localStorage.getItem("ai-preferred-model");
+      if (localPref && ["claude", "gpt", "gemini", "perplexity", "mistral", "openrouter"].includes(localPref)) {
+        localModelAlreadySet = true;
+      }
+    } catch {}
+
     fetch("/api/models/preferred", { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -905,8 +913,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             mid.startsWith("gemini") ? "gemini" : null
           );
           if (mapped) {
-            setModel(mapped);
-            try { localStorage.setItem("ai-preferred-model", mapped); } catch {}
+            if (!localModelAlreadySet) {
+              setModel(mapped);
+              try { localStorage.setItem("ai-preferred-model", mapped); } catch {}
+            }
           }
         }
       })
