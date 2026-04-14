@@ -1148,8 +1148,12 @@ export async function registerRoutes(
 
   const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 100,
+    max: 600,
     message: { message: "Rate limit exceeded." },
+    skip: (req: Request) => {
+      const path = req.path;
+      return path.includes('/poll') || path.includes('/preview/status') || path.includes('/deployment/latest');
+    },
   });
 
   const runLimiter = rateLimit({
@@ -1160,7 +1164,7 @@ export async function registerRoutes(
 
   const aiLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 20,
+    max: 60,
     keyGenerator: (req: Request) => req.session?.userId || "anonymous",
     message: { message: "Too many AI requests. Please wait a moment." },
     validate: { xForwardedForHeader: false, ip: false },
@@ -1168,7 +1172,7 @@ export async function registerRoutes(
 
   const aiGenerateLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 5,
+    max: 15,
     keyGenerator: (req: Request) => req.session?.userId || "anonymous",
     message: { message: "Too many project generation requests. Please wait." },
     validate: { xForwardedForHeader: false, ip: false },

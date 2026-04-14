@@ -30,6 +30,8 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 
 **Production Domain**: `e-code.ai` — configured via `APP_DOMAIN` env var (production). Dev URLs: `{projectId}.dev.e-code.ai`. Email from: `noreply@e-code.ai`. Desktop app connects to `https://e-code.ai`.
 
+**Rate Limiting**: Global API rate limit is 600 req/min (polling endpoints like `/poll`, `/preview/status`, `/deployment/latest` are excluded). AI endpoints: 60 req/min. AI generation: 15 req/min. Auth: 50 per 15 min. Configured in `server/routes.ts`.
+
 **AI Integration**: Multi-agent provider architecture supporting four backends:
 1. **Built-in E-Code AI** — Anthropic Claude Sonnet, OpenAI GPT-4.1/o4-mini/o3, Google Gemini Flash with MCP tool-use
 2. **Claude Agent SDK** — Full Anthropic Agent SDK integration via `server/services/claude-agent-service.ts`. Creates sandboxed sessions per project/user, streams events (file creates, command execution, assistant messages) to all IDE panels via WebSocket broadcast. Routes at `/api/projects/:id/agent/{session,message,stream,archive,status}`. Env vars: `CLAUDE_AGENT_ID`, `CLAUDE_ENVIRONMENT_ID`, `CLAUDE_VAULT_ID`, `ANTHROPIC_API_KEY`. Frontend hook: `client/src/hooks/use-claude-agent.ts`.
