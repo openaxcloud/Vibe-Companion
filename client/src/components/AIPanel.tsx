@@ -1415,7 +1415,45 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     onSessionEvent?: (data: any) => void,
   ) => {
     const reader = response.body?.getReader();
-    if (!reader) throw new Error("No stream");
+    if (!reader) {
+      console.warn("[SSE] ReadableStream not available, falling back to text()");
+      const text = await response.text();
+      const lines = text.split("\n");
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (isAgent) {
+            if (data.type === "text" && data.content) {
+              setMsgs((prev) =>
+                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + data.content } : m)
+              );
+            } else if (data.type === "file_created" && data.file) {
+              onFileCreated?.(data.file);
+              setMsgs((prev) =>
+                prev.map((m) => m.id === assistantId ? {
+                  ...m,
+                  fileOps: [...(m.fileOps || []), { type: "created" as const, filename: data.file.filename }],
+                } : m)
+              );
+            } else if (data.type === "file_updated" && data.file) {
+              onFileUpdated?.(data.file);
+              setMsgs((prev) =>
+                prev.map((m) => m.id === assistantId ? {
+                  ...m,
+                  fileOps: [...(m.fileOps || []), { type: "updated" as const, filename: data.file.filename }],
+                } : m)
+              );
+            }
+          } else if (data.content) {
+            setMsgs((prev) =>
+              prev.map((m) => m.id === assistantId ? { ...m, content: m.content + data.content } : m)
+            );
+          }
+        } catch {}
+      }
+      return;
+    }
 
     const decoder = new TextDecoder();
     let buffer = "";
@@ -1682,7 +1720,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               );
             }
           }
-        } catch {}
+        } catch (parseErr) {
+          console.warn("[SSE] Parse error for line:", line.slice(0, 100), parseErr);
+        }
       }
     }
 
@@ -2299,10 +2339,12 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       return true;
     } catch (err: unknown) {
-      if (err instanceof Error && err.name !== "AbortError") {
-        console.error("[AIPanel] AI request error:", err.message);
+      const isAbort = (err instanceof Error && err.name === "AbortError") || (err instanceof DOMException && err.name === "AbortError");
+      if (!isAbort) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error("[AIPanel] AI request error:", errMsg);
         setLastFailedInput(userMsg.content);
-        const detail = err.message && err.message !== "Failed to fetch" ? err.message : "the AI service is temporarily unavailable.";
+        const detail = errMsg && errMsg !== "Failed to fetch" ? errMsg : "the AI service is temporarily unavailable.";
         setMessages((prev) =>
           prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Connection error — ${detail}` } : m)
         );
@@ -2311,6 +2353,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
+      setMessages((prev) => {
+        const msg = prev.find((m) => m.id === assistantId);
+        if (msg && !msg.content && !msg.fileOps?.length && !msg.agentSteps?.length) {
+          return prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ No response received. The connection may have dropped — please try again." } : m);
+        }
+        return prev;
+      });
       onAgentComplete?.();
     }
   }, [messages, model, openrouterModel, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete, audioOutputEnabled, readAloud, agentProvider, sendViaExternalProvider, sendViaClaudeAgent]);
@@ -2623,14 +2672,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           });
         })
         .catch((err: unknown) => {
-          if (err instanceof Error && err.name !== "AbortError") {
-            console.error("[AIPanel] Retry request error:", err.message);
+          const isAbort = (err instanceof Error && err.name === "AbortError") || (err instanceof DOMException && err.name === "AbortError");
+          if (!isAbort) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            console.error("[AIPanel] Retry request error:", errMsg);
             setLastFailedInput(retryInput);
-            const detail = err.message && err.message !== "Failed to fetch" ? err.message : "the AI service is temporarily unavailable.";
+            const detail = errMsg && errMsg !== "Failed to fetch" ? errMsg : "the AI service is temporarily unavailable.";
             setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Connection error — ${detail}` } : m));
           }
         })
-        .finally(() => { setIsStreaming(false); abortRef.current = null; onAgentComplete?.(); });
+        .finally(() => {
+          setIsStreaming(false);
+          abortRef.current = null;
+          setMessages((prev) => {
+            const msg = prev.find((m) => m.id === assistantId);
+            if (msg && !msg.content && !msg.fileOps?.length && !msg.agentSteps?.length) {
+              return prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ No response received. The connection may have dropped — please try again." } : m);
+            }
+            return prev;
+          });
+          onAgentComplete?.();
+        });
       return updatedMessages;
     });
   };
