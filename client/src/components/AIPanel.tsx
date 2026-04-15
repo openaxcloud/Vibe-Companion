@@ -2138,7 +2138,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   }, [providerSessionId, projectId, processSSEStream]);
 
   const sendMessageDirect = useCallback(async (content: string, currentAttachments: Attachment[] = []) => {
-    console.log("[AIPanel] sendMessageDirect called, content length:", content?.length, "mode:", mode, "provider:", agentProvider, "model:", model, "projectId:", projectId);
+    console.log("[AIPanel] sendMessageDirect called, content length:", content?.length, "mode:", mode, "provider:", agentProvider, "model:", model, "projectId:", projectId, "streaming:", isStreaming);
+    if (isStreaming) {
+      console.warn("[AIPanel] Already streaming, skipping duplicate send");
+      return false;
+    }
     let fullContent = content;
 
     if (currentAttachments.length > 0) {
@@ -2304,17 +2308,30 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
       let csrfToken = getCsrfToken();
       if (!csrfToken) {
-        csrfToken = await fetchCsrfToken();
+        try {
+          csrfToken = await fetchCsrfToken();
+        } catch (csrfErr) {
+          console.warn("[AIPanel] CSRF token fetch failed, proceeding without:", csrfErr);
+        }
       }
       if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
-      console.log("[AIPanel] Sending POST to", endpoint, "csrf=", csrfToken ? "present" : "MISSING", "msgs=", outbound.length);
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: fetchHeaders,
-        credentials: "include",
-        body: JSON.stringify(body),
-        signal: abortRef.current.signal,
-      });
+      console.log("[AIPanel] Sending POST to", endpoint, "csrf=", csrfToken ? "present" : "MISSING", "msgs=", outbound.length, "bodySize=", JSON.stringify(body).length);
+      const timeoutId = setTimeout(() => { abortRef.current?.abort(); }, 120000);
+      let res: Response;
+      try {
+        res = await fetch(endpoint, {
+          method: "POST",
+          headers: fetchHeaders,
+          credentials: "include",
+          body: JSON.stringify(body),
+          signal: abortRef.current?.signal,
+        });
+      } catch (fetchErr: any) {
+        clearTimeout(timeoutId);
+        console.error("[AIPanel] Fetch failed:", fetchErr?.name, fetchErr?.message);
+        throw fetchErr;
+      }
+      clearTimeout(timeoutId);
 
       console.log("[AIPanel] Response status:", res.status);
       if (!res.ok) {
@@ -2354,13 +2371,17 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       return true;
     } catch (err: unknown) {
       const isAbort = (err instanceof Error && err.name === "AbortError") || (err instanceof DOMException && err.name === "AbortError");
+      const errMsg = err instanceof Error ? err.message : (typeof err === "object" && err !== null ? JSON.stringify(err) : String(err));
+      console.error("[AIPanel] AI request error:", errMsg, "isAbort:", isAbort, "type:", typeof err);
       if (!isAbort) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        console.error("[AIPanel] AI request error:", errMsg);
         setLastFailedInput(userMsg.content);
         const detail = errMsg && errMsg !== "Failed to fetch" ? errMsg : "the AI service is temporarily unavailable.";
         setMessages((prev) =>
           prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Connection error — ${detail}` } : m)
+        );
+      } else {
+        setMessages((prev) =>
+          prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: "⚠️ Request was cancelled or timed out. Please try again." } : m)
         );
       }
       return false;
@@ -2376,7 +2397,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       });
       onAgentComplete?.();
     }
-  }, [messages, model, openrouterModel, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete, audioOutputEnabled, readAloud, agentProvider, sendViaExternalProvider, sendViaClaudeAgent]);
+  }, [messages, model, openrouterModel, mode, projectId, context, codeOptimizations, liteMode, agentMode, topAgentMode, autonomousTier, agentToolsConfig.webSearch, agentToolsConfig.turbo, persistMessage, processSSEStream, onAgentComplete, audioOutputEnabled, readAloud, agentProvider, sendViaExternalProvider, sendViaClaudeAgent, isStreaming]);
 
   const processQueue = useCallback(async () => {
     if (processingQueueRef.current || pausedRef.current) return;
