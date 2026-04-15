@@ -2271,12 +2271,18 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       await processSSEStream(res, assistantId, isAgent, setMessages, model);
 
+      await new Promise(r => setTimeout(r, 50));
+
       const extractedContent = await new Promise<string>((resolve) => {
         setMessages((prev) => {
           const assistantMsg = prev.find((m) => m.id === assistantId);
           if (assistantMsg && assistantMsg.content) {
             persistMessage("assistant", assistantMsg.content, model, assistantMsg.fileOps);
             resolve(assistantMsg.content);
+          } else if (assistantMsg && ((assistantMsg as any).agentSteps?.length || assistantMsg.fileOps?.length)) {
+            const fallback = `Agent completed: ${assistantMsg.fileOps?.length || 0} file(s) modified.`;
+            persistMessage("assistant", fallback, model, assistantMsg.fileOps);
+            resolve(fallback);
           } else {
             resolve("");
           }
@@ -2605,10 +2611,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             throw new Error(`AI request failed: ${detail}`);
           }
           await processSSEStream(res, assistantId, isAgent, setMessages, model);
+          await new Promise(r => setTimeout(r, 50));
           setMessages((prev) => {
             const assistantMsg = prev.find((m) => m.id === assistantId);
             if (assistantMsg && assistantMsg.content) {
               persistMessage("assistant", assistantMsg.content, retryEffectiveModel, assistantMsg.fileOps);
+            } else if (assistantMsg && ((assistantMsg as any).agentSteps?.length || assistantMsg.fileOps?.length)) {
+              persistMessage("assistant", `Agent completed: ${assistantMsg.fileOps?.length || 0} file(s) modified.`, retryEffectiveModel, assistantMsg.fileOps);
             }
             return prev;
           });
