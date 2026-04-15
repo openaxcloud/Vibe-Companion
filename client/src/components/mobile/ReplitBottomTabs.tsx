@@ -113,9 +113,13 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
   return (
     <div
       className={inline ? "shrink-0 relative" : "fixed bottom-0 left-0 right-0 z-[60]"}
-      style={inline ? {} : { paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       data-testid="mobile-bottom-navigation"
     >
+      <div
+        className="absolute inset-x-0 bottom-0 top-0"
+        style={{ background: 'var(--ide-bg, #0d1117)' }}
+      />
       <div
         className={inline
           ? "absolute inset-x-3 inset-y-0 rounded-[var(--mobile-nav-radius)]"
