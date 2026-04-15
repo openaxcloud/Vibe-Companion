@@ -1657,6 +1657,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               setMsgs((prev) =>
                 prev.map((m) => m.id === assistantId ? { ...m, usageStats: stats } : m)
               );
+            } else if (data.type === "preview_ready") {
+              addStep({ id: `prev-${Date.now()}`, type: "status", label: "Preview ready", status: "done", timestamp: Date.now() });
+              window.dispatchEvent(new CustomEvent('ecode:preview-refresh', { detail: { projectId: data.projectId } }));
             } else if (data.type === "error") {
               addStep({ id: `err-${Date.now()}`, type: "status", label: `Error: ${data.message}`, status: "error", timestamp: Date.now() });
               setMsgs((prev) =>

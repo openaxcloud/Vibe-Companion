@@ -490,6 +490,18 @@ export class ClaudeAgentService {
         session.messages = messages;
       }
 
+      try {
+        const { previewService } = await import('../preview/preview-service');
+        const existingPreview = previewService.getPreview(projectId);
+        if (!existingPreview || existingPreview.status !== 'running') {
+          await previewService.startPreviewFromProject(projectId);
+          logger.info(`Auto-started preview after agent completed for project ${projectId}`);
+          broadcast('preview_refresh', { reason: 'Agent completed file operations' });
+        }
+      } catch (e: any) {
+        logger.warn(`Post-completion preview start failed: ${e.message}`);
+      }
+
     } catch (err: any) {
       logger.error(`Claude agent error: ${err.message}`);
       broadcast('agent_error', { message: err.message || 'Agent error' });

@@ -3980,6 +3980,20 @@ Always cite your sources in your response when using information from web search
         }
       }
 
+      if (agentFileOpsCount.value > 0) {
+        try {
+          const { previewService } = await import("../preview/preview-service");
+          const existingPreview = previewService.getPreview(String(projectId));
+          if (!existingPreview || existingPreview.status !== 'running') {
+            await previewService.startPreviewFromProject(String(projectId));
+            log(`[Agent] Auto-started preview after agent completed (${agentFileOpsCount.value} file ops) for project ${projectId}`, "agent");
+            res.write(`data: ${JSON.stringify({ type: "preview_ready", projectId })}\n\n`);
+          }
+        } catch (e: any) {
+          log(`[Agent] Post-completion preview start failed: ${e.message}`, "agent");
+        }
+      }
+
       const userQuota = await storage.getUserQuota(req.session.userId!);
       const shouldOptimize = optimize || userQuota.codeOptimizationsEnabled;
       if (shouldOptimize && agentModifiedFiles.size > 0) {

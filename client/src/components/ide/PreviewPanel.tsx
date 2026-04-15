@@ -126,7 +126,22 @@ export function PreviewPanel({
     }
   }, [previewStatus?.status, projectId, autoStart]);
 
-  // ✅ FIX (Dec 1, 2025): Add cache-busting timestamp to prevent stale content
+  useEffect(() => {
+    const handler = () => {
+      setTimeout(() => {
+        refetchStatus();
+        const iframe = document.getElementById('preview-iframe') as HTMLIFrameElement;
+        if (iframe && previewStatus?.previewUrl) {
+          const url = new URL(previewStatus.previewUrl, window.location.origin);
+          url.searchParams.set('_t', Date.now().toString());
+          iframe.src = url.toString();
+        }
+      }, 3000);
+    };
+    window.addEventListener('ecode:preview-refresh', handler);
+    return () => window.removeEventListener('ecode:preview-refresh', handler);
+  }, [refetchStatus, previewStatus?.previewUrl]);
+
   const handleRefresh = useCallback(() => {
     const iframe = document.getElementById('preview-iframe') as HTMLIFrameElement;
     if (iframe && previewStatus?.previewUrl) {
