@@ -1390,21 +1390,35 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
   const pendingMessageHandledRef = useRef<string | null>(null);
   const sendMessageDirectRef = useRef<((content: string, attachments?: Attachment[]) => Promise<boolean | undefined>) | null>(null);
+  const bootstrapRetryCountRef = useRef(0);
   useEffect(() => {
-    if (pendingMessage && conversationLoaded && !isStreaming && pendingMessage !== pendingMessageHandledRef.current) {
-      pendingMessageHandledRef.current = pendingMessage;
+    let messageToSend = pendingMessage;
+    if (!messageToSend && conversationLoaded && !isStreaming && projectId) {
+      try {
+        const stored = sessionStorage.getItem(`agent-prompt-${projectId}`);
+        if (stored && stored !== pendingMessageHandledRef.current) {
+          messageToSend = stored;
+          sessionStorage.removeItem(`agent-prompt-${projectId}`);
+        }
+      } catch {}
+    }
+    if (messageToSend && conversationLoaded && !isStreaming && messageToSend !== pendingMessageHandledRef.current) {
+      pendingMessageHandledRef.current = messageToSend;
       onPendingMessageConsumed?.();
+      bootstrapRetryCountRef.current = 0;
+      const capturedMessage = messageToSend;
       const autoSend = () => {
+        bootstrapRetryCountRef.current++;
         if (sendMessageDirectRef.current) {
-          sendMessageDirectRef.current(pendingMessage);
+          sendMessageDirectRef.current(capturedMessage);
           setInput("");
-        } else {
+        } else if (bootstrapRetryCountRef.current < 25) {
           setTimeout(autoSend, 200);
         }
       };
       setTimeout(autoSend, 400);
     }
-  }, [pendingMessage, conversationLoaded, isStreaming]);
+  }, [pendingMessage, conversationLoaded, isStreaming, projectId]);
 
   const processSSEStream = useCallback(async (
     response: Response,

@@ -1467,8 +1467,13 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
                     activeFileContent={activeFileContent}
                     activeFileLanguage={activeFileLanguage}
                     files={Array.isArray(filesRaw) ? filesRaw.map((f: any) => ({ id: String(f.id), filename: f.filename, content: f.content })) : []}
-                    onFileCreated={(file: any) => { workspace.createFileMutation?.reset(); }}
-                    onFileUpdated={(file: any) => { }}
+                    onFileCreated={(file: any) => {
+                      workspace.createFileMutation?.reset();
+                      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                    }}
+                    onFileUpdated={(file: any) => {
+                      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+                    }}
                     onApplyCode={(filename: string, code: string) => {
                       const file = filesRaw?.find((f: any) => f.filename === filename);
                       if (file) {
