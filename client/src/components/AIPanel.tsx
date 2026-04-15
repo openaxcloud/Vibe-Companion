@@ -1411,7 +1411,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     assistantId: string,
     isAgent: boolean,
     setMsgs: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
-    currentModel?: AIModel
+    currentModel?: AIModel,
+    onSessionEvent?: (data: any) => void,
   ) => {
     const reader = response.body?.getReader();
     if (!reader) throw new Error("No stream");
@@ -1670,6 +1671,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               setMsgs((prev) =>
                 prev.map((m) => m.id === assistantId ? { ...m, content: m.content + `\n\nError: ${data.message}` } : m)
               );
+            } else if (data.type === "session") {
+              onSessionEvent?.(data);
+            } else if (data.type === "done" || data.type === "stream_end" || data.type === "connected") {
             }
           } else {
             if (data.content) {
@@ -2068,82 +2072,16 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       throw new Error(errData.error || `${provider} request failed (${res.status})`);
     }
 
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error("No stream from provider");
-
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        try {
-          const data = JSON.parse(line.slice(6));
-
-          if (data.type === "session") {
-            const newSessionId = data.conversationId || data.sessionId;
-            if (newSessionId) {
-              providerSessionIdRef.current = newSessionId;
-              setProviderSessionId(newSessionId);
-            }
-          } else if (data.type === "action") {
-            let actionText = "";
-            if (data.action === "run") {
-              actionText = `\n> Running command: \`${data.args?.command || "..."}\`\n`;
-            } else if (data.action === "write") {
-              actionText = `\n> Writing file: \`${data.args?.path || "..."}\`\n`;
-            } else if (data.action === "read") {
-              actionText = `\n> Reading file: \`${data.args?.path || "..."}\`\n`;
-            } else if (data.action === "browse") {
-              actionText = `\n> Browsing: \`${data.args?.url || "..."}\`\n`;
-            } else if (data.action === "message") {
-              actionText = data.message || data.args?.content || "";
-            } else if (data.action) {
-              actionText = `\n> [${data.action}] ${data.message || ""}\n`;
-            }
-            if (actionText) {
-              setMessages((prev) =>
-                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + actionText } : m)
-              );
-            }
-          } else if (data.type === "observation") {
-            const obsText = data.message || data.observation || "";
-            if (obsText) {
-              const truncated = obsText.length > 2000 ? obsText.slice(0, 2000) + "\n...(truncated)" : obsText;
-              setMessages((prev) =>
-                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + "\n```\n" + truncated + "\n```\n" } : m)
-              );
-            }
-          } else if (data.type === "text" || data.type === "content") {
-            const text = data.content || data.text || data.message || "";
-            if (text) {
-              setMessages((prev) =>
-                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + text } : m)
-              );
-            }
-          } else if (data.type === "error") {
-            setMessages((prev) =>
-              prev.map((m) => m.id === assistantId ? { ...m, content: m.content + `\n\n⚠️ ${data.message}` } : m)
-            );
-          } else if (data.type === "done") {
-          } else if (data.message || data.content) {
-            const fallback = data.message || data.content || "";
-            setMessages((prev) =>
-              prev.map((m) => m.id === assistantId ? { ...m, content: m.content + fallback } : m)
-            );
-          }
-        } catch {}
+    await processSSEStream(res, assistantId, true, setMessages, provider as AIModel, (sessionData) => {
+      const newSessionId = sessionData.conversationId || sessionData.sessionId;
+      if (newSessionId) {
+        providerSessionIdRef.current = newSessionId;
+        setProviderSessionId(newSessionId);
       }
-    }
+    });
 
     return true;
-  }, [providerSessionId, projectId]);
+  }, [providerSessionId, projectId, processSSEStream]);
 
   const sendMessageDirect = useCallback(async (content: string, currentAttachments: Attachment[] = []) => {
     console.log("[AIPanel] sendMessageDirect called, content length:", content?.length, "mode:", mode, "provider:", agentProvider, "model:", model, "projectId:", projectId);

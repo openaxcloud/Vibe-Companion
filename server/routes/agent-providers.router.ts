@@ -80,24 +80,43 @@ router.post("/message", requireAuth, async (req: Request, res: Response) => {
 
       res.write(`data: ${JSON.stringify({ type: "text", content: "> Waiting for agent response...\n" })}\n\n`);
 
+      const startTime = Date.now();
+      const modifiedFiles = new Set<string>();
+
       try {
         for await (const event of client.streamEvents(convId)) {
-          const mapped = {
-            type: event.action ? "action" : event.observation ? "observation" : "text",
-            source: event.source,
-            action: event.action,
-            observation: event.observation,
-            message: event.message || event.content,
-            content: event.content || event.message,
-            args: event.args,
-            extras: event.extras,
-          };
-          res.write(`data: ${JSON.stringify(mapped)}\n\n`);
+          if (event.action === "run") {
+            res.write(`data: ${JSON.stringify({ type: "tool_use", name: "execute_command", input: { command: event.args?.command || "" } })}\n\n`);
+          } else if (event.action === "write") {
+            const filePath = event.args?.path || "";
+            if (filePath) modifiedFiles.add(filePath);
+            res.write(`data: ${JSON.stringify({ type: "tool_use", name: "create_file", input: { filename: filePath, content: event.args?.content || "" } })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: "file_created", file: { filename: filePath } })}\n\n`);
+          } else if (event.action === "read") {
+            res.write(`data: ${JSON.stringify({ type: "tool_use", name: "read_file", input: { filename: event.args?.path || "" } })}\n\n`);
+          } else if (event.action === "browse") {
+            res.write(`data: ${JSON.stringify({ type: "tool_use", name: "web_browse", input: { url: event.args?.url || "" } })}\n\n`);
+          } else if (event.action === "message") {
+            const text = event.message || event.args?.content || event.content || "";
+            if (text) res.write(`data: ${JSON.stringify({ type: "text", content: text })}\n\n`);
+          } else if (event.observation) {
+            const obsText = event.message || event.content || event.observation || "";
+            if (obsText) {
+              const truncated = obsText.length > 2000 ? obsText.slice(0, 2000) + "\n...(truncated)" : obsText;
+              res.write(`data: ${JSON.stringify({ type: "tool_result", content: truncated })}\n\n`);
+            }
+          } else if (event.action) {
+            res.write(`data: ${JSON.stringify({ type: "tool_use", name: event.action, input: event.args || {} })}\n\n`);
+          } else {
+            const text = event.content || event.message || "";
+            if (text) res.write(`data: ${JSON.stringify({ type: "text", content: text })}\n\n`);
+          }
         }
       } catch (streamErr: any) {
         res.write(`data: ${JSON.stringify({ type: "error", message: streamErr.message })}\n\n`);
       }
 
+      res.write(`data: ${JSON.stringify({ type: "usage_stats", duration: Date.now() - startTime, provider: "openhands", model: "openhands", filesModified: modifiedFiles.size })}\n\n`);
       res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
       res.end();
     } catch (err: any) {
@@ -130,14 +149,47 @@ router.post("/message", requireAuth, async (req: Request, res: Response) => {
 
       res.write(`data: ${JSON.stringify({ type: "session", sessionId: sId })}\n\n`);
 
+      const gooseStartTime = Date.now();
+      const gooseModifiedFiles = new Set<string>();
+
       try {
         for await (const event of client.streamMessage(sId, message)) {
-          res.write(`data: ${JSON.stringify(event)}\n\n`);
+          if (event.type === "action") {
+            if (event.action === "run") {
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: "execute_command", input: { command: event.args?.command || "" } })}\n\n`);
+            } else if (event.action === "write") {
+              const fp = event.args?.path || "";
+              if (fp) gooseModifiedFiles.add(fp);
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: "create_file", input: { filename: fp } })}\n\n`);
+              res.write(`data: ${JSON.stringify({ type: "file_created", file: { filename: fp } })}\n\n`);
+            } else if (event.action === "read") {
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: "read_file", input: { filename: event.args?.path || "" } })}\n\n`);
+            } else if (event.action === "message") {
+              const txt = event.message || event.content || "";
+              if (txt) res.write(`data: ${JSON.stringify({ type: "text", content: txt })}\n\n`);
+            } else {
+              res.write(`data: ${JSON.stringify({ type: "tool_use", name: event.action || "unknown", input: event.args || {} })}\n\n`);
+            }
+          } else if (event.type === "observation") {
+            const obs = event.message || event.content || "";
+            if (obs) {
+              const trunc = obs.length > 2000 ? obs.slice(0, 2000) + "\n...(truncated)" : obs;
+              res.write(`data: ${JSON.stringify({ type: "tool_result", content: trunc })}\n\n`);
+            }
+          } else if (event.type === "text" || event.type === "content") {
+            const txt = event.content || event.text || event.message || "";
+            if (txt) res.write(`data: ${JSON.stringify({ type: "text", content: txt })}\n\n`);
+          } else if (event.type === "error") {
+            res.write(`data: ${JSON.stringify({ type: "error", message: event.message || "Goose error" })}\n\n`);
+          } else if (event.message || event.content) {
+            res.write(`data: ${JSON.stringify({ type: "text", content: event.message || event.content })}\n\n`);
+          }
         }
       } catch (streamErr: any) {
         res.write(`data: ${JSON.stringify({ type: "error", message: streamErr.message })}\n\n`);
       }
 
+      res.write(`data: ${JSON.stringify({ type: "usage_stats", duration: Date.now() - gooseStartTime, provider: "goose", model: "goose", filesModified: gooseModifiedFiles.size })}\n\n`);
       res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
       res.end();
     } catch (err: any) {
