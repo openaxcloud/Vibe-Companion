@@ -829,6 +829,8 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     return "builtin";
   });
   const [providerSessionId, setProviderSessionId] = useState<string | null>(null);
+  const providerSessionIdRef = useRef<string | null>(null);
+  const providerProjectIdRef = useRef<string | null>(null);
   const [model, setModel] = useState<AIModel>(() => {
     try {
       const saved = localStorage.getItem("ai-preferred-model");
@@ -2092,14 +2094,21 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
     if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
 
+    if (providerProjectIdRef.current && providerProjectIdRef.current !== projectId) {
+      providerSessionIdRef.current = null;
+      setProviderSessionId(null);
+    }
+    providerProjectIdRef.current = projectId;
+
+    const currentSessionId = providerSessionIdRef.current || providerSessionId;
     const body = {
       provider,
       message: content,
-      sessionId: providerSessionId,
+      sessionId: currentSessionId,
       projectId,
     };
 
-    console.log(`[AIPanel] Sending to external provider: ${provider}, session=${providerSessionId}`);
+    console.log(`[AIPanel] Sending to external provider: ${provider}, session=${currentSessionId}`);
 
     const res = await fetch("/api/agent-providers/message", {
       method: "POST",
@@ -2134,7 +2143,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
           if (data.type === "session") {
             const newSessionId = data.conversationId || data.sessionId;
-            if (newSessionId) setProviderSessionId(newSessionId);
+            if (newSessionId) {
+              providerSessionIdRef.current = newSessionId;
+              setProviderSessionId(newSessionId);
+            }
           } else if (data.type === "action") {
             let actionText = "";
             if (data.action === "run") {
