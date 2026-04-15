@@ -1874,7 +1874,7 @@ I'm fully functional and operating at 100% capacity. Let me know how I can help 
           // Broadcast plan completed (frontend-compatible) - only after DB confirmed
           agentWebSocketService.broadcastPlanCompleted(projectId, sessionId, isSuccess);
           if (isSuccess) {
-            agentWebSocketService.sendComplete(parseInt(projectId), sessionId);
+            agentWebSocketService.sendComplete(projectId as any, sessionId);
             
             // Auto-start preview after successful build (fire-and-forget)
             import('../preview/preview-service').then(({ previewService }) => {

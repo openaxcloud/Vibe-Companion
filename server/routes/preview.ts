@@ -556,6 +556,40 @@ router.get('/projects/:id/preview/', requireAuth, ensureProjectAccess, proxyToLi
         res.type('html').send('');
         return;
       }
+
+      const needsBundler = /\.(tsx|jsx|ts)\b/.test(content);
+      const hasPackageJson = files.some(f => (fname(f) === 'package.json') && !f.isDirectory);
+
+      if (needsBundler && hasPackageJson) {
+        try {
+          const { previewService } = await import('../preview/preview-service');
+          const preview = previewService.getPreview(projectId);
+          if (!preview || (preview.status !== 'running' && preview.status !== 'starting')) {
+            previewService.startPreviewFromProject(projectId, (req as any).session?.userId ? String((req as any).session.userId) : undefined).catch(() => {});
+          }
+        } catch {}
+
+        return res.status(200).type('html').send(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Starting preview...</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.c{text-align:center;padding:2rem}
+.spinner{width:48px;height:48px;border:3px solid #21262d;border-top-color:#f97316;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1.5rem}
+@keyframes spin{to{transform:rotate(360deg)}}
+h2{font-size:1.25rem;margin-bottom:.5rem;color:#e6edf3}
+p{font-size:.875rem;color:#8b949e;max-width:320px;line-height:1.5}
+</style>
+${getHotReloadScript(projectId)}
+<script>setTimeout(function(){location.reload()},4000);</script>
+</head><body><div class="c">
+<div class="spinner"></div>
+<h2>Starting preview server...</h2>
+<p>Installing dependencies and starting the development server. This page will auto-refresh.</p>
+</div></body></html>`);
+      }
+
       const basePath = indexFilePath.includes('/') ? indexFilePath.substring(0, indexFilePath.lastIndexOf('/')) : '';
       let modifiedContent = injectPreviewScripts(content, projectId);
       if (basePath) {
