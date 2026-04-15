@@ -1968,6 +1968,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       setClaudeAgentClaudeId(claudeId);
     }
 
+    console.log("[Claude Agent] Sending message, session:", sessionId, "project:", projectId);
     const streamRes = await fetch(`/api/projects/${projectId}/agent/message`, {
       method: "POST",
       headers: fetchHeaders,
@@ -1980,8 +1981,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       signal: abortRef.current?.signal,
     });
 
+    console.log("[Claude Agent] Response status:", streamRes.status);
     if (!streamRes.ok) {
       const errData = await streamRes.json().catch(() => ({}));
+      console.error("[Claude Agent] Error response:", errData);
       throw new Error(errData.message || errData.error || "Claude Agent message failed");
     }
 
@@ -2214,8 +2217,16 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
     try {
       if (agentProvider === "claude-agent") {
-        console.log("[AIPanel] Routing to Claude Agent SDK");
-        await sendViaClaudeAgent(fullContent, assistantId);
+        console.log("[AIPanel] Routing to Claude Agent SDK for project:", projectId);
+        try {
+          await sendViaClaudeAgent(fullContent, assistantId);
+        } catch (claudeErr: any) {
+          console.error("[AIPanel] Claude Agent SDK error:", claudeErr);
+          setMessages((prev) =>
+            prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ Agent SDK error — ${claudeErr?.message || "Failed to connect"}. Try switching to a different model.` } : m)
+          );
+          return false;
+        }
 
         const extractedContent = await new Promise<string>((resolve) => {
           setMessages((prev) => {
@@ -2227,6 +2238,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
         if (extractedContent) {
           persistMessage("assistant", extractedContent, effectiveModel);
+        } else {
+          console.warn("[AIPanel] Claude Agent returned empty response");
+          setMessages((prev) =>
+            prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: "The agent completed but returned no visible output. The project files may have been updated — check the file explorer." } : m)
+          );
         }
 
         return true;
@@ -2234,7 +2250,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
       if (agentProvider !== "builtin") {
         console.log(`[AIPanel] Routing to external provider: ${agentProvider}`);
-        await sendViaExternalProvider(agentProvider as "openhands" | "goose", fullContent, assistantId);
+        try {
+          await sendViaExternalProvider(agentProvider as "openhands" | "goose", fullContent, assistantId);
+        } catch (extErr: any) {
+          console.error(`[AIPanel] External provider ${agentProvider} error:`, extErr);
+          setMessages((prev) =>
+            prev.map((m) => m.id === assistantId ? { ...m, content: `⚠️ ${agentProvider} error — ${extErr?.message || "Failed to connect"}. Try switching to a different model.` } : m)
+          );
+          return false;
+        }
 
         const extractedContent = await new Promise<string>((resolve) => {
           setMessages((prev) => {
