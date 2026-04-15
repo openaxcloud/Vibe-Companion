@@ -209,6 +209,15 @@
   /* Mobile: account for virtual keyboard and safe areas */
   html, body {
     overscroll-behavior: none;
+    height: 100%;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+  }
+
+  #root {
+    height: 100%;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
   }
 
   .mobile-scroll {
