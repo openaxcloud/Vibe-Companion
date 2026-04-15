@@ -2286,7 +2286,6 @@ Rules:
       if (toolName === "execute_command") {
         const command = (toolInput.command || "").trim();
         if (!command) return "Error: command is required";
-        // Block dangerous commands
         const dangerous = [
           /rm\s+-rf\s+\//, /mkfs/, /dd\s+if=/, /:(){ :|:& };:/, />\s*\/dev\/(sd|hd|vd)/,
           /chmod\s+-R\s+777\s+\//, /chown\s+-R.*\//, /shutdown/, /reboot/, /halt/,
@@ -2296,8 +2295,21 @@ Rules:
             return "Error: command blocked for safety";
           }
         }
+
+        const devServerPatterns = /^(npm\s+run\s+(dev|start)|npm\s+start|npx\s+vite|yarn\s+(dev|start)|yarn\s+run\s+(dev|start)|pnpm\s+(dev|start)|pnpm\s+run\s+(dev|start)|node\s+server|python\s+-m\s+http|next\s+dev|nuxt\s+dev)/i;
+        if (devServerPatterns.test(command)) {
+          res.write(`data: ${JSON.stringify({ type: "tool_use", name: "execute_command", input: { command, label: "Starting dev server" } })}\n\n`);
+          previewEvents.emit('preview:file-change', { projectId: parseInt(String(projectId), 10), filePath: 'package.json', changeType: 'update' });
+          try {
+            const { previewService } = await import("../preview/preview-service");
+            await previewService.startPreviewFromProject(String(projectId));
+          } catch (e: any) {
+            log(`[Agent] Auto-start preview failed: ${e.message}`, "agent");
+          }
+          return "Dev server started automatically by the IDE preview system. The preview panel will update shortly.";
+        }
+
         const workspaceDir = getProjectWorkspaceDir(projectId);
-        // Ensure workspace directory exists
         if (!fs.existsSync(workspaceDir)) {
           try { fs.mkdirSync(workspaceDir, { recursive: true }); } catch {}
         }
@@ -2313,6 +2325,20 @@ Rules:
             });
             setTimeout(() => { proc.kill(); resolve("Error: command timed out after 30s"); }, timeout + 500);
           });
+
+          const cmdLower = command.toLowerCase();
+          const isInstallCmd = cmdLower.includes('npm install') || cmdLower.includes('yarn install') || cmdLower.includes('pnpm install');
+          const installSucceeded = isInstallCmd && !output.startsWith('Error');
+          if (installSucceeded) {
+            try {
+              const { previewService } = await import("../preview/preview-service");
+              await previewService.startPreviewFromProject(String(projectId));
+              log(`[Agent] Auto-started preview after dependency install for project ${projectId}`, "agent");
+            } catch (e: any) {
+              log(`[Agent] Auto-start preview after install failed: ${e.message}`, "agent");
+            }
+          }
+
           return output;
         } catch (err: any) {
           return `Error: ${err.message}`;
@@ -2545,7 +2571,7 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
 
       const agentSystemPrompt = `${agentResolved.systemPromptPrefix}You are an autonomous AI coding agent inside E-Code IDE. You build complete applications by creating and editing files in the user's project.
 
-CRITICAL BEHAVIOR: When the user describes what they want to build, you MUST immediately start building it — create ALL necessary files, install dependencies, and start the dev server. Do NOT ask clarifying questions, do NOT list options, do NOT wait for confirmation. Just BUILD. The user expects you to be a fully autonomous agent like Replit Agent.
+CRITICAL BEHAVIOR: When the user describes what they want to build, you MUST immediately start building it — create ALL necessary files and install dependencies. Do NOT ask clarifying questions, do NOT list options, do NOT wait for confirmation. Just BUILD. The user expects you to be a fully autonomous agent like Replit Agent.
 
 Current project: "${project.name}" (${project.language}, type: ${project.projectType || "web-app"}${isMobileProject ? ", mobile-app" : ""})
 Existing files:
@@ -2554,7 +2580,7 @@ ${fileList || "(no files yet)"}${mobileContext}
 When the user asks you to build something, create files, or make changes:
 1. Immediately plan and execute — create ALL files in a single response
 2. Use the provided tools to create or update files
-3. After creating files, run npm install and npm run dev
+3. After creating files, run 'npm install --legacy-peer-deps' to install dependencies (the IDE will auto-start the dev server)
 4. Briefly explain what you built after completing the work
 
 When the user asks you to create a skill, use the create_skill tool to persist it.
@@ -2597,15 +2623,14 @@ You MUST build a COMPLETE, PRODUCTION-READY application — not a demo or protot
   8. src/components/ with reusable UI components
   9. src/pages/ or src/views/ for different screens
 - For simpler static apps (landing pages, simple tools), use a single index.html with Tailwind CDN
-- ALWAYS run 'npm install' after creating package.json, then 'npm run dev' to start the server
+- ALWAYS run 'npm install --legacy-peer-deps' after creating package.json
 
 ## Command Execution & Error Recovery
 You have access to execute_command to run shell commands in the project workspace.
 - After creating project files, ALWAYS run 'npm install --legacy-peer-deps' to install dependencies.
-- After installing dependencies, run 'npm run dev' to start the dev server so the preview updates.
-- If a command fails, read the error output carefully. Use read_terminal_output to inspect the last command's output if needed.
-- Fix the underlying issue (wrong package name, missing file, syntax error, etc.) and retry. You may retry up to 3 times before asking the user for help.
-- After starting the dev server, the preview panel will automatically update.
+- Do NOT run 'npm run dev', 'npx vite', 'npm start', or any long-running dev server command. The IDE preview system handles starting the dev server automatically after files are created and dependencies are installed.
+- If a command fails, read the error output carefully and fix the underlying issue (wrong package name, missing file, syntax error, etc.) and retry. You may retry up to 3 times.
+- After installing dependencies, the preview panel will automatically detect and start the app.
 
 ## ENVIRONMENT VARIABLES & SECRETS
 When you generate code that references process.env.VARIABLE_NAME or import.meta.env.VARIABLE_NAME:
@@ -2968,7 +2993,7 @@ Always cite your sources in your response when using information from web search
               parameters: {
                 type: Type.OBJECT,
                 properties: {
-                  command: { type: Type.STRING, description: "The shell command to execute (e.g. 'npm install', 'npm run dev')" },
+                  command: { type: Type.STRING, description: "The shell command to execute (e.g. 'npm install --legacy-peer-deps', 'npm run build'). Do NOT use for dev server commands like 'npm run dev' — the IDE handles that automatically." },
                 },
                 required: ["command"],
               },

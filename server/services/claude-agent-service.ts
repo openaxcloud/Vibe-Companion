@@ -287,6 +287,18 @@ export class ClaudeAgentService {
 
         broadcast('terminal_command', { command, id: `tool-${Date.now()}` });
 
+        const devServerRegex = /^(npm\s+run\s+(dev|start)|npm\s+start|npx\s+vite|yarn\s+(dev|start)|yarn\s+run\s+(dev|start)|pnpm\s+(dev|start)|pnpm\s+run\s+(dev|start)|node\s+server|python\s+-m\s+http|next\s+dev|nuxt\s+dev)/i;
+        if (devServerRegex.test(command.trim())) {
+          broadcast('preview_refresh', { reason: 'Agent requested dev server start' });
+          try {
+            const { previewService } = await import('../preview/preview-service');
+            await previewService.startPreviewFromProject(projectId);
+          } catch (e: any) {
+            logger.warn(`Auto-start preview failed: ${e.message}`);
+          }
+          return 'Dev server started automatically by the IDE preview system. The preview panel will update shortly.';
+        }
+
         const isRisky = RISKY_COMMANDS.some(rc => cmdStr.includes(rc));
         if (isRisky) {
           try {
@@ -318,13 +330,16 @@ export class ClaudeAgentService {
           const output = (result || '').trim();
           broadcast('terminal_output', { output, toolUseId: `tool-${Date.now()}` });
 
-          if (cmdStr.includes('npm install') || cmdStr.includes('yarn add') || cmdStr.includes('pnpm add')) {
+          if (cmdStr.includes('npm install') || cmdStr.includes('yarn add') || cmdStr.includes('pnpm add') ||
+              cmdStr.includes('yarn install') || cmdStr.includes('pnpm install')) {
             broadcast('packages_refresh', {});
-          }
-
-          const devServerPatterns = ['npm run dev', 'npm start', 'npx vite', 'yarn dev', 'pnpm dev'];
-          if (devServerPatterns.some(p => cmdStr.includes(p))) {
-            broadcast('preview_refresh', { reason: 'Agent started dev server' });
+            try {
+              const { previewService } = await import('../preview/preview-service');
+              await previewService.startPreviewFromProject(projectId);
+              logger.info(`Auto-started preview after dependency install for project ${projectId}`);
+            } catch (e: any) {
+              logger.warn(`Auto-start preview after install failed: ${e.message}`);
+            }
           }
 
           return output || '(command completed successfully)';
