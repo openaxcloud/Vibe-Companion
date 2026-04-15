@@ -1162,7 +1162,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           isConnected={isConnected}
           inline
         />
-        <div className="shrink-0 bg-[var(--ide-bg)]" style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
+
 
         <MobileMoreMenu
           projectId={projectId}
@@ -1337,7 +1337,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           isConnected={isConnected}
           inline
         />
-        <div className="shrink-0 bg-[var(--ide-bg)]" style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
+
 
         <MobileMoreMenu
           projectId={projectId}
