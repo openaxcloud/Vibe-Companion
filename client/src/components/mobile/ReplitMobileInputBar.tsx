@@ -66,6 +66,8 @@ interface ReplitMobileInputBarProps {
   pendingAttachmentsCount?: number;
   attachments?: AttachmentInfo[];
   onRemoveAttachment?: (id: string) => void;
+  onProviderChange?: (provider: 'builtin' | 'openhands' | 'goose' | 'claude-agent') => void;
+  onModelChange?: (model: string) => void;
 }
 
 export function ReplitMobileInputBar({
@@ -85,6 +87,8 @@ export function ReplitMobileInputBar({
   pendingAttachmentsCount,
   attachments = [],
   onRemoveAttachment,
+  onProviderChange,
+  onModelChange,
 }: ReplitMobileInputBarProps) {
   const [value, setValue] = useState('');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -323,10 +327,13 @@ export function ReplitMobileInputBar({
                           if (meta.isExternal) {
                             setAgentProvider(lm.provider as 'openhands' | 'goose' | 'claude-agent');
                             try { localStorage.setItem('ai-agent-provider', lm.provider); } catch {}
+                            onProviderChange?.(lm.provider as 'openhands' | 'goose' | 'claude-agent');
                           } else {
                             setSelectedModel(meta.groupKey);
                             setAgentProvider('builtin');
                             try { localStorage.setItem('ai-preferred-model', meta.groupKey); localStorage.setItem('ai-agent-provider', 'builtin'); } catch {}
+                            onProviderChange?.('builtin');
+                            onModelChange?.(meta.groupKey);
                           }
                           setShowProviderDropdown(false);
                         }}

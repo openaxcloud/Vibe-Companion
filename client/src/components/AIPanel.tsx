@@ -2542,6 +2542,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         updateAgentToolsConfig(updates as Partial<AgentToolsConfig>);
       },
       agentToolsConfig,
+      onProviderChange: (provider: 'builtin' | 'openhands' | 'goose' | 'claude-agent') => {
+        setAgentProvider(provider);
+        try { localStorage.setItem('ai-agent-provider', provider); } catch {}
+      },
+      onModelChange: (newModel: string) => {
+        setModel(newModel as AIModel);
+        try { localStorage.setItem('ai-preferred-model', newModel); } catch {}
+      },
     };
     onExternalInput(handlers);
   }, [onExternalInput, isStreaming, agentMode, attachments, isRecording, isTranscribing, mode, topMode, agentToolsConfig]);
@@ -3937,7 +3945,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       )}
 
       <div ref={scrollRef} className={`flex-1 overflow-y-auto p-4 flex flex-col ${topMode === "plan" ? "hidden" : ""}`}>
-        {activeMessages.length > 0 && !hideInput && <div className="flex-1 min-h-0" />}
+        {activeMessages.length > 0 && <div className="flex-1 min-h-0" />}
         <div className={activeMessages.length === 0 ? "flex-1 flex flex-col" : "space-y-4"}>
         {activeMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center flex-1 text-center px-6 animate-[fade-in_0.4s_ease-out]">

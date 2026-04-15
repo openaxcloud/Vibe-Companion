@@ -22,6 +22,8 @@ export interface ExternalInputHandlers {
   aiMode?: 'chat' | 'agent' | 'plan';
   onAgentToolsConfigChange?: (updates: Record<string, boolean>) => void;
   agentToolsConfig?: { liteMode: boolean; webSearch: boolean; appTesting: boolean; codeOptimizations: boolean; architect: boolean; turbo: boolean };
+  onProviderChange?: (provider: 'builtin' | 'openhands' | 'goose' | 'claude-agent') => void;
+  onModelChange?: (model: string) => void;
 }
 
 interface ReplitAgentPanelV3Props {

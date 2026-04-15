@@ -28,6 +28,7 @@ interface ReplitBottomTabsProps {
   onCloseTab?: (tabId: string) => void;
   badgeCounts?: BadgeCounts;
   isConnected?: boolean;
+  inline?: boolean;
 }
 
 const CORE_TAB_IDS = new Set(['files', 'preview', 'agent', 'deploy', 'more']);
@@ -59,6 +60,7 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
   onCloseTab,
   badgeCounts = {},
   isConnected = true,
+  inline = false,
 }: ReplitBottomTabsProps) {
   const isMobile = useIsMobile();
 
@@ -110,12 +112,15 @@ export const ReplitBottomTabs = memo(function ReplitBottomTabs({
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-[60]"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      className={inline ? "shrink-0 relative" : "fixed bottom-0 left-0 right-0 z-[60]"}
+      style={inline ? {} : { paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       data-testid="mobile-bottom-navigation"
     >
       <div
-        className="absolute inset-x-3 bottom-0 top-0 rounded-[var(--mobile-nav-radius)]"
+        className={inline
+          ? "absolute inset-x-3 inset-y-0 rounded-[var(--mobile-nav-radius)]"
+          : "absolute inset-x-3 bottom-0 top-0 rounded-[var(--mobile-nav-radius)]"
+        }
         style={{
           background: 'var(--mobile-nav-gradient)',
           boxShadow: 'var(--mobile-nav-shadow), var(--mobile-nav-inner-shadow)',
