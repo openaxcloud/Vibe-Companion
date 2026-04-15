@@ -834,7 +834,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [model, setModel] = useState<AIModel>(() => {
     try {
       const saved = localStorage.getItem("ai-preferred-model");
-      if (saved && ["claude", "gpt", "gemini", "perplexity", "mistral", "openrouter"].includes(saved)) return saved as AIModel;
+      if (saved && ["claude", "gpt", "gemini", "perplexity", "mistral", "openrouter", "openhands", "goose", "claude-agent"].includes(saved)) return saved as AIModel;
     } catch {}
     return "claude";
   });
@@ -904,7 +904,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     let localModelAlreadySet = false;
     try {
       const localPref = localStorage.getItem("ai-preferred-model");
-      if (localPref && ["claude", "gpt", "gemini", "perplexity", "mistral", "openrouter"].includes(localPref)) {
+      if (localPref && ["claude", "gpt", "gemini", "perplexity", "mistral", "openrouter", "openhands", "goose", "claude-agent"].includes(localPref)) {
         localModelAlreadySet = true;
       }
     } catch {}
@@ -1140,7 +1140,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             let hasLocalPref = false;
             try {
               const lp = localStorage.getItem("ai-preferred-model");
-              if (lp && ["claude", "gpt", "gemini", "perplexity", "mistral", "openrouter"].includes(lp)) hasLocalPref = true;
+              if (lp && ["claude", "gpt", "gemini", "perplexity", "mistral", "openrouter", "openhands", "goose", "claude-agent"].includes(lp)) hasLocalPref = true;
             } catch {}
             if (!hasLocalPref) setModel(data.conversation.model as AIModel);
           }
@@ -2148,6 +2148,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           return false;
         }
 
+        await new Promise(r => setTimeout(r, 50));
         const extractedContent = await new Promise<string>((resolve) => {
           setMessages((prev) => {
             const assistantMsg = prev.find((m) => m.id === assistantId);
@@ -2159,10 +2160,21 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         if (extractedContent) {
           persistMessage("assistant", extractedContent, effectiveModel);
         } else {
-          console.warn("[AIPanel] Claude Agent returned empty response");
-          setMessages((prev) =>
-            prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: "The agent completed but returned no visible output. The project files may have been updated — check the file explorer." } : m)
-          );
+          const hasSteps = await new Promise<boolean>((resolve) => {
+            setMessages((prev) => {
+              const msg = prev.find((m) => m.id === assistantId);
+              resolve(!!(msg?.agentSteps?.length || msg?.fileOps?.length));
+              return prev;
+            });
+          });
+          if (hasSteps) {
+            persistMessage("assistant", "[Agent completed with file operations]", effectiveModel);
+          } else {
+            console.warn("[AIPanel] Claude Agent returned empty response");
+            setMessages((prev) =>
+              prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: "The agent completed but returned no visible output. The project files may have been updated — check the file explorer." } : m)
+            );
+          }
         }
 
         return true;
@@ -2180,6 +2192,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           return false;
         }
 
+        await new Promise(r => setTimeout(r, 50));
         const extractedContent = await new Promise<string>((resolve) => {
           setMessages((prev) => {
             const assistantMsg = prev.find((m) => m.id === assistantId);

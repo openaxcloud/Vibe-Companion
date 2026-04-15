@@ -520,7 +520,7 @@ export default function Dashboard() {
       if (data.projectId) {
         sessionStorage.setItem(`agent-prompt-${data.projectId}`, promptText);
         if (variables.model === "openhands" || variables.model === "goose" || variables.model === "claude-agent") {
-          try { localStorage.setItem("ai-agent-provider", variables.model); } catch {}
+          try { localStorage.setItem("ai-agent-provider", variables.model); localStorage.setItem("ai-preferred-model", variables.model); } catch {}
         } else if (variables.model) {
           try { localStorage.setItem("ai-preferred-model", variables.model); localStorage.setItem("ai-agent-provider", "builtin"); } catch {}
         }
