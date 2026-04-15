@@ -894,6 +894,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const audioAbortRef = useRef<AbortController | null>(null);
   const [claudeAgentSessionId, setClaudeAgentSessionId] = useState<string | null>(null);
   const [claudeAgentClaudeId, setClaudeAgentClaudeId] = useState<string | null>(null);
+  const claudeAgentSessionIdRef = useRef<string | null>(null);
+  const claudeAgentClaudeIdRef = useRef<string | null>(null);
+  const claudeAgentProjectIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let localModelAlreadySet = false;
@@ -1953,10 +1956,19 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     }
     if (csrfToken) fetchHeaders["X-CSRF-Token"] = csrfToken;
 
-    let sessionId = claudeAgentSessionId;
-    let claudeId = claudeAgentClaudeId;
+    if (claudeAgentProjectIdRef.current && claudeAgentProjectIdRef.current !== projectId) {
+      claudeAgentSessionIdRef.current = null;
+      claudeAgentClaudeIdRef.current = null;
+      setClaudeAgentSessionId(null);
+      setClaudeAgentClaudeId(null);
+    }
+    claudeAgentProjectIdRef.current = projectId;
+
+    let sessionId = claudeAgentSessionIdRef.current || claudeAgentSessionId;
+    let claudeId = claudeAgentClaudeIdRef.current || claudeAgentClaudeId;
 
     if (!sessionId || !claudeId) {
+      console.log("[Claude Agent] Creating new session for project:", projectId);
       const sessionRes = await fetch(`/api/projects/${projectId}/agent/session`, {
         method: "POST",
         headers: fetchHeaders,
@@ -1971,8 +1983,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       const sessionData = await sessionRes.json();
       sessionId = sessionData.sessionId;
       claudeId = sessionData.claudeSessionId;
+      claudeAgentSessionIdRef.current = sessionId;
+      claudeAgentClaudeIdRef.current = claudeId;
       setClaudeAgentSessionId(sessionId);
       setClaudeAgentClaudeId(claudeId);
+      console.log("[Claude Agent] Session created:", sessionId);
+    } else {
+      console.log("[Claude Agent] Reusing session:", sessionId);
     }
 
     console.log("[Claude Agent] Sending message, session:", sessionId, "project:", projectId);

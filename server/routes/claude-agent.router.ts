@@ -45,6 +45,11 @@ router.post('/projects/:projectId/agent/message', async (req: Request, res: Resp
       return res.status(400).json({ error: 'Missing sessionId or message' });
     }
 
+    const sessionOwnership = await claudeAgentService.verifySessionOwnership(sessionId, userId, projectId);
+    if (!sessionOwnership) {
+      return res.status(403).json({ error: 'Session does not belong to this user/project' });
+    }
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -105,10 +110,20 @@ router.get('/projects/:projectId/agent/stream', async (req: Request, res: Respon
 
 router.post('/projects/:projectId/agent/archive', async (req: Request, res: Response) => {
   try {
+    const userId = getAuthUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
     const { sessionId, claudeSessionId } = req.body;
 
     if (!sessionId || !claudeSessionId) {
       return res.status(400).json({ error: 'Missing sessionId or claudeSessionId' });
+    }
+
+    const sessionOwnership = await claudeAgentService.verifySessionOwnership(sessionId, userId, req.params.projectId);
+    if (!sessionOwnership) {
+      return res.status(403).json({ error: 'Session does not belong to this user/project' });
     }
 
     await claudeAgentService.archiveSession(claudeSessionId, sessionId);

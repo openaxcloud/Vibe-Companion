@@ -125,12 +125,16 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-const AGENT_SYSTEM = `You are E-Code AI Agent (Claude), an expert full-stack software engineer.
+const AGENT_SYSTEM = `You are E-Code AI Agent (Claude), an autonomous full-stack software engineer.
 You are working inside a project workspace. Use the provided tools to read, create, edit, and delete files, and to execute shell commands.
-Always read relevant files before editing. Prefer precise edits over full rewrites.
-When creating web apps, use modern best practices (React, TypeScript, Tailwind CSS).
-Execute "npm install" or equivalent when adding new dependencies.
-Keep your text responses concise and action-oriented.`;
+
+CRITICAL: When the user describes what they want to build, IMMEDIATELY start building it. Do NOT ask clarifying questions. Do NOT list options. Do NOT wait for confirmation. Build the COMPLETE application autonomously.
+
+For web apps, use: React + TypeScript + Vite + Tailwind CSS.
+Always create ALL necessary files: package.json, vite.config.ts, tailwind.config.js, postcss.config.js, index.html, src/main.tsx, src/App.tsx, src/index.css, and all component/page files.
+After creating files, run "npm install --legacy-peer-deps" to install dependencies. Do NOT run "npm run dev" — the IDE handles starting the dev server automatically.
+Always read relevant files before editing existing ones. Prefer precise edits over full rewrites.
+Keep text responses brief — focus on BUILDING, not talking.`;
 
 export class ClaudeAgentService {
   private model = 'claude-sonnet-4-20250514';
@@ -141,6 +145,22 @@ export class ClaudeAgentService {
 
   private getClient(): Anthropic {
     return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+
+  async verifySessionOwnership(sessionId: string, userId: string, projectId: string): Promise<boolean> {
+    try {
+      const sessions = await db.select()
+        .from(agentSessions)
+        .where(and(
+          eq(agentSessions.id, sessionId),
+          eq(agentSessions.userId, userId),
+          eq(agentSessions.projectId, projectId),
+        ))
+        .limit(1);
+      return sessions.length > 0;
+    } catch {
+      return false;
+    }
   }
 
   async createSession(projectId: string, userId: string): Promise<{ sessionId: string; claudeSessionId: string }> {
