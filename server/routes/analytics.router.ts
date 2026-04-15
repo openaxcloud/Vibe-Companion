@@ -73,7 +73,7 @@ async function verifyDeploymentOwnership(userId: number, deploymentId: string): 
     const project = await db.query.projects.findFirst({
       where: and(
         eq(projects.id, deployment.projectId),
-        eq(projects.ownerId, userId)
+        eq(projects.userId, userId)
       )
     });
     
@@ -135,7 +135,7 @@ router.get('/', ensureAuthenticated, async (req: Request, res: Response) => {
       // Step 1: Get user's project IDs
       const userProjects = await db.select({ id: projects.id })
         .from(projects)
-        .where(eq(projects.ownerId, userId!));
+        .where(eq(projects.userId, userId!));
       
       const userProjectIds = userProjects.map(p => p.id);
       
@@ -154,7 +154,7 @@ router.get('/', ensureAuthenticated, async (req: Request, res: Response) => {
         // Only their projects
         db.select({ count: count() }).from(projects)
           .where(and(
-            eq(projects.ownerId, userId!),
+            eq(projects.userId, userId!),
             gte(projects.createdAt, startDate)
           )),
         // Only their AI sessions
@@ -495,7 +495,7 @@ router.get('/weekly-activity', ensureAuthenticated, async (req: Request, res: Re
     // Get user's projects
     const userProjects = await db.select({ id: projects.id })
       .from(projects)
-      .where(eq(projects.ownerId, userId!));
+      .where(eq(projects.userId, userId!));
     
     const projectIds = userProjects.map(p => p.id);
 
@@ -559,7 +559,7 @@ router.get('/storage', ensureAuthenticated, async (req: Request, res: Response) 
     const [projectsResult] = await db.select({
       count: count()
     }).from(projects)
-      .where(eq(projects.ownerId, userId!));
+      .where(eq(projects.userId, userId!));
 
     // Get agent sessions count (as proxy for AI usage)
     const [sessionsResult] = await db.select({
@@ -580,7 +580,7 @@ router.get('/storage', ensureAuthenticated, async (req: Request, res: Response) 
     try {
       const userProjects = await db.select({ id: projects.id })
         .from(projects)
-        .where(eq(projects.ownerId, userId!));
+        .where(eq(projects.userId, userId!));
       const projectIds = userProjects.map(p => p.id);
 
       if (projectIds.length > 0) {

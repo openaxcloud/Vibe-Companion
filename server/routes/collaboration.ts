@@ -91,7 +91,7 @@ router.get('/sessions/:projectId', requireAuth, async (req: Request, res: Respon
       .where(
         and(
           eq(collaborationSessions.projectId, projectId),
-          eq(collaborationSessions.active, true)
+          eq(collaborationSessions.status, 'active')
         )
       );
     
@@ -142,7 +142,7 @@ router.post('/join', requireAuth, async (req: Request, res: Response) => {
       .where(
         and(
           eq(collaborationSessions.id, sessionId),
-          eq(collaborationSessions.active, true)
+          eq(collaborationSessions.status, 'active')
         )
       );
     
@@ -214,7 +214,7 @@ router.get('/stats/:projectId', requireAuth, async (req: Request, res: Response)
       .where(
         and(
           eq(collaborationSessions.projectId, projectId),
-          eq(collaborationSessions.active, true)
+          eq(collaborationSessions.status, 'active')
         )
       );
     
@@ -404,7 +404,7 @@ router.get('/:projectId/users', requireAuth, async (req: Request, res: Response)
       .where(
         and(
           eq(collaborationSessions.projectId, projectId),
-          eq(collaborationSessions.active, true)
+          eq(collaborationSessions.status, 'active')
         )
       );
     
@@ -691,7 +691,7 @@ router.get('/:projectId/messages', requireAuth, async (req: Request, res: Respon
       .where(
         and(
           eq(collaborationSessions.projectId, projectId),
-          eq(collaborationSessions.active, true)
+          eq(collaborationSessions.status, 'active')
         )
       )
       .orderBy(desc(collaborationSessions.createdAt))
@@ -747,7 +747,7 @@ router.post('/:projectId/messages', requireAuth, async (req: Request, res: Respo
       .where(
         and(
           eq(collaborationSessions.projectId, projectId),
-          eq(collaborationSessions.active, true)
+          eq(collaborationSessions.status, 'active')
         )
       )
       .orderBy(desc(collaborationSessions.createdAt))

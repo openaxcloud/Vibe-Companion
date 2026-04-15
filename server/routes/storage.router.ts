@@ -31,17 +31,14 @@ router.use((req, res, next) => {
 
 async function verifyProjectOwnership(userId: number | string, projectId: number | string): Promise<boolean> {
   try {
-    const userIdNum = typeof userId === 'number' ? userId : parseInt(String(userId), 10);
-    const projectIdNum = typeof projectId === 'number' ? projectId : parseInt(String(projectId), 10);
-    
-    if (isNaN(userIdNum) || isNaN(projectIdNum) || userIdNum <= 0 || projectIdNum <= 0) {
-      return false;
-    }
+    const uid = String(userId);
+    const pid = String(projectId);
+    if (!uid || !pid) return false;
     
     const project = await db.query.projects.findFirst({
       where: and(
-        eq(projects.id, projectIdNum),
-        eq(projects.ownerId, userIdNum)
+        eq(projects.id, pid),
+        eq(projects.userId, uid)
       )
     });
     return !!project;

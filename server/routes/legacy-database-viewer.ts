@@ -28,6 +28,15 @@ import { addDomain, verifyDomain, removeDomain, getProjectDomains, getDomainById
 import { checkUserRateLimit, checkIpRateLimit, acquireExecutionSlot, releaseExecutionSlot, recordExecution, getExecutionMetrics, getSystemMetrics, getClientIp } from "../rateLimiter";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
+
+async function verifyProjectWriteAccess(projectId: string, userId: string): Promise<boolean> {
+  try {
+    const collaborators = await storage.getProjectCollaborators(projectId);
+    return collaborators.some((c: any) => c.userId === userId && (c.role === 'editor' || c.role === 'admin' || c.role === 'owner'));
+  } catch {
+    return false;
+  }
+}
 import { GoogleGenAI, Type, type FunctionDeclaration, type Tool, type Content } from "@google/genai";
 import { diffArrays } from "diff";
 import multer from "multer";

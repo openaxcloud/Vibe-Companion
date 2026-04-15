@@ -18,7 +18,7 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 
 **Route Architecture**: Routes are split into two systems:
 1. **Legacy routes** (`server/routes/legacy-*.ts`): ~74 routes from original codebase
-2. **Modular routers** (`server/routes/*.router.ts`): 107 routers loaded via `MainRouter` with `safeImport` pattern
+2. **Modular routers** (`server/routes/*.router.ts`): 116 routers loaded via `MainRouter` with `safeImport` pattern (including payments.router.ts)
 
 **Code Execution**: Features a multi-layered sandbox for secure code execution, including AST-based analysis, runtime policy wrappers, OS-level isolation (ulimit, nice, unshare), and resource limits (e.g., 10s timeout, 64MB memory). A worker pool manages concurrent executions with per-user rate limiting.
 

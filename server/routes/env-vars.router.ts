@@ -36,20 +36,18 @@ router.use((req, res, next) => {
  */
 async function verifyProjectOwnership(userId: number | string, projectId: number | string): Promise<boolean> {
   try {
-    // Convert to numbers with strict validation
-    const userIdNum = typeof userId === 'number' ? userId : parseInt(String(userId), 10);
-    const projectIdNum = typeof projectId === 'number' ? projectId : parseInt(String(projectId), 10);
+    const uid = String(userId);
+    const pid = String(projectId);
     
-    // Reject invalid IDs early - prevents NaN bypass attacks
-    if (isNaN(userIdNum) || isNaN(projectIdNum) || userIdNum <= 0 || projectIdNum <= 0) {
+    if (!uid || !pid) {
       logger.warn('Invalid ID in ownership verification', { userId, projectId });
       return false;
     }
     
     const project = await db.query.projects.findFirst({
       where: and(
-        eq(projects.id, projectIdNum),
-        eq(projects.ownerId, userIdNum)
+        eq(projects.id, pid),
+        eq(projects.userId, uid)
       )
     });
     return !!project;
@@ -65,26 +63,19 @@ async function verifyProjectOwnership(userId: number | string, projectId: number
  */
 async function verifyEnvVarAccess(userId: number | string, envVarId: string): Promise<{ allowed: boolean; envVar?: any }> {
   try {
-    const userIdNum = typeof userId === 'number' ? userId : parseInt(String(userId), 10);
+    const uid = String(userId);
+    if (!uid) return { allowed: false };
     
-    if (isNaN(userIdNum) || userIdNum <= 0) {
-      return { allowed: false };
-    }
-    
-    // Join env var with project to verify ownership in single query
     const envVar = await db.query.environmentVariables.findFirst({
       where: eq(environmentVariables.id, envVarId)
     });
     
-    if (!envVar) {
-      return { allowed: false };
-    }
+    if (!envVar) return { allowed: false };
     
-    // Verify ownership
     const project = await db.query.projects.findFirst({
       where: and(
-        eq(projects.id, envVar.projectId),
-        eq(projects.ownerId, userIdNum)
+        eq(projects.id, String(envVar.projectId)),
+        eq(projects.userId, uid)
       )
     });
     
@@ -141,7 +132,7 @@ router.get('/:projectId', async (req, res) => {
     }
     
     const envVars = await db.query.environmentVariables.findMany({
-      where: eq(environmentVariables.projectId, parseInt(projectId, 10)),
+      where: eq(environmentVariables.projectId, projectId),
       orderBy: (envVars, { asc }) => [asc(envVars.key)]
     });
 
@@ -182,7 +173,7 @@ router.post('/', async (req, res) => {
     // Check if key already exists
     const existing = await db.query.environmentVariables.findFirst({
       where: and(
-        eq(environmentVariables.projectId, parseInt(data.projectId, 10)),
+        eq(environmentVariables.projectId, data.projectId),
         eq(environmentVariables.key, data.key)
       )
     });
@@ -200,7 +191,7 @@ router.post('/', async (req, res) => {
     }
 
     const [envVar] = await db.insert(environmentVariables).values({
-      projectId: parseInt(data.projectId, 10),
+      projectId: data.projectId,
       key: data.key,
       value: valueToStore,
       isSecret: data.isSecret,
@@ -419,7 +410,7 @@ router.get('/:projectId/export', async (req, res) => {
     }
     
     const envVars = await db.query.environmentVariables.findMany({
-      where: eq(environmentVariables.projectId, parseInt(projectId, 10)),
+      where: eq(environmentVariables.projectId, projectId),
       orderBy: (envVars, { asc }) => [asc(envVars.key)]
     });
 
@@ -484,7 +475,7 @@ router.post('/:projectId/import', async (req, res) => {
       return res.status(403).json({ error: 'Access denied: not project owner' });
     }
     
-    const projectIdNum = parseInt(projectId, 10);
+    const projectIdNum = projectId;
     
     // Parse .env content
     const lines = data.content.split('\n');

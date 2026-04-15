@@ -259,7 +259,7 @@ export default function createAgentToolsRouter(): Router {
   router.get('/testing/sessions', async (req, res) => {
     try {
       const userId = req.user!.id;
-      const projectId = parseInt(req.query.projectId as string);
+      const projectId = req.query.projectId as string;
       const limit = parseInt(req.query.limit as string) || 20;
 
       if (!projectId) {
@@ -271,7 +271,7 @@ export default function createAgentToolsRouter(): Router {
         .from(projects)
         .where(and(
           eq(projects.id, projectId),
-          eq(projects.ownerId, userId)
+          eq(projects.userId, userId)
         ));
 
       if (!project) {
@@ -338,7 +338,7 @@ export default function createAgentToolsRouter(): Router {
   router.get('/testing/replays', async (req, res) => {
     try {
       const userId = req.user!.id;
-      const projectId = parseInt(req.query.projectId as string);
+      const projectId = req.query.projectId as string;
       const limit = parseInt(req.query.limit as string) || 20;
 
       if (!projectId) {
@@ -528,7 +528,7 @@ export default function createAgentToolsRouter(): Router {
   router.get('/tools/testing/replays', async (req, res) => {
     try {
       const userId = req.user!.id;
-      const projectId = parseInt(req.query.projectId as string);
+      const projectId = req.query.projectId as string;
       const limit = parseInt(req.query.limit as string) || 20;
 
       if (!projectId) {
@@ -706,7 +706,7 @@ export default function createAgentToolsRouter(): Router {
       let query = db.select().from(agentWorkflows).$dynamic();
       
       if (projectId) {
-        query = query.where(eq(agentWorkflows.projectId, parseInt(projectId as string)));
+        query = query.where(eq(agentWorkflows.projectId, projectId as string));
       }
       
       if (status) {
@@ -946,8 +946,8 @@ export default function createAgentToolsRouter(): Router {
       res.status(404).json({ error: 'Project not found' });
       return false;
     }
-    const userId = typeof req.user.id === 'string' ? parseInt(req.user.id) : req.user.id;
-    if (project.ownerId !== userId && !req.user.isAdmin) {
+    const userId = String(req.user.id);
+    if (String(project.userId) !== userId && !req.user.isAdmin) {
       res.status(403).json({ error: 'Not authorized' });
       return false;
     }
@@ -961,8 +961,8 @@ export default function createAgentToolsRouter(): Router {
    */
   router.get('/tools/database/:projectId', async (req, res) => {
     try {
-      const projectId = parseInt(req.params.projectId);
-      if (isNaN(projectId)) {
+      const projectId = req.params.projectId;
+      if (!projectId) {
         return res.status(400).json({ error: 'Invalid project ID' });
       }
 
@@ -1013,8 +1013,8 @@ export default function createAgentToolsRouter(): Router {
    */
   router.post('/tools/database/:projectId/provision', async (req, res) => {
     try {
-      const projectId = parseInt(req.params.projectId);
-      if (isNaN(projectId)) {
+      const projectId = req.params.projectId;
+      if (!projectId) {
         return res.status(400).json({ error: 'Invalid project ID' });
       }
 
@@ -1058,8 +1058,8 @@ export default function createAgentToolsRouter(): Router {
    */
   router.get('/tools/database/:projectId/credentials', async (req, res) => {
     try {
-      const projectId = parseInt(req.params.projectId);
-      if (isNaN(projectId)) {
+      const projectId = req.params.projectId;
+      if (!projectId) {
         return res.status(400).json({ error: 'Invalid project ID' });
       }
 

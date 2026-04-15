@@ -266,7 +266,7 @@ const ensureProjectAccess = async (req: any, res: any, next: any) => {
     return res.status(404).json({ message: "Project not found" });
   }
   
-  if (project.userId === userId || project.ownerId === userId) {
+  if (project.userId === userId || (project as any).ownerId === userId || String(project.userId) === String(userId)) {
     return next();
   }
   

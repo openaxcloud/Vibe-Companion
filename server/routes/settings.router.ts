@@ -22,17 +22,14 @@ router.use((req, res, next) => {
 
 async function verifyProjectOwnership(userId: number | string, projectId: number | string): Promise<boolean> {
   try {
-    const userIdNum = typeof userId === 'number' ? userId : parseInt(String(userId), 10);
-    const projectIdNum = typeof projectId === 'number' ? projectId : parseInt(String(projectId), 10);
-    
-    if (isNaN(userIdNum) || isNaN(projectIdNum) || userIdNum <= 0 || projectIdNum <= 0) {
-      return false;
-    }
+    const uid = String(userId);
+    const pid = String(projectId);
+    if (!uid || !pid) return false;
     
     const project = await db.query.projects.findFirst({
       where: and(
-        eq(projects.id, projectIdNum),
-        eq(projects.ownerId, userIdNum)
+        eq(projects.id, pid),
+        eq(projects.userId, uid)
       )
     });
     return !!project;
@@ -92,15 +89,13 @@ router.get('/', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
     
-    const projectIdNum = parseInt(projectId, 10);
-    
     const settings = await db.query.projectSettings.findFirst({
-      where: eq(projectSettings.projectId, projectIdNum)
+      where: eq(projectSettings.projectId, projectId)
     });
 
     if (!settings) {
       return res.json({
-        projectId: projectIdNum,
+        projectId,
         ...defaultSettings,
       });
     }
@@ -108,7 +103,7 @@ router.get('/', async (req, res) => {
     const customColors = settings.customColors as Record<string, any> || {};
     
     res.json({
-      projectId: projectIdNum,
+      projectId,
       fontSize: customColors.fontSize ?? defaultSettings.fontSize,
       tabSize: customColors.tabSize ?? defaultSettings.tabSize,
       wordWrap: customColors.wordWrap ?? defaultSettings.wordWrap,
@@ -145,8 +140,6 @@ router.put('/', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const projectIdNum = parseInt(projectId, 10);
-    
     const customColorsData = {
       fontSize: data.fontSize,
       tabSize: data.tabSize,
@@ -163,7 +156,7 @@ router.put('/', async (req, res) => {
     };
 
     const existing = await db.query.projectSettings.findFirst({
-      where: eq(projectSettings.projectId, projectIdNum)
+      where: eq(projectSettings.projectId, projectId)
     });
 
     if (existing) {
@@ -177,11 +170,11 @@ router.put('/', async (req, res) => {
           customColors: { ...existingCustomColors, ...customColorsData },
           updatedAt: new Date()
         })
-        .where(eq(projectSettings.projectId, projectIdNum))
+        .where(eq(projectSettings.projectId, projectId))
         .returning();
 
       const returnData = {
-        projectId: projectIdNum,
+        projectId: projectId,
         fontSize: customColorsData.fontSize ?? defaultSettings.fontSize,
         tabSize: customColorsData.tabSize ?? defaultSettings.tabSize,
         wordWrap: customColorsData.wordWrap ?? defaultSettings.wordWrap,
@@ -202,7 +195,7 @@ router.put('/', async (req, res) => {
     }
 
     const [created] = await db.insert(projectSettings).values({
-      projectId: projectIdNum,
+      projectId: projectId,
       themeId: data.themeId ?? 'light',
       fontSize: data.fontSize ? parseInt(data.fontSize, 10) : 14,
       borderRadius: data.borderRadius ?? 4,
@@ -210,7 +203,7 @@ router.put('/', async (req, res) => {
     }).returning();
 
     res.status(201).json({
-      projectId: projectIdNum,
+      projectId: projectId,
       fontSize: data.fontSize ?? defaultSettings.fontSize,
       tabSize: data.tabSize ?? defaultSettings.tabSize,
       wordWrap: data.wordWrap ?? defaultSettings.wordWrap,

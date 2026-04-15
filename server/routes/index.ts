@@ -310,6 +310,10 @@ export class MainRouter {
       safeImport("automations", () => import("./automations.router")),
     ]);
 
+    const [paymentsMod] = await Promise.all([
+      safeImport("payments", () => import("./payments.router")),
+    ]);
+
     const [openhandsMod, gooseMod, agentProvidersMod, claudeAgentMod] = await Promise.all([
       safeImport("openhands", () => import("./openhands.router")),
       safeImport("goose", () => import("./goose.router")),
@@ -455,6 +459,7 @@ export class MainRouter {
     mount(app, '/api', tierLimiters.api, def(publishMod));
     mount(app, '/api', tierLimiters.api, def(sshInfoMod));
     mount(app, '/api', tierLimiters.api, def(automationsMod));
+    mount(app, '/api/payments', tierLimiters.api, def(paymentsMod));
 
     mount(app, '/api/openhands', tierLimiters.api, def(openhandsMod));
     mount(app, '/api/goose', tierLimiters.api, def(gooseMod));
