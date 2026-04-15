@@ -59,7 +59,33 @@ router.post('/projects/:projectId/agent/message', async (req: Request, res: Resp
     res.write(`data: ${JSON.stringify({ type: 'connected', sessionId })}\n\n`);
 
     const onEvent = (event: AgentEvent) => {
-      if (!res.destroyed) {
+      if (res.destroyed) return;
+      const { type, data } = event;
+      if (type === 'agent_tool_use') {
+        res.write(`data: ${JSON.stringify({ type: 'tool_use', name: data?.tool || data?.name, input: data?.input || {} })}\n\n`);
+      } else if (type === 'agent_tool_result') {
+        const toolId = data?.toolUseId || data?.id;
+        const isError = data?.isError || false;
+        res.write(`data: ${JSON.stringify({ type: 'tool_result', toolUseId: toolId, content: data?.content, isError })}\n\n`);
+      } else if (type === 'file_created') {
+        const filename = data?.name || data?.filename || '';
+        res.write(`data: ${JSON.stringify({ type: 'file_created', file: { filename, content: data?.content } })}\n\n`);
+      } else if (type === 'file_updated') {
+        const filename = data?.name || data?.filename || '';
+        res.write(`data: ${JSON.stringify({ type: 'file_updated', file: { filename, content: data?.content } })}\n\n`);
+      } else if (type === 'agent_message') {
+        res.write(`data: ${JSON.stringify({ type: 'text', content: data?.text || '' })}\n\n`);
+      } else if (type === 'terminal_command') {
+        res.write(`data: ${JSON.stringify({ type: 'tool_use', name: 'execute_command', input: { command: data?.command || '' } })}\n\n`);
+      } else if (type === 'preview_refresh' || type === 'preview_ready') {
+        res.write(`data: ${JSON.stringify({ type: 'preview_ready', projectId })}\n\n`);
+      } else if (type === 'agent_error') {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: data?.message || 'Agent error' })}\n\n`);
+      } else if (type === 'agent_status') {
+        res.write(`data: ${JSON.stringify({ type: 'status', message: data?.status === 'processing' ? 'Processing...' : data?.status || '' })}\n\n`);
+      } else if (type === 'usage_stats') {
+        res.write(`data: ${JSON.stringify({ type: 'usage_stats', ...data })}\n\n`);
+      } else {
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
     };

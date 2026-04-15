@@ -1597,6 +1597,11 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             } else if (data.type === "status") {
               const step = createStepFromSSE(data, trackedSteps);
               if (step) addStep(step);
+            } else if (data.type === "tool_result") {
+              const runningStep = [...trackedSteps].reverse().find(s => s.status === "running");
+              if (runningStep) {
+                completeStep(runningStep.type, runningStep.detail);
+              }
             } else if (data.type === "file_created") {
               fileOps.push({ type: "created", filename: data.file.filename });
               completeStep("create_file", data.file.filename);
@@ -2017,70 +2022,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       throw new Error(errData.message || errData.error || "Claude Agent message failed");
     }
 
-    const reader = streamRes.body?.getReader();
-    if (!reader) throw new Error("No stream from Claude Agent");
-
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        try {
-          const data = JSON.parse(line.slice(6));
-
-          if (data.type === "stream_end") break;
-
-          if (data.type === "agent_message") {
-            const text = data.data?.text || "";
-            if (text) {
-              setMessages((prev) =>
-                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + text } : m)
-              );
-            }
-          } else if (data.type === "agent_tool_use") {
-            const toolName = data.data?.tool || "";
-            let actionText = "";
-            if (toolName === "create_file" || toolName === "write_file") {
-              actionText = `\n> 📄 Creating file: \`${data.data?.input?.filename || data.data?.input?.path || "..."}\`\n`;
-            } else if (toolName === "edit_file") {
-              actionText = `\n> ✏️ Editing file: \`${data.data?.input?.filename || data.data?.input?.path || "..."}\`\n`;
-            } else if (toolName === "execute_command" || toolName === "bash" || toolName === "shell") {
-              actionText = `\n> ⚡ Running: \`${data.data?.input?.command || "..."}\`\n`;
-            } else if (toolName) {
-              actionText = `\n> 🔧 ${toolName}\n`;
-            }
-            if (actionText) {
-              setMessages((prev) =>
-                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + actionText } : m)
-              );
-            }
-          } else if (data.type === "agent_tool_result") {
-            const resultText = typeof data.data?.content === "string"
-              ? data.data.content
-              : Array.isArray(data.data?.content)
-              ? data.data.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n")
-              : "";
-            if (resultText) {
-              const truncated = resultText.length > 2000 ? resultText.slice(0, 2000) + "\n...(truncated)" : resultText;
-              setMessages((prev) =>
-                prev.map((m) => m.id === assistantId ? { ...m, content: m.content + "\n```\n" + truncated + "\n```\n" } : m)
-              );
-            }
-          } else if (data.type === "agent_error") {
-            setMessages((prev) =>
-              prev.map((m) => m.id === assistantId ? { ...m, content: m.content + `\n\n⚠️ ${data.data?.message || "Agent error"}` } : m)
-            );
-          }
-        } catch {}
-      }
-    }
+    await processSSEStream(streamRes, assistantId, true, setMessages, "claude-agent" as AIModel);
 
     return true;
   }, [projectId, claudeAgentSessionId, claudeAgentClaudeId]);

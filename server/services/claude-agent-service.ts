@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db';
-import { agentSessions, files as filesTable } from '@shared/schema';
+import { agentSessions, files as filesTable, getProviderPricing } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { syncFileToWorkspace } from '../terminal';
 import { checkpointService } from './checkpoint-service';
@@ -388,7 +388,12 @@ export class ClaudeAgentService {
     userId?: number,
     userMessage?: string,
   ) {
+    const modifiedFilesTracker = new Set<string>();
     const broadcast = (type: AgentEventType, data: any) => {
+      if (type === 'file_created' || type === 'file_updated') {
+        const fname = data?.name || data?.filename || '';
+        if (fname) modifiedFilesTracker.add(fname);
+      }
       const event: AgentEvent = {
         type,
         sessionId: dbSessionId,
@@ -416,6 +421,10 @@ export class ClaudeAgentService {
     activeSessions.set(dbSessionId, { controller, streaming: true, messages: conversationMessages });
 
     broadcast('agent_status', { status: 'processing' });
+    const agentStartTime = Date.now();
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    const modifiedFiles = new Set<string>();
 
     try {
       const client = this.getClient();
@@ -446,6 +455,11 @@ export class ClaudeAgentService {
         });
 
         const finalMessage = await stream.finalMessage();
+
+        if (finalMessage.usage) {
+          totalInputTokens += finalMessage.usage.input_tokens || 0;
+          totalOutputTokens += finalMessage.usage.output_tokens || 0;
+        }
 
         for (const block of finalMessage.content) {
           if (block.type === 'tool_use') {
@@ -502,6 +516,19 @@ export class ClaudeAgentService {
         logger.warn(`Post-completion preview start failed: ${e.message}`);
       }
 
+      const agentDuration = Date.now() - agentStartTime;
+      const pricing = getProviderPricing('anthropic');
+      const costCents = (totalInputTokens * pricing.input / 1000 + totalOutputTokens * pricing.output / 1000);
+      broadcast('usage_stats' as AgentEventType, {
+        duration: agentDuration,
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        totalTokens: totalInputTokens + totalOutputTokens,
+        cost: costCents > 0 ? `$${costCents.toFixed(4)}` : undefined,
+        model: this.model,
+        provider: 'anthropic',
+        filesModified: modifiedFilesTracker.size,
+      });
     } catch (err: any) {
       logger.error(`Claude agent error: ${err.message}`);
       broadcast('agent_error', { message: err.message || 'Agent error' });
