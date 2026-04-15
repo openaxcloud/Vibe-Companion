@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface ConnectionStatus {
   isOnline: boolean;
@@ -10,6 +10,7 @@ export function useConnectionStatus(): ConnectionStatus {
     isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
     backendHealthy: true,
   });
+  const checkedRef = useRef(false);
 
   useEffect(() => {
     const handleOnline = () => setStatus(prev => ({ ...prev, isOnline: true }));
@@ -18,15 +19,20 @@ export function useConnectionStatus(): ConnectionStatus {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Periodic health check
-    const interval = setInterval(async () => {
+    const checkHealth = async () => {
       try {
-        const res = await fetch('/api/health', { method: 'HEAD', cache: 'no-store' });
+        const res = await fetch('/api/health', { method: 'GET', cache: 'no-store', credentials: 'include' });
         setStatus(prev => ({ ...prev, backendHealthy: res.ok }));
+        checkedRef.current = true;
       } catch {
-        setStatus(prev => ({ ...prev, backendHealthy: false }));
+        if (checkedRef.current) {
+          setStatus(prev => ({ ...prev, backendHealthy: false }));
+        }
       }
-    }, 30000);
+    };
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 30000);
 
     return () => {
       window.removeEventListener('online', handleOnline);

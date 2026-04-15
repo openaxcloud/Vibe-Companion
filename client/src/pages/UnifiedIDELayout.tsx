@@ -350,7 +350,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     }
   }, [files, project, isRunning, handleRunStop]);
 
-  const isConnected = wsConnected ?? (connectionStatus.isOnline && connectionStatus.backendHealthy);
+  const isConnected = connectionStatus.isOnline && connectionStatus.backendHealthy;
 
   // Activity bar click handler
   const handleActivityItemClick = useCallback((item: ActivityItem) => {

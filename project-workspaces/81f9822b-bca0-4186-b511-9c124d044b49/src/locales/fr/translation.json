@@ -1,0 +1,30 @@
+{
+  "chat": {
+    "title": "Chatbot IA",
+    "placeholder": "Tapez votre message...",
+    "send": "Envoyer",
+    "export_pdf": "Exporter en PDF",
+    "document_upload": "Téléchargement de Documents",
+    "code_sandbox": "Bac à Sable de Code",
+    "conversation_history": "Historique des Conversations",
+    "new_chat": "Nouvelle Conversation",
+    "search_history": "Rechercher dans l'historique",
+    "upload_document": "Télécharger un Document",
+    "drag_drop": "Glissez et déposez vos documents ici, ou cliquez pour sélectionner des fichiers",
+    "execute_code": "Exécuter le Code",
+    "output": "Sortie",
+    "no_history": "Pas encore d'historique de conversation.",
+    "no_results": "Aucun résultat trouvé pour votre recherche.",
+    "typing": "L'IA est en train d'écrire..."
+  },
+  "sidebar": {
+    "new_chat": "Nouvelle Conversation",
+    "document_upload": "Téléchargement de Documents",
+    "code_sandbox": "Bac à Sable de Code",
+    "conversation_history": "Historique des Conversations",
+    "settings": "Paramètres"
+  },
+  "common": {
+    "language": "Langue"
+  }
+}

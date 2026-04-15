@@ -1121,7 +1121,12 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     (async () => {
       try {
         const res = await fetch(`/api/ai/conversations/${projectId}`, { credentials: "include" });
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          console.warn("[AIPanel] Conversation load failed:", res.status);
+          setConversationLoaded(true);
+          return;
+        }
         const data = await res.json();
         if (cancelled) return;
         if (data.conversation) {
@@ -1144,8 +1149,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             })));
           }
         }
-      } catch {}
-      setConversationLoaded(true);
+      } catch (err) {
+        console.warn("[AIPanel] Conversation load error:", err);
+      }
+      if (!cancelled) setConversationLoaded(true);
     })();
     return () => { cancelled = true; };
   }, [projectId]);
@@ -2165,6 +2172,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   }, [providerSessionId, projectId]);
 
   const sendMessageDirect = useCallback(async (content: string, currentAttachments: Attachment[] = []) => {
+    console.log("[AIPanel] sendMessageDirect called, content length:", content?.length, "mode:", mode, "provider:", agentProvider, "model:", model, "projectId:", projectId);
     let fullContent = content;
 
     if (currentAttachments.length > 0) {
@@ -2521,14 +2529,24 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         console.log('[MobileSubmit] handleSubmit called with:', value?.slice(0, 50));
         setInput("");
         setTimeout(() => {
-          sendMessageDirectRef.current(value);
+          if (sendMessageDirectRef.current) {
+            sendMessageDirectRef.current(value).catch((err: any) => {
+              console.error('[MobileSubmit] Send failed:', err);
+            });
+          } else {
+            console.error('[MobileSubmit] sendMessageDirectRef is null!');
+          }
         }, 0);
       },
       handleSubmitWithAttachments: (value: string, atts: Attachment[]) => {
         console.log('[MobileSubmit] handleSubmitWithAttachments called');
         setInput("");
         setTimeout(() => {
-          sendMessageDirectRef.current(value, atts);
+          if (sendMessageDirectRef.current) {
+            sendMessageDirectRef.current(value, atts).catch((err: any) => {
+              console.error('[MobileSubmit] Send with attachments failed:', err);
+            });
+          }
           setAttachments([]);
         }, 0);
       },
