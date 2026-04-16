@@ -1,22 +1,21 @@
-import RSS from 'rss';
-import { posts } from '../data/posts';
-import type { Post } from '../types';
+import RSS from "rss";
+import type { Post } from "../types";
 
-export function generateRssFeed(baseUrl: string): string {
+export function generateRssXml(posts: Post[]): string {
   const feed = new RSS({
-    title: "My Personal Blog",
-    description: "Latest posts from my personal blog",
-    feed_url: `${baseUrl}/rss.xml`,
-    site_url: baseUrl,
-    language: 'en',
+    title: "My Blog",
+    description: "Latest posts from My Blog",
+    feed_url: "http://localhost:3000/rss.xml",
+    site_url: "http://localhost:3000",
+    pubDate: new Date(),
   });
 
-  posts.forEach((post: Post) => {
+  posts.forEach((post) => {
     feed.item({
       title: post.title,
       description: post.summary,
-      url: `${baseUrl}/post/${post.slug}`,
-      date: post.date,
+      url: `http://localhost:3000/post/${post.slug}`,
+      date: new Date(post.date),
     });
   });
 

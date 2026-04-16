@@ -1,24 +1,12 @@
-import React from 'react';
-import { generateRssFeed } from '../utils/rss';
+import React from "react";
+import { generateRssXml } from "../utils/rss";
+import { posts } from "../data/posts";
 
-const RssFeed: React.FC = () => {
-  // Assume the base URL is hardcoded for demo; in real use, derive from env or request
-  const baseUrl = 'http://localhost:3000';
-  const rssXml = generateRssFeed(baseUrl);
-
-  React.useEffect(() => {
-    const parser = new DOMParser();
-    // No rendering to UI needed, just the XML output for the route
-    // This component could be adjusted to server-side rendering if applicable
-  }, []);
-
+export default function RssFeed() {
+  const rssXml = generateRssXml(posts);
   return (
-    <>
-      <pre className="max-w-7xl mx-auto p-8 whitespace-pre-wrap overflow-x-auto text-sm bg-black/80 glass-card border border-white/20 rounded-lg">
-        {rssXml}
-      </pre>
-    </>
+    <pre className="whitespace-pre-wrap bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 text-indigo-200 overflow-auto max-w-7xl mx-auto">
+      {rssXml}
+    </pre>
   );
-};
-
-export default RssFeed;
+}

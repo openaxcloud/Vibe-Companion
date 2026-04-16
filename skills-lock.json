@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "agent-tools": {
+      "source": "inf-sh/skills",
+      "sourceType": "github",
+      "computedHash": "24dda6c2d9d2e3c3fe49359fc84f0e0496a7425bd1cf0d6877f5c4125be2d9ca"
+    }
+  }
+}

@@ -2134,7 +2134,7 @@ function UnifiedIDELayout({
           gitBranch={gitBranch}
           isRunning={isRunning}
           cursorPosition={cursorPosition}
-          language="TypeScript"
+          language={activeFileLanguage || "TypeScript"}
           encoding="UTF-8"
           onShowShortcuts={() => setShowKeyboardShortcuts(true)}
           onGoToLine={() => document.dispatchEvent(new CustomEvent('electron-go-to-line'))}

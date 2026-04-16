@@ -292,9 +292,28 @@ export function ReplitFileExplorer({
   useEffect(() => {
     const onNewFile = () => { setNewFileParentFolder(''); setNewFileName(''); setNewFileDialogOpen(true); };
     const onNewFolder = () => { setNewFolderParentFolder(''); setNewFolderName(''); setNewFolderDialogOpen(true); };
+    const onRevealPath = (e: Event) => {
+      const path = (e as CustomEvent).detail?.path;
+      if (!path) return;
+      const parts = path.split('/').filter(Boolean);
+      setExpandedDirs(prev => {
+        const next = new Set(prev);
+        let current = '';
+        for (const part of parts) {
+          current = current ? `${current}/${part}` : part;
+          next.add(current);
+        }
+        return next;
+      });
+    };
     window.addEventListener('ecode:new-file', onNewFile);
     window.addEventListener('ecode:new-folder', onNewFolder);
-    return () => { window.removeEventListener('ecode:new-file', onNewFile); window.removeEventListener('ecode:new-folder', onNewFolder); };
+    window.addEventListener('ecode:reveal-path', onRevealPath);
+    return () => {
+      window.removeEventListener('ecode:new-file', onNewFile);
+      window.removeEventListener('ecode:new-folder', onNewFolder);
+      window.removeEventListener('ecode:reveal-path', onRevealPath);
+    };
   }, []);
 
   const filteredFiles = useMemo(() => {

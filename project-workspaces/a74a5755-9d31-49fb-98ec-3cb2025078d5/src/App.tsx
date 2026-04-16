@@ -1,11 +1,11 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Layout from './components/Layout';
-import Home from './pages/Home';
-import PostPage from './pages/PostPage';
-import RssFeed from './pages/RssFeed';
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Layout from "./components/Layout";
+import Home from "./pages/Home";
+import PostPage from "./pages/PostPage";
+import RssFeed from "./pages/RssFeed";
 
-const App: React.FC = () => {
+export default function App() {
   return (
     <Router>
       <Layout>
@@ -17,6 +17,4 @@ const App: React.FC = () => {
       </Layout>
     </Router>
   );
-};
-
-export default App;
+}

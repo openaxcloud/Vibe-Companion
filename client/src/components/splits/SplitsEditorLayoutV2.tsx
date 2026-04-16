@@ -108,7 +108,9 @@ export function SplitsEditorLayoutV2({
           <div className="h-full flex flex-col bg-[var(--ecode-editor-bg)]">
             <ReplitBreadcrumbs
               filePath={files?.find(f => f.id === activeFileId)?.path || ''}
-              onNavigate={(path) => {}}
+              onNavigate={(path) => {
+                window.dispatchEvent(new CustomEvent('ecode:reveal-path', { detail: { path } }));
+              }}
             />
             <div className="flex-1 overflow-hidden">
               <MultiTabEditor

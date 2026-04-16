@@ -48,19 +48,17 @@ It is automatically updated when the AI agent makes significant changes.
 - Tailwind CSS
 - `react`
 - `react-dom`
-- `react-router-dom`
 - `react-markdown`
-- `remark-gfm`
-- `prismjs`
-- `rss`
+- `react-router-dom`
 - `lucide-react`
-- `@types/react`
-- `@types/react-dom`
-- `@vitejs/plugin-react`
+- `rss`
+- `react-syntax-highlighter`
 - `typescript`
 - `vite`
+- `@vitejs/plugin-react`
 - `tailwindcss`
 - `postcss`
+- `autoprefixer`
 
 ## Communication Preferences
 - Provide complete, working code when making changes
@@ -83,4 +81,4 @@ Add any project-specific notes, API keys to reference, deployment targets,
 or domain knowledge the AI should be aware of when assisting you.
 
 ---
-_Last auto-updated: 2026-04-16T12:02:24.174Z_
+_Last auto-updated: 2026-04-16T14:35:08.262Z_

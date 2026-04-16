@@ -1,31 +1,25 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { posts } from '../data/posts';
-import { LucideBook, LucideCalendar } from 'lucide-react';
+import React from "react";
+import { Link } from "react-router-dom";
+import { posts } from "../data/posts";
 
-const Home: React.FC = () => {
+export default function Home() {
   return (
-    <main className="max-w-7xl mx-auto p-8">
-      <h1 className="text-4xl font-bold mb-8 border-b border-white/20 pb-2">My Personal Blog</h1>
-      <ul className="space-y-6">
-        {posts.map(post => (
-          <li
-            key={post.id}
-            className="glass-card p-6 rounded-lg border border-white/10 backdrop-blur-xl shadow-md hover:scale-[1.02] transition-transform duration-200"
-          >
-            <Link to={`/post/${post.slug}`} className="block">
-              <h2 className="text-2xl font-semibold mb-2 text-primary-400 hover:underline">{post.title}</h2>
-              <p className="flex items-center text-sm text-slate-400 mb-2">
-                <LucideCalendar className="mr-2 h-4 w-4" />
-                {new Date(post.date).toLocaleDateString()}
-              </p>
-              <p className="text-slate-300">{post.summary}</p>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </main>
+    <section className="space-y-8">
+      <h2 className="text-4xl font-bold text-indigo-400">Latest Posts</h2>
+      {posts.map((post) => (
+        <article
+          key={post.slug}
+          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-glow shadow-indigo-900 hover:shadow-indigo-700 transition-shadow duration-300"
+        >
+          <Link to={`/post/${post.slug}`}>
+            <h3 className="text-2xl font-semibold text-white hover:text-indigo-300">
+              {post.title}
+            </h3>
+          </Link>
+          <p className="mt-2 text-indigo-200 text-sm">{post.date}</p>
+          <p className="mt-4 text-indigo-100 leading-relaxed">{post.summary}</p>
+        </article>
+      ))}
+    </section>
   );
-};
-
-export default Home;
+}

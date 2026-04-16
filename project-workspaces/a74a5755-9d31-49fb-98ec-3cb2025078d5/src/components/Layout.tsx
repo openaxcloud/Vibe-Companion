@@ -1,60 +1,60 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { LucideHome, LucideFileText, LucideRss } from 'lucide-react';
+import React, { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import {
+  Home as HomeIcon,
+  FileText,
+  Rss,
+} from "lucide-react";
 
-const navItems = [
-  { to: '/', label: 'Home', icon: LucideHome },
-  { to: '/rss.xml', label: 'RSS Feed', icon: LucideRss },
-];
-
-const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const location = useLocation();
+  const { pathname } = useLocation();
+
+  function isActive(path: string) {
+    return pathname === path;
+  }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-gradient-to-tr from-slate-950 via-slate-900 to-slate-950">
       <aside
-        className={`
-          flex flex-col bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg
-          transition-all duration-200 ease-in-out
-          ${sidebarOpen ? 'w-64' : 'w-16'}
-        `}
+        className={`transform transition-transform duration-300 ease-in-out bg-white/5 backdrop-blur-xl border border-white/10 shadow-glow shadow-indigo-900 w-64 p-6 flex flex-col gap-6 " +
+          (sidebarOpen ? "translate-x-0" : "-translate-x-full")`}
       >
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
-          <Link to="/" className="text-primary-400 font-bold text-2xl">
-            SynBlog
-          </Link>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-indigo-400">My Blog</h1>
           <button
-            aria-label="Toggle sidebar"
-            className="text-primary-400 hover:text-primary-300 transition"
-            onClick={() => setSidebarOpen(open => !open)}
+            aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="text-indigo-400 hover:text-indigo-300 transition-transform active:scale-95"
           >
-            {sidebarOpen ? '<' : '>'}
+            {sidebarOpen ? "<" : ">"}
           </button>
         </div>
-        <nav className="flex flex-col flex-1 px-2 py-4 space-y-2">
-          {navItems.map(({ to, label, icon: Icon }) => {
-            const active = location.pathname === to;
-            return (
-              <Link
-                key={to}
-                to={to}
-                className={`
-                  flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors
-                  hover:bg-primary-700/30 focus:bg-primary-700/30
-                  ${active ? 'bg-primary-500 text-white' : 'text-primary-300'}
-                `}
-              >
-                <Icon className="w-5 h-5" />
-                {sidebarOpen && label}
-              </Link>
-            );
-          })}
+
+        <nav className="flex flex-col gap-2">
+          <Link
+            to="/"
+            className={`group flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 hover:bg-indigo-600 hover:text-white ${
+              isActive("/") ? "bg-indigo-700 text-white" : "text-indigo-300"
+            }`}
+          >
+            <HomeIcon className="w-5 h-5 mr-2" /> Home
+          </Link>
+
+          <Link
+            to="/rss.xml"
+            className={`group flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 hover:bg-indigo-600 hover:text-white ${
+              isActive("/rss.xml") ? "bg-indigo-700 text-white" : "text-indigo-300"
+            }`}
+          >
+            <Rss className="w-5 h-5 mr-2" /> RSS Feed
+          </Link>
         </nav>
+
+        <footer className="mt-auto text-xs text-indigo-400">© 2026 My Blog</footer>
       </aside>
-      <div className="flex-1 flex flex-col overflow-auto">{children}</div>
+
+      <main className="flex-grow p-8 max-w-7xl mx-auto w-full">{children}</main>
     </div>
   );
-};
-
-export default Layout;
+}
