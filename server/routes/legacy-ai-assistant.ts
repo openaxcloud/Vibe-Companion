@@ -3107,46 +3107,53 @@ Always cite your sources in your response when using information from web search
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await agentGeminiClient.models.generateContent({
+          const streamResp = await agentGeminiClient.models.generateContentStream({
             model: "gemini-2.5-flash",
             contents: geminiContents,
             config: { maxOutputTokens: 16384, tools: geminiTools },
           });
 
-          const candidate = response.candidates?.[0];
-          if (!candidate?.content?.parts) { continueLoop = false; break; }
+          const accumulatedParts: any[] = [];
+          const emittedToolNames = new Set<string>();
+          for await (const chunk of streamResp) {
+            const cParts = chunk.candidates?.[0]?.content?.parts;
+            if (!cParts) continue;
+            for (const part of cParts) {
+              accumulatedParts.push(part);
+              if (part.text) {
+                res.write(`data: ${JSON.stringify({ type: "text", content: part.text })}\n\n`);
+              }
+              if (part.functionCall) {
+                const fn = part.functionCall;
+                const fnName = fn.name || "";
+                const dedupeKey = `${fnName}:${accumulatedParts.length}`;
+                if (!emittedToolNames.has(dedupeKey)) {
+                  emittedToolNames.add(dedupeKey);
+                  const toolLabel = fnName === "generate_image" ? "Generating image" : fnName === "edit_image" ? "Editing image" : fnName === "generate_file" ? "Generating file" : fnName === "web_search" ? "Searching the web" : fnName === "fetch_url" ? "Fetching content" : fnName === "brave_image_search" ? "Searching for images" : fnName === "text_to_speech" ? "Generating speech" : fnName === "generate_ai_image" ? "Generating AI image" : fnName === "tavily_search" ? "Researching" : fnName === "create_file" ? "Creating file" : fnName === "edit_file" ? "Editing file" : fnName === "execute_command" ? "Running command" : undefined;
+                  res.write(`data: ${JSON.stringify({ type: fnName.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fnName, input: fnName.startsWith("mcp__") ? {} : { ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+                }
+              }
+            }
+          }
 
-          const parts = candidate.content.parts;
+          if (accumulatedParts.length === 0) { continueLoop = false; break; }
+
           let hasToolCall = false;
           const toolResponseParts: any[] = [];
-
-          for (const part of parts) {
-            if (part.text) {
-              res.write(`data: ${JSON.stringify({ type: "text", content: part.text })}\n\n`);
-            }
+          for (const part of accumulatedParts) {
             if (part.functionCall) {
               hasToolCall = true;
               const fn = part.functionCall;
               const toolInput = fn.args as any;
-
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : fn.name === "tavily_search" ? "Researching" : undefined;
-              res.write(`data: ${JSON.stringify({ type: fn.name!.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name!.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
-
               const result = await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask, req.session.userId!);
-
-              toolResponseParts.push({
-                functionResponse: {
-                  name: fn.name,
-                  response: { result: result || "Done" },
-                },
-              });
+              toolResponseParts.push({ functionResponse: { name: fn.name, response: { result: result || "Done" } } });
             }
           }
 
           if (hasToolCall) {
             geminiContents = [
               ...geminiContents,
-              { role: "model", parts },
+              { role: "model", parts: accumulatedParts },
               { role: "user", parts: toolResponseParts },
             ];
           } else {
@@ -3449,48 +3456,66 @@ Always cite your sources in your response when using information from web search
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await agentOpenaiClient.chat.completions.create({
+          const stream = await agentOpenaiClient.chat.completions.create({
             model: agentOrModelId,
             messages: gptMessages,
             tools: openaiTools,
             max_completion_tokens: agentTurboMaxTokens,
+            stream: true,
           });
 
-          const choice = response.choices[0];
-          const message = choice.message;
+          let accumulatedContent = "";
+          const toolCallsAcc: Record<number, { id?: string; name?: string; args: string; emitted: boolean }> = {};
+          let finishReason: string | null = null;
 
-          if (message.content) {
-            res.write(`data: ${JSON.stringify({ type: "text", content: message.content })}\n\n`);
+          for await (const chunk of stream) {
+            const choice = chunk.choices?.[0];
+            if (!choice) continue;
+            const delta = choice.delta;
+            if (delta?.content) {
+              accumulatedContent += delta.content;
+              res.write(`data: ${JSON.stringify({ type: "text", content: delta.content })}\n\n`);
+            }
+            if (delta?.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index ?? 0;
+                if (!toolCallsAcc[idx]) toolCallsAcc[idx] = { args: "", emitted: false };
+                const acc = toolCallsAcc[idx];
+                if (tc.id) acc.id = tc.id;
+                if (tc.function?.name) acc.name = (acc.name || "") + tc.function.name;
+                if (tc.function?.arguments) acc.args += tc.function.arguments;
+                if (acc.name && !acc.emitted) {
+                  acc.emitted = true;
+                  const fnName = acc.name;
+                  const toolLabel = fnName === "generate_image" ? "Generating image" : fnName === "edit_image" ? "Editing image" : fnName === "generate_file" ? "Generating file" : fnName === "web_search" ? "Searching the web" : fnName === "fetch_url" ? "Fetching content" : fnName === "brave_image_search" ? "Searching for images" : fnName === "text_to_speech" ? "Generating speech" : fnName === "generate_ai_image" ? "Generating AI image" : fnName === "tavily_search" ? "Researching" : fnName === "create_file" ? "Creating file" : fnName === "edit_file" ? "Editing file" : fnName === "execute_command" ? "Running command" : undefined;
+                  res.write(`data: ${JSON.stringify({ type: fnName.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fnName, input: fnName.startsWith("mcp__") ? {} : { ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+                }
+              }
+            }
+            if (choice.finish_reason) finishReason = choice.finish_reason;
           }
 
-          if (message.tool_calls && message.tool_calls.length > 0) {
+          const finalToolCalls = Object.entries(toolCallsAcc)
+            .sort(([a], [b]) => Number(a) - Number(b))
+            .map(([_, t]) => ({ id: t.id || `call_${Math.random().toString(36).slice(2, 10)}`, type: "function" as const, function: { name: t.name || "", arguments: t.args || "{}" } }));
+
+          if (finalToolCalls.length > 0) {
             const toolResultMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-
-            for (const toolCall of message.tool_calls) {
-              if (toolCall.type !== "function") continue;
+            for (const toolCall of finalToolCalls) {
               const fn = toolCall.function;
-              const toolInput = JSON.parse(fn.arguments) as any;
-
-              const toolLabel = fn.name === "generate_image" ? "Generating image" : fn.name === "edit_image" ? "Editing image" : fn.name === "generate_file" ? "Generating file" : fn.name === "web_search" ? "Searching the web" : fn.name === "fetch_url" ? "Fetching content" : fn.name === "brave_image_search" ? "Searching for images" : fn.name === "text_to_speech" ? "Generating speech" : fn.name === "generate_ai_image" ? "Generating AI image" : fn.name === "tavily_search" ? "Researching" : undefined;
-              res.write(`data: ${JSON.stringify({ type: fn.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: fn.name, input: fn.name.startsWith("mcp__") ? {} : { filename: toolInput.filename, query: toolInput.query, url: toolInput.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
-
+              let toolInput: any = {};
+              try { toolInput = JSON.parse(fn.arguments); } catch { toolInput = {}; }
               const result = await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask, req.session.userId!);
-
-              toolResultMessages.push({
-                role: "tool",
-                tool_call_id: toolCall.id,
-                content: result || "Done",
-              });
+              toolResultMessages.push({ role: "tool", tool_call_id: toolCall.id, content: result || "Done" });
             }
-
             gptMessages = [
               ...gptMessages,
-              { role: "assistant", content: message.content, tool_calls: message.tool_calls } as any,
+              { role: "assistant", content: accumulatedContent || null, tool_calls: finalToolCalls } as any,
               ...toolResultMessages,
             ];
           }
 
-          if (choice.finish_reason !== "tool_calls") {
+          if (finishReason !== "tool_calls") {
             continueLoop = false;
           }
         }
@@ -3992,7 +4017,7 @@ Always cite your sources in your response when using information from web search
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await agentAnthropicClient.messages.create({
+          const stream = agentAnthropicClient.messages.stream({
             model: agentModelId,
             system: agentSystemPrompt,
             messages: currentMessages,
@@ -4000,16 +4025,25 @@ Always cite your sources in your response when using information from web search
             tools,
           });
 
+          const emittedToolStarts = new Set<number>();
+          stream.on("text", (textDelta: string) => {
+            if (textDelta) res.write(`data: ${JSON.stringify({ type: "text", content: textDelta })}\n\n`);
+          });
+          stream.on("streamEvent", (event: any) => {
+            if (event?.type === "content_block_start" && event?.content_block?.type === "tool_use" && !emittedToolStarts.has(event.index)) {
+              emittedToolStarts.add(event.index);
+              const block = event.content_block;
+              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "generate_file" ? "Generating file" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : block.name === "brave_image_search" ? "Searching for images" : block.name === "text_to_speech" ? "Generating speech" : block.name === "generate_ai_image" ? "Generating AI image" : block.name === "tavily_search" ? "Researching" : block.name === "create_file" ? "Creating file" : block.name === "edit_file" ? "Editing file" : block.name === "execute_command" ? "Running command" : undefined;
+              res.write(`data: ${JSON.stringify({ type: block.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: block.name, input: block.name.startsWith("mcp__") ? {} : { ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
+            }
+          });
+
+          const response = await stream.finalMessage();
+
           const toolResultMap = new Map<string, string>();
           for (const block of response.content) {
-            if (block.type === "text") {
-              res.write(`data: ${JSON.stringify({ type: "text", content: block.text })}\n\n`);
-            } else if (block.type === "tool_use") {
+            if (block.type === "tool_use") {
               const input = block.input as any;
-
-              const toolLabel = block.name === "generate_image" ? "Generating image" : block.name === "edit_image" ? "Editing image" : block.name === "generate_file" ? "Generating file" : block.name === "web_search" ? "Searching the web" : block.name === "fetch_url" ? "Fetching content" : block.name === "brave_image_search" ? "Searching for images" : block.name === "text_to_speech" ? "Generating speech" : block.name === "generate_ai_image" ? "Generating AI image" : block.name === "tavily_search" ? "Researching" : undefined;
-              res.write(`data: ${JSON.stringify({ type: block.name.startsWith("mcp__") ? "mcp_tool_use" : "tool_use", name: block.name, input: block.name.startsWith("mcp__") ? {} : { filename: input.filename, query: input.query, url: input.url, ...(toolLabel ? { label: toolLabel } : {}) } })}\n\n`);
-
               const result = await executeToolCall(block.name, input, projectId, existingFiles, res, agentModifiedFiles, mcpToolDefinitions, completePlanTask, req.session.userId!);
               toolResultMap.set(block.id, result);
             }
