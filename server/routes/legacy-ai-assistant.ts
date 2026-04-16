@@ -44,6 +44,7 @@ import { generateImageBuffer, editImages } from "../replit_integrations/image/cl
 import { registerImageRoutes } from "../replit_integrations/image";
 import { searchBraveImages, BRAVE_CREDIT_COST, generateSpeech, AVAILABLE_VOICES, TTS_CREDIT_COST, generateNanoBananaImage, NANOBANANA_CREDIT_COST, generateDalleImage, DALLE_CREDIT_COST, searchTavily, TAVILY_CREDIT_COST } from "../agentServices";
 import { generateFile, getMimeType, type FileGenerationInput, type FileSection } from "../fileGeneration";
+import { memoryBankService } from "../services/memory-bank.service";
 import PDFDocument from "pdfkit";
 import * as fs from "fs";
 import { importFromGitHub, importFromZip, importFromFigma, importFromVercel, importFromBolt, importFromLovable, validateImportSource, startAsyncImport, startAsyncZipImport, getImportJob, validateZipBuffer, fetchFigmaDesignContext } from "../importService";
@@ -1484,6 +1485,17 @@ Any closing remarks...`;
         } catch {}
       }
 
+      let chatMemoryBankContext = "";
+      if (req.body.projectId && typeof req.body.projectId === "string" && /^[a-zA-Z0-9_-]+$/.test(req.body.projectId)) {
+        try {
+          const mbProject = await storage.getProject(req.body.projectId);
+          if (mbProject && await verifyProjectAccess(mbProject.id, req.session.userId!)) {
+            memoryBankService.setProjectBasePath(req.body.projectId, `${process.cwd()}/project-workspaces/${req.body.projectId}`);
+            chatMemoryBankContext = await memoryBankService.getContextForAgent(req.body.projectId);
+          }
+        } catch {}
+      }
+
       const systemPrompt = `${resolved.systemPromptPrefix}You are an expert coding assistant embedded in E-Code IDE. You help users write, debug, and improve code.
 
 Rules:
@@ -1491,7 +1503,7 @@ Rules:
 - When showing code, use markdown code blocks with the language tag and filename as a comment on the first line.
 - If the user asks to build or create something, provide the full implementation, not just snippets.
 - Include all imports, all functions, and all necessary code for the file to work standalone.
-- When modifying existing code, show the COMPLETE updated file, not just the changed parts.${chatMobileContext}${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${ecodeContext}${skillsContext}`;
+- When modifying existing code, show the COMPLETE updated file, not just the changed parts.${chatMobileContext}${context ? `\n\nCurrent context:\nLanguage: ${context.language}\nFilename: ${context.filename}\nCode:\n\`\`\`\n${context.code}\n\`\`\`` : ""}${ecodeContext}${skillsContext}${chatMemoryBankContext ? `\n\n${chatMemoryBankContext}` : ""}`;
 
       const chatProviderMap: Record<string, string> = { gemini: "google", gpt: "openai", claude: "anthropic", grok: "xai", moonshot: "moonshot", perplexity: "perplexity", mistral: "mistral" };
       const chatProvider = chatProviderMap[selectedModel] || selectedModel;
@@ -2569,6 +2581,14 @@ IMPORTANT: This is a React Native/Expo mobile app project. Follow these rules:
         secretNamesForPrompt = secretNames.length > 0 ? secretNames.join(", ") : "(none configured yet)";
       } catch {}
 
+      let memoryBankContext = "";
+      try {
+        memoryBankService.setProjectBasePath(projectId, `${process.cwd()}/project-workspaces/${projectId}`);
+        memoryBankContext = await memoryBankService.getContextForAgent(projectId);
+      } catch (mbErr: any) {
+        log(`[Agent] Memory Bank context load failed for ${projectId}: ${mbErr.message}`, "agent");
+      }
+
       const agentSystemPrompt = `${agentResolved.systemPromptPrefix}You are an autonomous AI coding agent inside E-Code IDE. You build complete applications by creating and editing files in the user's project.
 
 CRITICAL BEHAVIOR: When the user describes what they want to build, you MUST immediately start building it — create ALL necessary files and install dependencies. Do NOT ask clarifying questions, do NOT list options, do NOT wait for confirmation. Just BUILD. The user expects you to be a fully autonomous agent like Replit Agent.
@@ -2715,7 +2735,7 @@ You have access to web search tools. Use them when:
 - The user asks you to research something or find specific information online
 
 Use \`web_search\` to search for information. Use \`fetch_url\` to read the full content of a specific URL when you need more detail than the search snippet provides.
-Always cite your sources in your response when using information from web searches.` : ""}${agentSkillsContext}${mcpToolsContext}${planContext}`;
+Always cite your sources in your response when using information from web searches.` : ""}${agentSkillsContext}${mcpToolsContext}${planContext}${memoryBankContext ? `\n\n${memoryBankContext}` : ""}`;
 
       if (ecodeRegenerated && ecodeFile) {
         res.write(`data: ${JSON.stringify({ type: "file_created", file: { id: ecodeFile.id, filename: "ecode.md", content: ecodeFile.content } })}\n\n`);
@@ -4169,6 +4189,17 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         } catch (previewErr: any) {
           log(`Failed to auto-start preview after agent: ${previewErr.message}`, "ai");
         }
+      }
+
+      if (agentModifiedFiles.size > 0) {
+        try {
+          memoryBankService.setProjectBasePath(projectId, `${process.cwd()}/project-workspaces/${projectId}`);
+          const modifiedList = [...agentModifiedFiles].slice(0, 10);
+          await memoryBankService.updateActiveContext(projectId, {
+            action: `Agent modified ${agentModifiedFiles.size} file(s)`,
+            filesChanged: modifiedList,
+          });
+        } catch {}
       }
 
       const agentDuration = Date.now() - agentStartTime;

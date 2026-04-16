@@ -24,7 +24,7 @@ export interface MemoryBankFile {
 }
 
 export interface MemoryBank {
-  projectId: number;
+  projectId: string | number;
   files: MemoryBankFile[];
   totalSize: number;
   initialized: boolean;
@@ -174,8 +174,8 @@ const DEFAULT_FILES: Record<string, { template: string; description: string }> =
 };
 
 export class MemoryBankService extends EventEmitter {
-  private projectBasePaths: Map<number, string> = new Map();
-  private memoryCache: Map<number, MemoryBank> = new Map();
+  private projectBasePaths: Map<string, string> = new Map();
+  private memoryCache: Map<string, MemoryBank> = new Map();
   
   constructor() {
     super();
@@ -184,22 +184,23 @@ export class MemoryBankService extends EventEmitter {
   /**
    * Set the base path for a project's files
    */
-  setProjectBasePath(projectId: number, basePath: string): void {
-    this.projectBasePaths.set(projectId, basePath);
+  setProjectBasePath(projectId: string | number, basePath: string): void {
+    this.projectBasePaths.set(String(projectId), basePath);
   }
 
   /**
    * Get the memory bank directory path for a project
    */
-  private getMemoryBankPath(projectId: number): string {
-    const basePath = this.projectBasePaths.get(projectId) || process.cwd();
+  private getMemoryBankPath(projectId: string | number): string {
+    const key = String(projectId);
+    const basePath = this.projectBasePaths.get(key) || path.join(process.cwd(), 'project-workspaces', key);
     return path.join(basePath, MEMORY_BANK_DIR);
   }
 
   /**
    * Check if memory bank is initialized for a project
    */
-  async isInitialized(projectId: number): Promise<boolean> {
+  async isInitialized(projectId: string | number): Promise<boolean> {
     try {
       const mbPath = this.getMemoryBankPath(projectId);
       await fs.access(mbPath);
@@ -212,7 +213,7 @@ export class MemoryBankService extends EventEmitter {
   /**
    * Initialize memory bank with default files
    */
-  async initialize(projectId: number, projectDescription?: string): Promise<MemoryBank> {
+  async initialize(projectId: string | number, projectDescription?: string): Promise<MemoryBank> {
     const mbPath = this.getMemoryBankPath(projectId);
     
     // Create directory
@@ -261,7 +262,7 @@ ${projectDescription}
       lastUpdated: new Date()
     };
     
-    this.memoryCache.set(projectId, memoryBank);
+    this.memoryCache.set(String(projectId), memoryBank);
     this.emit('initialized', { projectId, memoryBank });
     
     logger.info(`[MemoryBank] Initialized for project ${projectId} with ${files.length} files`);
@@ -278,7 +279,7 @@ ${projectDescription}
    * @param options - Additional context (language, framework, etc.)
    */
   async initializeWithAI(
-    projectId: number, 
+    projectId: string | number, 
     userPrompt: string,
     options?: {
       language?: string;
@@ -320,7 +321,7 @@ ${projectDescription}
       lastUpdated: new Date()
     };
     
-    this.memoryCache.set(projectId, memoryBank);
+    this.memoryCache.set(String(projectId), memoryBank);
     this.emit('initialized', { projectId, memoryBank, aiGenerated: true });
     
     logger.info(`[MemoryBank] ✅ AI-generated Memory Bank for project ${projectId} (${files.length} files, ${memoryBank.totalSize} bytes)`);
@@ -559,10 +560,10 @@ npm run dev  # Start development server
   /**
    * Get all memory bank files for a project
    */
-  async getMemoryBank(projectId: number): Promise<MemoryBank | null> {
-    // Check cache first
-    if (this.memoryCache.has(projectId)) {
-      return this.memoryCache.get(projectId)!;
+  async getMemoryBank(projectId: string | number): Promise<MemoryBank | null> {
+    const key = String(projectId);
+    if (this.memoryCache.has(key)) {
+      return this.memoryCache.get(key)!;
     }
     
     const mbPath = this.getMemoryBankPath(projectId);
@@ -600,7 +601,7 @@ npm run dev  # Start development server
         lastUpdated: new Date(Math.max(...files.map(f => f.lastUpdated.getTime())))
       };
       
-      this.memoryCache.set(projectId, memoryBank);
+      this.memoryCache.set(key, memoryBank);
       return memoryBank;
     } catch (error) {
       logger.error(`[MemoryBank] Error reading memory bank for project ${projectId}:`, error);
@@ -611,7 +612,7 @@ npm run dev  # Start development server
   /**
    * Get a specific memory file
    */
-  async getFile(projectId: number, filename: string): Promise<MemoryBankFile | null> {
+  async getFile(projectId: string | number, filename: string): Promise<MemoryBankFile | null> {
     // Security: Sanitize filename to prevent path traversal
     const safeFilename = sanitizeFilename(filename);
     if (!safeFilename) {
@@ -646,7 +647,7 @@ npm run dev  # Start development server
   /**
    * Update or create a memory file
    */
-  async updateFile(projectId: number, filename: string, content: string): Promise<MemoryBankFile | null> {
+  async updateFile(projectId: string | number, filename: string, content: string): Promise<MemoryBankFile | null> {
     // Security: Sanitize filename to prevent path traversal
     const safeFilename = sanitizeFilename(filename);
     if (!safeFilename) {
@@ -677,7 +678,7 @@ npm run dev  # Start development server
     };
     
     // Invalidate cache
-    this.memoryCache.delete(projectId);
+    this.memoryCache.delete(String(projectId));
     
     this.emit('fileUpdated', { projectId, file });
     logger.info(`[MemoryBank] Updated ${safeFilename} for project ${projectId}`);
@@ -685,10 +686,7 @@ npm run dev  # Start development server
     return file;
   }
 
-  /**
-   * Delete a memory file
-   */
-  async deleteFile(projectId: number, filename: string): Promise<boolean> {
+  async deleteFile(projectId: string | number, filename: string): Promise<boolean> {
     // Security: Sanitize filename to prevent path traversal
     const safeFilename = sanitizeFilename(filename);
     if (!safeFilename) {
@@ -707,7 +705,7 @@ npm run dev  # Start development server
     
     try {
       await fs.unlink(filePath);
-      this.memoryCache.delete(projectId);
+      this.memoryCache.delete(String(projectId));
       this.emit('fileDeleted', { projectId, filename: safeFilename });
       return true;
     } catch (err: any) { console.error("[catch]", err?.message || err);
@@ -719,7 +717,7 @@ npm run dev  # Start development server
    * Get memory bank context formatted for agent prompt injection
    * Optimized for token efficiency
    */
-  async getContextForAgent(projectId: number): Promise<string> {
+  async getContextForAgent(projectId: string | number): Promise<string> {
     const memoryBank = await this.getMemoryBank(projectId);
     
     if (!memoryBank || memoryBank.files.length === 0) {
@@ -728,7 +726,12 @@ npm run dev  # Start development server
     
     // Priority order for context injection (most important first)
     const priorityOrder = [
+      'projectbrief.md',
       'project-brief.md',
+      'productContext.md',
+      'systemPatterns.md',
+      'techContext.md',
+      'activeContext.md',
       'architecture.md',
       'patterns.md',
       'dependencies.md',
@@ -780,7 +783,7 @@ ${sections.join('\n\n---\n\n')}
    * Auto-update recent changes after agent makes modifications
    */
   async logRecentChange(
-    projectId: number, 
+    projectId: string | number, 
     description: string, 
     filesAffected: string[], 
     reason?: string
@@ -821,7 +824,7 @@ ${reason ? `- Reason: ${reason}` : ''}
    * Auto-generate architecture doc from project analysis
    */
   async generateArchitectureDoc(
-    projectId: number,
+    projectId: string | number,
     techStack: {
       frontend?: string[];
       backend?: string[];
@@ -870,8 +873,8 @@ ${structure || 'Structure to be analyzed'}
   /**
    * Clear cache for a project
    */
-  clearCache(projectId: number): void {
-    this.memoryCache.delete(projectId);
+  clearCache(projectId: string | number): void {
+    this.memoryCache.delete(String(projectId));
   }
 
   /**
@@ -879,7 +882,7 @@ ${structure || 'Structure to be analyzed'}
    * This provides automatic memory updates without user intervention
    */
   async updateActiveContext(
-    projectId: number,
+    projectId: string | number,
     update: {
       action: string;
       filesChanged?: string[];

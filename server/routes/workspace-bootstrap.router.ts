@@ -21,6 +21,7 @@ import { aiProviderManager } from '../ai/ai-provider-manager';
 import { fastBootstrap } from '../services/fast-bootstrap.service';
 import { storage } from '../storage';
 import { z } from 'zod';
+import { memoryBankService } from '../services/memory-bank.service';
 
 const logger = createLogger('workspace-bootstrap');
 const router = Router();
@@ -140,6 +141,25 @@ router.post('/bootstrap', csrfProtection, async (req: Request, res: Response) =>
         logger.info(`[Bootstrap] Database auto-provisioned for project ${project.id}`);
       } catch (dbErr: any) {
         logger.warn(`[Bootstrap] DB auto-provision failed for project ${project.id}: ${dbErr.message}`);
+      }
+    })();
+
+    (async () => {
+      try {
+        const projectPath = `${process.cwd()}/project-workspaces/${project.id}`;
+        memoryBankService.setProjectBasePath(project.id, projectPath);
+        await memoryBankService.initializeWithAI(project.id, prompt, {
+          language: options?.language || 'typescript',
+          framework: options?.framework || 'react',
+          buildMode: buildMode || 'full-app',
+        });
+        logger.info(`[Bootstrap] Memory Bank initialized for project ${project.id}`);
+      } catch (mbErr: any) {
+        logger.warn(`[Bootstrap] Memory Bank init failed for project ${project.id}: ${mbErr.message}`);
+        try {
+          await memoryBankService.initialize(project.id, prompt);
+          logger.info(`[Bootstrap] Memory Bank fallback (template) initialized for project ${project.id}`);
+        } catch {}
       }
     })();
 
