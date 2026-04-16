@@ -984,12 +984,39 @@ function csrfProtection(req: Request, res: Response, next: NextFunction) {
   if (CSRF_EXEMPT_PATHS.some(p => fullPath === p || req.path === p || fullPath.startsWith(p + "/") || req.path.startsWith(p + "/"))) {
     return next();
   }
-  const token = req.headers["x-csrf-token"] as string;
-  if (!token || !req.session.csrfToken || token !== req.session.csrfToken) {
-    console.warn(`[csrf] FAILED ${req.method} ${fullPath} — provided=${token ? token.substring(0, 8) + "..." : "NONE"} stored=${req.session.csrfToken ? req.session.csrfToken.substring(0, 8) + "..." : "NONE"} sessionID=${req.sessionID?.substring(0, 8)}`);
-    return res.status(403).json({ message: "Invalid CSRF token" });
+
+  const headerToken = req.headers["x-csrf-token"] as string;
+  let cookieToken: string | undefined;
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader) {
+    const match = cookieHeader.match(/(?:^|;\s*)ecode\.csrf=([^;]+)/);
+    if (match) cookieToken = decodeURIComponent(match[1]);
   }
-  next();
+
+  if (headerToken && cookieToken && headerToken === cookieToken) {
+    return next();
+  }
+
+  if (headerToken && req.session.csrfToken && headerToken === req.session.csrfToken) {
+    return next();
+  }
+
+  const origin = req.headers.origin || (req.headers.referer as string);
+  if (origin && headerToken) {
+    try {
+      const u = new URL(origin.split(",")[0].trim());
+      const appUrl = getAppUrl();
+      const appHost = new URL(appUrl).hostname;
+      const devDomain = process.env.REPLIT_DEV_DOMAIN;
+      if (u.hostname === appHost || u.hostname === "localhost" || u.hostname === "127.0.0.1" ||
+          (devDomain && u.hostname === devDomain)) {
+        return next();
+      }
+    } catch {}
+  }
+
+  console.warn(`[csrf] FAILED ${req.method} ${fullPath} — header=${headerToken ? headerToken.substring(0, 8) + "..." : "NONE"} cookie=${cookieToken ? cookieToken.substring(0, 8) + "..." : "NONE"} session=${req.session.csrfToken ? req.session.csrfToken.substring(0, 8) + "..." : "NONE"} sessionID=${req.sessionID?.substring(0, 8)}`);
+  return res.status(403).json({ message: "Invalid CSRF token" });
 }
 
 const wsClients = new Map<string, Set<WebSocket>>();
@@ -1124,6 +1151,13 @@ export async function registerRoutes(
     },
   });
   app.use(sessionMiddleware);
+
+  app.use((req, _res, next) => {
+    if (req.session && !(req.session as any).csrfToken) {
+      (req.session as any).csrfToken = crypto.randomBytes(32).toString("hex");
+    }
+    next();
+  });
 
   // Initialize Passport for session-based authentication
   const passport = await import("passport");
@@ -1292,6 +1326,14 @@ export async function registerRoutes(
       if (err) {
         console.error("[csrf-token] Session save error:", err);
       }
+      const isSecure = process.env.NODE_ENV === "production" || !!process.env.REPL_ID;
+      res.cookie("ecode.csrf", token, {
+        httpOnly: false,
+        secure: isSecure,
+        sameSite: isSecure ? "none" : "lax",
+        path: "/",
+        maxAge: 24 * 60 * 60 * 1000,
+      });
       res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
       res.set("Pragma", "no-cache");
       res.set("Expires", "0");

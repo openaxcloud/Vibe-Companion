@@ -1,6 +1,7 @@
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import crypto from "crypto";
+import type { Request, Response, NextFunction } from "express";
 
 if (!process.env.SESSION_SECRET) {
   process.env.SESSION_SECRET = crypto.randomBytes(32).toString("hex");
@@ -37,5 +38,12 @@ export const sessionMiddleware = session({
     sameSite: process.env.NODE_ENV === "production" || !!process.env.REPL_ID ? "none" as const : "lax" as const,
   },
 });
+
+export function ensureCsrfToken(req: Request, _res: Response, next: NextFunction) {
+  if (req.session && !(req.session as any).csrfToken) {
+    (req.session as any).csrfToken = crypto.randomBytes(32).toString("hex");
+  }
+  next();
+}
 
 export { sessionStore };

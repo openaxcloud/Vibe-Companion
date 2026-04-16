@@ -310,13 +310,24 @@ export class AuthRouter {
             }
             
             req.session.userId = user.id;
+            if (!req.session.csrfToken) {
+              req.session.csrfToken = require('crypto').randomBytes(32).toString('hex');
+            }
+            const csrfToken = req.session.csrfToken;
             req.session.save((saveErr: any) => {
               if (saveErr) {
                 logger.warn('Session save warning:', saveErr.message);
               }
-              
+              const isSecure = process.env.NODE_ENV === "production" || !!process.env.REPL_ID;
+              res.cookie("ecode.csrf", csrfToken, {
+                httpOnly: false,
+                secure: isSecure,
+                sameSite: isSecure ? "none" as const : "lax" as const,
+                path: "/",
+                maxAge: 24 * 60 * 60 * 1000,
+              });
               logger.info(`User ${user.id} logged in successfully`);
-              res.json(this.sanitizeUser(user));
+              res.json({ ...this.sanitizeUser(user), csrfToken });
             });
           });
         });
@@ -630,15 +641,27 @@ export class AuthRouter {
               });
             }
             
+            if (!req.session.csrfToken) {
+              req.session.csrfToken = require('crypto').randomBytes(32).toString('hex');
+            }
+            const csrfToken = req.session.csrfToken;
             req.session.save((saveErr: any) => {
               if (saveErr) {
                 logger.warn('Session save warning:', saveErr.message);
               }
-              
+              const isSecure = process.env.NODE_ENV === "production" || !!process.env.REPL_ID;
+              res.cookie("ecode.csrf", csrfToken, {
+                httpOnly: false,
+                secure: isSecure,
+                sameSite: isSecure ? "none" as const : "lax" as const,
+                path: "/",
+                maxAge: 24 * 60 * 60 * 1000,
+              });
               logger.info(`User ${user.id} logged in successfully via /auth/login`);
               res.json({ 
                 message: "Login successful",
-                user: this.sanitizeUser(user)
+                user: this.sanitizeUser(user),
+                csrfToken
               });
             });
           });

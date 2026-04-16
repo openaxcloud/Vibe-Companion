@@ -8,7 +8,13 @@ export function setCsrfToken(token: string) {
 }
 
 export function getCsrfToken(): string | null {
-  return csrfToken;
+  if (csrfToken) return csrfToken;
+  const match = document.cookie.match(/(?:^|;\s*)ecode\.csrf=([^;]+)/);
+  if (match) {
+    csrfToken = decodeURIComponent(match[1]);
+    return csrfToken;
+  }
+  return null;
 }
 
 export function resetCSRFToken() {
@@ -108,20 +114,34 @@ export async function apiRequest<T = Response>(
     headers["Content-Type"] = "application/json";
   }
   if (!["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) {
-    if (!csrfToken) {
-      await fetchCsrfToken();
+    let token = getCsrfToken();
+    if (!token) {
+      token = await fetchCsrfToken();
     }
-    if (csrfToken) {
-      headers["X-CSRF-Token"] = csrfToken;
+    if (token) {
+      headers["X-CSRF-Token"] = token;
     }
   }
 
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+
+  if (res.status === 403 && !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase())) {
+    const freshToken = await fetchCsrfToken();
+    if (freshToken) {
+      headers["X-CSRF-Token"] = freshToken;
+      res = await fetch(url, {
+        method,
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+        credentials: "include",
+      });
+    }
+  }
 
   await throwIfResNotOk(res);
   const contentType = res.headers.get("content-type") || "";

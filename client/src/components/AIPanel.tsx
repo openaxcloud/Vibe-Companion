@@ -3590,21 +3590,38 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         abortRef.current = new AbortController();
 
         const agentHeaders: Record<string, string> = { "Content-Type": "application/json" };
-        const agentCsrf = getCsrfToken();
+        let agentCsrf = getCsrfToken();
+        if (!agentCsrf) agentCsrf = await fetchCsrfToken();
         if (agentCsrf) agentHeaders["X-CSRF-Token"] = agentCsrf;
 
-        const agentRes = await fetch("/api/ai/agent", {
+        const agentBody = JSON.stringify({
+          messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
+          model,
+          projectId,
+          ...(model === "openrouter" ? { openrouterModel } : {}),
+        });
+
+        let agentRes = await fetch("/api/ai/agent", {
           method: "POST",
           headers: agentHeaders,
           credentials: "include",
-          body: JSON.stringify({
-            messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
-            model,
-            projectId,
-            ...(model === "openrouter" ? { openrouterModel } : {}),
-          }),
+          body: agentBody,
           signal: abortRef.current.signal,
         });
+
+        if (agentRes.status === 403) {
+          const freshToken = await fetchCsrfToken();
+          if (freshToken) {
+            agentHeaders["X-CSRF-Token"] = freshToken;
+            agentRes = await fetch("/api/ai/agent", {
+              method: "POST",
+              headers: agentHeaders,
+              credentials: "include",
+              body: agentBody,
+              signal: abortRef.current.signal,
+            });
+          }
+        }
 
         if (!agentRes.ok) {
           const errBody = await agentRes.json().catch(() => null);
