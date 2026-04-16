@@ -1398,7 +1398,6 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         const stored = sessionStorage.getItem(`agent-prompt-${projectId}`);
         if (stored && stored !== pendingMessageHandledRef.current) {
           messageToSend = stored;
-          sessionStorage.removeItem(`agent-prompt-${projectId}`);
         }
       } catch {}
     }
@@ -1412,6 +1411,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         if (sendMessageDirectRef.current) {
           sendMessageDirectRef.current(capturedMessage);
           setInput("");
+          try {
+            sessionStorage.removeItem(`agent-prompt-${projectId}`);
+            sessionStorage.removeItem(`agent-build-mode-${projectId}`);
+          } catch {}
         } else if (bootstrapRetryCountRef.current < 25) {
           setTimeout(autoSend, 200);
         }

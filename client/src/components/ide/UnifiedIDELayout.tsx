@@ -563,21 +563,20 @@ function UnifiedIDELayout({
     }
   }, [bootstrapToken, setLeftPanelTab, setIsSidebarCollapsed]);
 
-  const bootstrapConsumedRef = useRef(false);
-  const [bootstrapPendingMessage, setBootstrapPendingMessage] = useState<string | null>(null);
+  const [bootstrapPendingMessage, setBootstrapPendingMessage] = useState<string | null>(() => {
+    if (!projectId) return null;
+    const saved = sessionStorage.getItem(`agent-prompt-${projectId}`);
+    return saved || null;
+  });
   useEffect(() => {
-    if (bootstrapConsumedRef.current || !projectId) return;
-    const promptKey = `agent-prompt-${projectId}`;
-    const savedPrompt = sessionStorage.getItem(promptKey);
+    if (!projectId || bootstrapPendingMessage) return;
+    const savedPrompt = sessionStorage.getItem(`agent-prompt-${projectId}`);
     if (savedPrompt) {
-      bootstrapConsumedRef.current = true;
-      sessionStorage.removeItem(promptKey);
-      sessionStorage.removeItem(`agent-build-mode-${projectId}`);
       setBootstrapPendingMessage(savedPrompt);
       setMobileActiveTab('agent');
       setLeftPanelTab('agent');
     }
-  }, [projectId, setMobileActiveTab, setLeftPanelTab]);
+  }, [projectId, bootstrapPendingMessage, setMobileActiveTab, setLeftPanelTab]);
 
   const mobileAgentHandlersRef = useRef<ExternalInputHandlers | null>(null);
   useEffect(() => {
