@@ -91,7 +91,7 @@ const EXTENSIONS_CATALOG: ExtensionDefinition[] = [
   {
     extensionId: "terminal-tabs", name: "Terminal Tabs",
     description: "Enhanced terminal with tabs, split panes, and custom profiles",
-    author: "Vibe Companion", version: "1.8.0", category: "Tools", icon: "terminal",
+    author: "E-Code", version: "1.8.0", category: "Tools", icon: "terminal",
     npmPackage: null, type: "native", nativeFeature: "Use the Terminal panel",
     configFile: null, configContent: null,
   },

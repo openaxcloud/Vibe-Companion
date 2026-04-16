@@ -8631,6 +8631,7 @@ function _projectPage() {
             problems={{ errors: errorsCount, warnings: warningsCount }}
             deploymentStatus={project?.isPublished ? 'live' : 'idle'}
             onShowShortcuts={() => setShortcutsOpen(true)}
+            onGoToLine={() => document.dispatchEvent(new CustomEvent('electron-go-to-line'))}
             onDeployClick={() => openPanel("deployments")}
           />
         </>

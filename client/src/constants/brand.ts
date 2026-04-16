@@ -1,6 +1,6 @@
-export const BRAND_NAME = "Vibe Companion";
-export const BRAND_SHORT = "Vibe";
-export const BRAND_DOMAIN = "vibe-companion.replit.app";
+export const BRAND_NAME = "E-Code";
+export const BRAND_SHORT = "E-Code";
+export const BRAND_DOMAIN = "e-code.ai";
 export const BRAND_TAGLINE = "Build software faster with AI";
 export const BRAND_LOGO = "/assets/logo.svg";
 export const BRAND_COLORS = { primary: "#6366f1", secondary: "#8b5cf6", accent: "#f97316" };

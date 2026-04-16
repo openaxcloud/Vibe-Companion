@@ -2137,6 +2137,7 @@ function UnifiedIDELayout({
           language="TypeScript"
           encoding="UTF-8"
           onShowShortcuts={() => setShowKeyboardShortcuts(true)}
+          onGoToLine={() => document.dispatchEvent(new CustomEvent('electron-go-to-line'))}
           isConnected={isConnected}
           lastSaved={lastSaved}
           problems={problemsCount}

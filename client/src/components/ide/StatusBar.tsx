@@ -34,6 +34,7 @@ interface StatusBarProps {
   language: string;
   encoding: string;
   onShowShortcuts: () => void;
+  onGoToLine?: () => void;
   notifications?: number;
   problems?: { errors: number; warnings: number };
   isConnected?: boolean;
@@ -56,6 +57,7 @@ export function StatusBar({
   language,
   encoding,
   onShowShortcuts,
+  onGoToLine,
   notifications = 0,
   problems = { errors: 0, warnings: 0 },
   isConnected = true,
@@ -155,35 +157,35 @@ export function StatusBar({
             </TooltipContent>
           </Tooltip>
 
-          {(problems.errors > 0 || problems.warnings > 0) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  className={cn(
-                    'flex items-center gap-1.5 h-full px-2',
-                    'hover:bg-[var(--ide-surface)] transition-colors'
-                  )}
-                  data-testid="status-problems"
-                >
-                  {problems.errors > 0 && (
-                    <span className="flex items-center gap-0.5 text-red-500">
-                      <AlertCircle className="h-3 w-3" />
-                      {problems.errors}
-                    </span>
-                  )}
-                  {problems.warnings > 0 && (
-                    <span className="flex items-center gap-0.5 text-amber-500">
-                      <AlertCircle className="h-3 w-3" />
-                      {problems.warnings}
-                    </span>
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-[11px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
-                {problems.errors} errors, {problems.warnings} warnings
-              </TooltipContent>
-            </Tooltip>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className={cn(
+                  'flex items-center gap-1.5 h-full px-2',
+                  'hover:bg-[var(--ide-surface)] transition-colors'
+                )}
+                data-testid="status-problems"
+              >
+                <span className={cn(
+                  'flex items-center gap-0.5',
+                  problems.errors > 0 ? 'text-red-500' : 'text-[var(--ide-text-muted)]'
+                )}>
+                  <AlertCircle className="h-3 w-3" />
+                  {problems.errors}
+                </span>
+                <span className={cn(
+                  'flex items-center gap-0.5',
+                  problems.warnings > 0 ? 'text-amber-500' : 'text-[var(--ide-text-muted)]'
+                )}>
+                  <AlertCircle className="h-3 w-3" />
+                  {problems.warnings}
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[11px] bg-[var(--ide-panel)] text-[var(--ide-text)] border-[var(--ide-border)]">
+              {problems.errors} error{problems.errors !== 1 ? 's' : ''}, {problems.warnings} warning{problems.warnings !== 1 ? 's' : ''}
+            </TooltipContent>
+          </Tooltip>
 
           {deploymentStatus !== 'idle' && (
             <Tooltip>
@@ -313,6 +315,7 @@ export function StatusBar({
                   'hover:bg-[var(--ide-surface)] transition-colors',
                   'font-mono text-[9px]'
                 )}
+                onClick={onGoToLine}
                 data-testid="status-cursor"
               >
                 <span>Ln {cursorPosition.line}, Col {cursorPosition.column}</span>
@@ -429,8 +432,8 @@ export function StatusBar({
           </Tooltip>
 
           <span className="text-[10px] text-[var(--ide-text-muted)] flex items-center gap-1 px-2">
-            <img src="/logo.png" alt="Vibe Companion" width={9} height={9} className="rounded" style={{ objectFit: 'contain' }} />
-            Vibe Companion
+            <img src="/logo.png" alt="E-Code" width={9} height={9} className="rounded" style={{ objectFit: 'contain' }} />
+            E-Code
           </span>
         </div>
       </div>

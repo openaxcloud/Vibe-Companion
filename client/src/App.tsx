@@ -273,7 +273,7 @@ function App() {
         <ThemeProvider>
           <TooltipProvider>
             <a href="#main-content" className="skip-to-main">Skip to main content</a>
-            <div id="main-content" className="h-screen w-screen bg-[var(--ide-bg)] text-[var(--ide-text)]" role="application" aria-label="Vibe Companion IDE">
+            <div id="main-content" className="h-screen w-screen bg-[var(--ide-bg)] text-[var(--ide-text)]" role="application" aria-label="E-Code IDE">
               <Router hook={useAsyncBrowserLocation}>
               <Switch>
                 <Route path="/" component={Landing} />

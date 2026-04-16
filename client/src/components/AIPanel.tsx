@@ -979,7 +979,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     const providerMap: Record<AIModel, string> = { claude: "anthropic", gpt: "openai", gemini: "google", openrouter: "openrouter", perplexity: "perplexity", mistral: "mistral" };
     const provider = providerMap[aiModel];
     const cfg = credentialModes[provider];
-    if (!cfg || cfg.mode === "managed") return { text: "Vibe Companion managed", isManaged: true };
+    if (!cfg || cfg.mode === "managed") return { text: "E-Code managed", isManaged: true };
     return { text: cfg.hasApiKey ? "Your key" : "BYOK (no key set)", isManaged: false };
   };
 

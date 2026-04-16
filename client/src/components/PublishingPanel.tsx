@@ -534,7 +534,7 @@ function ConfigureTab({ projectId, initialConfig, initialType, onDeploy }: {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Badge className="w-3 h-3 text-[var(--ide-text-muted)]" />
-              <span className="text-[9px] text-[var(--ide-text)]">Show "Made with Vibe Companion" Badge</span>
+              <span className="text-[9px] text-[var(--ide-text)]">Show "Made with E-Code" Badge</span>
             </div>
             <Switch
               checked={config.showBadge}

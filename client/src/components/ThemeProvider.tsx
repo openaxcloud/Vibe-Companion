@@ -21,7 +21,7 @@ export interface ThemeData {
 
 const BUILTIN_DARK: ThemeData = {
   id: null,
-  title: "Vibe Companion Dark",
+  title: "E-Code Dark",
   baseScheme: "dark",
   globalColors: DEFAULT_DARK_GLOBAL_COLORS,
   syntaxColors: DEFAULT_DARK_SYNTAX_COLORS,
@@ -29,7 +29,7 @@ const BUILTIN_DARK: ThemeData = {
 
 const BUILTIN_LIGHT: ThemeData = {
   id: null,
-  title: "Vibe Companion Light",
+  title: "E-Code Light",
   baseScheme: "light",
   globalColors: DEFAULT_LIGHT_GLOBAL_COLORS,
   syntaxColors: DEFAULT_LIGHT_SYNTAX_COLORS,

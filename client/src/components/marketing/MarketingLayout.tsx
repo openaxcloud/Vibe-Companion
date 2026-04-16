@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 function ECodeLogo({ size = 32 }: { size?: number }) {
   return (
-    <img src="/logo.png" alt="Vibe Companion" width={size} height={size} className="rounded" style={{ objectFit: 'contain' }} />
+    <img src="/logo.png" alt="E-Code" width={size} height={size} className="rounded" style={{ objectFit: 'contain' }} />
   );
 }
 
@@ -18,7 +18,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2.5">
             <ECodeLogo size={28} />
-            <span className="font-bold text-lg tracking-tight">Vibe Companion</span>
+            <span className="font-bold text-lg tracking-tight">E-Code</span>
           </Link>
           <div className="hidden md:flex items-center gap-1 text-sm">
             <Link href="/features" className="px-3 py-2 rounded-lg text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-panel)] transition-colors">Features</Link>
@@ -71,7 +71,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <ECodeLogo size={20} />
-              <span className="font-bold text-sm">Vibe Companion</span>
+              <span className="font-bold text-sm">E-Code</span>
             </div>
             <p className="text-xs text-[var(--ide-text-muted)] leading-relaxed">Build software faster with AI. Cloud IDE for everyone.</p>
           </div>
@@ -117,7 +117,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         </div>
         <div className="max-w-6xl mx-auto pt-6 border-t border-[var(--ide-border)]/50 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--ide-text-muted)]">
-            <span>&copy; {new Date().getFullYear()} Vibe Companion. All rights reserved.</span>
+            <span>&copy; {new Date().getFullYear()} E-Code. All rights reserved.</span>
             <Link href="/terms" className="hover:text-[var(--ide-text)] transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-[var(--ide-text)] transition-colors">Privacy</Link>
             <Link href="/dpa" className="hover:text-[var(--ide-text)] transition-colors">DPA</Link>

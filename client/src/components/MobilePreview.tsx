@@ -118,7 +118,7 @@ function ArchitectureDiagram() {
       <div className="w-full flex items-center justify-center gap-3">
         <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-[#0079F2]/10 border border-[#0079F2]/20">
           <Server className="w-5 h-5 text-[#0079F2]" />
-          <span className="text-[9px] font-semibold text-[#0079F2]">Vibe Companion Cloud</span>
+          <span className="text-[9px] font-semibold text-[#0079F2]">E-Code Cloud</span>
           <span className="text-[8px] text-[var(--ide-text-muted)]">Expo Dev Server</span>
         </div>
         <div className="flex flex-col items-center gap-0.5">
@@ -134,7 +134,7 @@ function ArchitectureDiagram() {
       <div className="w-full rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] p-2.5 space-y-1.5 mt-1">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-[#0079F2]" />
-          <span className="text-[9px] text-[var(--ide-text-secondary)]">Metro bundler runs on Vibe Companion</span>
+          <span className="text-[9px] text-[var(--ide-text-secondary)]">Metro bundler runs on E-Code</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-[#0CCE6B]" />
