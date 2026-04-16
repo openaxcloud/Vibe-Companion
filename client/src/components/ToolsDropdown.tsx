@@ -39,7 +39,8 @@ interface ToolsDropdownProps {
 }
 
 export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({ onSelectTool, currentTools }) => {
-  const tools = [
+  const [search, setSearch] = React.useState('');
+  const allTools = [
     // Primary Tools
     { id: 'assistant', label: 'Assistant', icon: Bot, description: 'AI-powered coding assistant for your project' },
     { id: 'database', label: 'Database', icon: Database, description: 'Browse and query your project database' },
@@ -80,6 +81,10 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({ onSelectTool, curr
     { id: 'deployment-pipeline', label: 'Deployment Pipeline', icon: Settings, description: 'Visual CI/CD pipeline with stage-by-stage progress tracking' },
   ];
 
+  const tools = search.trim()
+    ? allTools.filter(t => t.label.toLowerCase().includes(search.toLowerCase()) || t.description.toLowerCase().includes(search.toLowerCase()))
+    : allTools;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -94,6 +99,9 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({ onSelectTool, curr
             type="text"
             placeholder="Search for files & tools..."
             className="w-full px-3 py-2 text-[13px] bg-muted rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            data-testid="input-tool-search"
           />
         </div>
         
@@ -109,14 +117,19 @@ export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({ onSelectTool, curr
               <DropdownMenuItem
                 key={tool.id}
                 onClick={() => onSelectTool(tool.id)}
-                className="flex items-center gap-2 p-2 cursor-pointer"
+                className="flex items-start gap-2 p-2 cursor-pointer"
                 data-testid={`tool-${tool.id}`}
               >
-                <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="font-medium text-[13px] truncate">{tool.label}</span>
-                {isActive && (
-                  <span className="ml-auto text-[10px] text-muted-foreground shrink-0">Active</span>
-                )}
+                <Icon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium text-[13px] truncate">{tool.label}</span>
+                    {isActive && (
+                      <span className="text-[10px] text-muted-foreground shrink-0">Active</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground truncate">{tool.description}</p>
+                </div>
               </DropdownMenuItem>
             );
           })}

@@ -81,6 +81,7 @@ export function resolveTopAgentMode(body: any, userPlan: string): { modelId: str
   const tier: AutonomousTier = (body.autonomousTier && ["economy", "power"].includes(body.autonomousTier)) ? body.autonomousTier : "economy";
   const turbo = body.turbo === true;
   const selectedModel = body.model || "claude";
+  const explicitModelId = body.modelId as string | undefined;
 
   let effectiveAgentMode: AgentMode;
   let modelId: string;
@@ -107,6 +108,19 @@ export function resolveTopAgentMode(body: any, userPlan: string): { modelId: str
     effectiveAgentMode = "power";
     modelId = AGENT_MODE_MODELS.power[selectedModel] || "claude-sonnet-4-6";
     maxTokens = topMode === "max" ? TOP_AGENT_MODE_CONFIG.max.maxTokens : 16384;
+  }
+
+  if (explicitModelId && typeof explicitModelId === "string" && explicitModelId.length > 2) {
+    const allAllowedModels = new Set<string>();
+    for (const tier of Object.values(AGENT_MODE_MODELS)) {
+      for (const id of Object.values(tier)) allAllowedModels.add(id);
+    }
+    for (const tier of Object.values(TOP_AGENT_MODE_MODELS)) {
+      for (const id of Object.values(tier)) allAllowedModels.add(id);
+    }
+    if (allAllowedModels.has(explicitModelId)) {
+      modelId = explicitModelId;
+    }
   }
 
   return { modelId, maxTokens, effectiveAgentMode, systemPromptPrefix };

@@ -175,7 +175,9 @@ const SecurityScannerPanel = instrumentedLazy(() => import('@/components/Securit
 const ReplitProblemsPanel = instrumentedLazy(() => import('@/components/editor/ReplitProblemsPanel').then(m => ({ default: m.ReplitProblemsPanel })), 'ReplitProblemsPanel');
 const ReplitOutputPanel = instrumentedLazy(() => import('@/components/editor/ReplitOutputPanel').then(m => ({ default: m.ReplitOutputPanel })), 'ReplitOutputPanel');
 const BillingSystem = instrumentedLazy(() => import('@/components/BillingSystem').then(m => ({ default: m.BillingSystem })), 'BillingSystem');
-const ReplitDeploymentPipeline = instrumentedLazy(() => import('@/components/ReplitDeploymentPipeline'), 'ReplitDeploymentPipeline');
+const ReplitDeploymentPipeline = instrumentedLazy(() => import('@/components/ReplitDeploymentPipeline').then(m => ({ default: m.ReplitDeploymentPipeline })), 'ReplitDeploymentPipeline');
+const ObjectStoragePanel = instrumentedLazy(() => import('@/components/ObjectStorage').then(m => ({ default: m.ObjectStorage })), 'ObjectStoragePanel');
+const ResourceMonitorPanel = instrumentedLazy(() => import('@/components/ResourceMonitor').then(m => ({ default: m.ResourceMonitor })), 'ResourceMonitorPanel');
 
 interface UnifiedIDELayoutProps {
   projectId: string;
@@ -1820,13 +1822,153 @@ function UnifiedIDELayout({
     if (currentTab.id === 'skills') return <Suspense fallback={<ECodeLoading size="md" />}><SkillsPanel projectId={projectId} onClose={() => handleTabClose('skills')} /></Suspense>;
     if (currentTab.id === 'ssh') return <Suspense fallback={<ECodeLoading size="md" />}><SSHPanel projectId={projectId} onClose={() => handleTabClose('ssh')} /></Suspense>;
     if (currentTab.id === 'threads') return <Suspense fallback={<ECodeLoading size="md" />}><ThreadsPanel projectId={projectId} onClose={() => handleTabClose('threads')} /></Suspense>;
-    if (currentTab.id === 'test-runner') return <Suspense fallback={<ECodeLoading size="md" />}><TestRunnerPanel projectId={projectId} onClose={() => handleTabClose('test-runner')} /></Suspense>;
     if (currentTab.id === 'security-scanner') return <Suspense fallback={<ECodeLoading size="md" />}><SecurityScannerPanel projectId={projectId} onClose={() => handleTabClose('security-scanner')} /></Suspense>;
     if (currentTab.id === 'slides') return <Suspense fallback={<ECodeLoading size="md" />}><SlideEditor projectId={projectId} /></Suspense>;
     if (currentTab.id === 'video') return <Suspense fallback={<ECodeLoading size="md" />}><VideoEditor projectId={projectId} /></Suspense>;
     if (currentTab.id === 'animation') return <Suspense fallback={<ECodeLoading size="md" />}><AnimationPreview projectId={projectId} previewUrl={livePreviewUrl} exportDialogOpen={animationExportOpen} onExportDialogClose={() => setAnimationExportOpen?.(false)} /></Suspense>;
     if (currentTab.id === 'design') return <Suspense fallback={<ECodeLoading size="md" />}><DesignCanvas projectId={projectId} /></Suspense>;
-    
+
+    if (currentTab.id === 'authentication') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Auth..." /></div>}>
+          <ReplitAuthPanel projectId={projectId} />
+        </Suspense>
+      );
+    }
+
+    if (currentTab.id === 'install' || currentTab.id === 'package-explorer') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Packages..." /></div>}>
+          <ReplitPackagesPanel projectId={projectId} />
+        </Suspense>
+      );
+    }
+
+    if (currentTab.id === 'extension-store') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Extensions..." /></div>}>
+          <ExtensionsMarketplace projectId={projectId} />
+        </Suspense>
+      );
+    }
+
+    if (currentTab.id === 'user-settings') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Settings..." /></div>}>
+          <ReplitSettingsPanel projectId={projectId} />
+        </Suspense>
+      );
+    }
+
+    if (currentTab.id === 'version-control' || currentTab.id === 'fork-graph') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Git..." /></div>}>
+          <ReplitGitPanel projectId={projectId} />
+        </Suspense>
+      );
+    }
+
+    if (currentTab.id === 'deployments') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Deployments..." /></div>}>
+          <ReplitDeploymentPanel projectId={projectId} />
+        </Suspense>
+      );
+    }
+
+    if (currentTab.id === 'code-search') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Search..." /></div>}>
+          <GlobalSearch
+            isOpen={true}
+            inline={true}
+            onClose={() => {}}
+            projectId={projectId}
+            onFileSelect={(file) => handleFileSelect({ id: file.id, filename: file.filename })}
+          />
+        </Suspense>
+      );
+    }
+
+    if (currentTab.id === 'docs') {
+      return (
+        <div className="h-full flex flex-col">
+          <div className="flex items-center h-9 px-3 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
+            <span className="text-[13px] font-medium">Documentation</span>
+          </div>
+          <iframe
+            src="https://docs.replit.com"
+            className="flex-1 w-full border-0"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            data-testid="iframe-docs"
+          />
+        </div>
+      );
+    }
+
+    if (currentTab.id === 'object-storage') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Object Storage..." /></div>}>
+          <ObjectStoragePanel />
+        </Suspense>
+      );
+    }
+
+    if (currentTab.id === 'replit-key-value') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Key-Value Store..." /></div>}>
+          <DatabasePanel projectId={projectId} />
+        </Suspense>
+      );
+    }
+
+    if (currentTab.id === 'vnc') {
+      return (
+        <div className="h-full flex flex-col">
+          <div className="flex items-center h-9 px-3 border-b border-[var(--ide-border)] bg-[var(--ide-bg)] shrink-0">
+            <span className="text-[13px] font-medium">VNC Desktop</span>
+          </div>
+          <div className="flex-1 flex items-center justify-center bg-[var(--ide-surface)]">
+            <div className="text-center space-y-3 max-w-xs">
+              <Monitor className="w-12 h-12 text-[var(--ide-text-muted)]/30 mx-auto" />
+              <div>
+                <p className="text-[13px] font-medium text-[var(--ide-text)]" data-testid="text-vnc-title">Desktop Output</p>
+                <p className="text-[11px] text-[var(--ide-text-muted)] mt-1">
+                  VNC desktop output will appear here when your app renders a graphical window (e.g. Pygame, Tkinter, Qt).
+                </p>
+              </div>
+              <p className="text-[10px] text-[var(--ide-text-muted)]/60">
+                Start a process that creates a desktop window to connect.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (currentTab.id === 'resource-monitor') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Resource Monitor..." /></div>}>
+          <ResourceMonitorPanel projectId={parseInt(projectId, 10) || 0} />
+        </Suspense>
+      );
+    }
+
+    if (currentTab.id === 'agent' || currentTab.id === 'assistant') {
+      return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading AI Assistant..." /></div>}>
+          <ReplitAgentPanelV3
+            projectId={projectId}
+            mode="desktop"
+            agentToolsSettings={agentToolsSettings}
+            onAgentToolsSettingsChange={setAgentToolsSettings}
+            pendingMessage={bootstrapPendingMessage}
+            onPendingMessageConsumed={() => setBootstrapPendingMessage(null)}
+          />
+        </Suspense>
+      );
+    }
+
     return <div className="flex items-center justify-center h-full text-muted-foreground">Select a file or tool</div>;
   };
 

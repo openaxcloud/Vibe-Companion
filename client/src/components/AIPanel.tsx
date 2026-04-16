@@ -839,6 +839,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     } catch {}
     return "claude";
   });
+  const [specificModelId, setSpecificModelId] = useState<string | null>(() => {
+    try { return localStorage.getItem("ai-specific-model-id"); } catch { return null; }
+  });
   const [liveModels, setLiveModels] = useState<Array<{id: string; name: string; provider: string; description: string}>>([]);
   const [openrouterModel, setOpenrouterModel] = useState<string>("meta-llama/llama-3.3-70b-instruct");
   const [openrouterModels, setOpenrouterModels] = useState<OpenRouterModel[]>([]);
@@ -2332,6 +2335,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         autonomousTier,
         turbo: agentToolsConfig.turbo,
         ...(model === "openrouter" ? { openrouterModel } : {}),
+        ...(specificModelId ? { modelId: specificModelId } : {}),
       };
 
       if (selectedArtifactType) {
@@ -2643,11 +2647,13 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       agentToolsConfig,
       onProviderChange: (provider: 'builtin' | 'openhands' | 'goose' | 'claude-agent') => {
         setAgentProvider(provider);
-        try { localStorage.setItem('ai-agent-provider', provider); } catch {}
+        setSpecificModelId(null);
+        try { localStorage.setItem('ai-agent-provider', provider); localStorage.removeItem('ai-specific-model-id'); } catch {}
       },
       onModelChange: (newModel: string) => {
         setModel(newModel as AIModel);
-        try { localStorage.setItem('ai-preferred-model', newModel); } catch {}
+        setSpecificModelId(null);
+        try { localStorage.setItem('ai-preferred-model', newModel); localStorage.removeItem('ai-specific-model-id'); } catch {}
       },
     };
     onExternalInput(handlers);
@@ -2693,7 +2699,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: "⚠️ No messages to retry. Please type a new message." } : m));
         return updatedMessages;
       }
-      const body: any = { messages: outboundRetry, model, agentMode, topAgentMode, autonomousTier, turbo: agentToolsConfig.turbo, ...(model === "openrouter" ? { openrouterModel } : {}) };
+      const body: any = { messages: outboundRetry, model, agentMode, topAgentMode, autonomousTier, turbo: agentToolsConfig.turbo, ...(model === "openrouter" ? { openrouterModel } : {}), ...(specificModelId ? { modelId: specificModelId } : {}) };
       if (isAgent || isLite) { body.projectId = projectId; if (codeOptimizations && !isLite) body.optimize = true; if (agentToolsConfig.webSearch && !isLite) body.webSearchEnabled = true; } else { body.context = context; if (projectId) body.projectId = projectId; }
       const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
       const retryToken = getCsrfToken();
@@ -3641,6 +3647,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           model,
           projectId,
           ...(model === "openrouter" ? { openrouterModel } : {}),
+          ...(specificModelId ? { modelId: specificModelId } : {}),
         });
 
         let agentRes = await fetch("/api/ai/agent", {
@@ -4751,7 +4758,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                   <DropdownMenuTrigger asChild>
                     <button className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${modelInfo.color} hover:opacity-80 transition-opacity`} data-testid="button-model-select">
                       <ModelIcon className="w-2.5 h-2.5" />
-                      {displayModel === "openrouter" ? (openrouterModels.find(m => m.id === openrouterModel)?.name || openrouterModel.split("/").pop() || "OpenRouter") : modelInfo.name}
+                      {displayModel === "openrouter"
+                        ? (openrouterModels.find(m => m.id === openrouterModel)?.name || openrouterModel.split("/").pop() || "OpenRouter")
+                        : (specificModelId && liveModels.find(m => m.id === specificModelId)?.name) || modelInfo.name}
                       <ChevronDown className="w-2.5 h-2.5 opacity-60" />
                     </button>
                   </DropdownMenuTrigger>
@@ -4770,20 +4779,24 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                         const meta = providerMeta[lm.provider] || defaultMeta;
                         const MdlIcon = meta.icon;
                         const modelKey = meta.isExternal ? meta.groupKey : meta.groupKey;
-                        const isSelected = meta.isExternal ? (agentProvider === lm.provider) : (agentProvider === "builtin" && model === meta.groupKey && (
-                          meta.groupKey === "gpt" ? lm.id.startsWith("gpt") || lm.id.startsWith("o3") || lm.id.startsWith("o4") :
-                          meta.groupKey === "claude" ? lm.id.startsWith("claude") :
-                          meta.groupKey === "gemini" ? lm.id.startsWith("gemini") : false
-                        ));
+                        const isSelected = specificModelId
+                          ? lm.id === specificModelId
+                          : meta.isExternal ? (agentProvider === lm.provider) : (agentProvider === "builtin" && model === meta.groupKey && (
+                            meta.groupKey === "gpt" ? lm.id.startsWith("gpt") || lm.id.startsWith("o3") || lm.id.startsWith("o4") :
+                            meta.groupKey === "claude" ? lm.id.startsWith("claude") :
+                            meta.groupKey === "gemini" ? lm.id.startsWith("gemini") : false
+                          ));
                         return (
                           <DropdownMenuItem key={lm.id} className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => {
                             if (meta.isExternal) {
                               setAgentProvider(lm.provider as "openhands" | "goose" | "claude-agent");
-                              try { localStorage.setItem("ai-agent-provider", lm.provider); } catch {}
+                              setSpecificModelId(lm.id);
+                              try { localStorage.setItem("ai-agent-provider", lm.provider); localStorage.setItem("ai-specific-model-id", lm.id); } catch {}
                             } else {
                               setModel(meta.groupKey);
                               setAgentProvider("builtin");
-                              try { localStorage.setItem("ai-preferred-model", meta.groupKey); localStorage.setItem("ai-agent-provider", "builtin"); } catch {}
+                              setSpecificModelId(lm.id);
+                              try { localStorage.setItem("ai-preferred-model", meta.groupKey); localStorage.setItem("ai-agent-provider", "builtin"); localStorage.setItem("ai-specific-model-id", lm.id); } catch {}
                               fetch("/api/models/preferred", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ modelId: lm.id }) }).catch(() => {});
                             }
                           }} data-testid={`model-${lm.id}`}>
