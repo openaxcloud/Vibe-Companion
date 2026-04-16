@@ -1318,6 +1318,27 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     setInput("");
   }, []);
 
+  const deleteConversation = useCallback(async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!projectId) return;
+    try {
+      let csrfToken = getCsrfToken();
+      if (!csrfToken) csrfToken = await fetchCsrfToken();
+      const headers: Record<string, string> = {};
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      await fetch(`/api/ai/conversations/${projectId}?conversationId=${conversationId}`, {
+        method: "DELETE",
+        headers,
+        credentials: "include",
+      });
+      setChatHistory(prev => prev.filter(c => c.id !== conversationId));
+      if (activeConversationId === conversationId) {
+        setMessages([]);
+        setActiveConversationId(null);
+      }
+    } catch {}
+  }, [projectId, activeConversationId]);
+
   const handleOpenHistory = useCallback(() => {
     setShowHistory(true);
     loadChatHistory();
@@ -3866,9 +3887,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
               <History className="w-4 h-4" />
               <span>Chat History</span>
             </div>
-            <Button variant="ghost" size="icon" className="w-8 h-8 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => setShowHistory(false)} title="Close history" data-testid="button-close-history">
-              <X className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="w-8 h-8 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => { handleNewChat(); }} title="New chat" data-testid="button-new-chat-from-history">
+                <SquarePen className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="w-8 h-8 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)]" onClick={() => setShowHistory(false)} title="Close history" data-testid="button-close-history">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
           {activeMessages.length > 0 && (
             <div className="px-4 py-2 border-b border-[var(--ide-border)] bg-[var(--ide-surface)]/50">
@@ -3920,6 +3946,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                           </span>
                         </div>
                       </div>
+                      <button
+                        className="shrink-0 mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500/10 transition-all"
+                        onClick={(e) => deleteConversation(conv.id, e)}
+                        title="Delete conversation"
+                        data-testid={`button-delete-conversation-${conv.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-[var(--ide-text-muted)] hover:text-red-400" />
+                      </button>
                     </div>
                   </button>
                 ))}
