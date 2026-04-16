@@ -1336,6 +1336,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             role: m.role as "user" | "assistant",
             content: m.content,
             model: m.model || undefined,
+            fileOps: m.fileOps || undefined,
             timestamp: new Date(m.createdAt),
           }));
           setMessages(loaded);

@@ -785,7 +785,7 @@ ${formatInstruction}`;
 
   app.get("/api/ai/conversations/:projectId/load/:conversationId", requireAuth, async (req: Request, res: Response) => {
     const conv = await storage.getConversationById(req.params.conversationId);
-    if (!conv || conv.userId !== req.session.userId) {
+    if (!conv || conv.userId !== req.session.userId || conv.projectId !== req.params.projectId) {
       return res.status(404).json({ message: "Conversation not found" });
     }
     const msgs = await storage.getMessages(conv.id);
@@ -793,7 +793,23 @@ ${formatInstruction}`;
   });
 
   app.delete("/api/ai/conversations/:projectId", requireAuth, async (req: Request, res: Response) => {
-    return res.json({ message: "New conversation started" });
+    const project = await storage.getProject(req.params.projectId);
+    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const targetId = req.query.conversationId as string | undefined;
+    if (targetId) {
+      const conv = await storage.getConversationById(targetId);
+      if (conv && conv.userId === req.session.userId && conv.projectId === req.params.projectId) {
+        await storage.deleteConversation(conv.id);
+      }
+    } else {
+      const conversation = await storage.getConversation(req.params.projectId, req.session.userId!);
+      if (conversation) {
+        await storage.deleteConversation(conversation.id);
+      }
+    }
+    return res.json({ message: "Conversation deleted" });
   });
 
   app.get("/api/ai/queue/:projectId", requireAuth, async (req: Request, res: Response) => {
@@ -2440,9 +2456,10 @@ Rules:
 
       const originalWrite = res.write.bind(res);
       (res as any).write = function(chunk: any, ...args: any[]) {
-        if (typeof chunk === "string" && chunk.startsWith("data: ")) {
+        const chunkStr = typeof chunk === "string" ? chunk : Buffer.isBuffer(chunk) ? chunk.toString("utf-8") : null;
+        if (chunkStr && chunkStr.startsWith("data: ")) {
           try {
-            const jsonStr = chunk.slice(6).trim();
+            const jsonStr = chunkStr.slice(6).trim();
             if (jsonStr) {
               const parsed = JSON.parse(jsonStr);
               if (parsed.type === "text" && parsed.content) {
