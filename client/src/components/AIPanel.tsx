@@ -98,6 +98,7 @@ interface ChatMessage {
   webSearchResults?: WebSearchResult[];
   generatedFiles?: GeneratedFile[];
   mcpToolCalls?: McpToolCall[];
+  webFetchResults?: { url: string; title?: string; content?: string; status: string }[];
   audioChunks?: string[];
   audioTranscript?: string;
   imageSearchResults?: ImageSearchResult[];
@@ -1065,7 +1066,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
       await fetch("/api/figma/disconnect", { method: "POST", headers, credentials: "include" });
       setFigmaConnection({ connected: false });
-    } catch {}
+    } catch (err: any) {
+      console.error("[AIPanel] Figma disconnect failed:", err?.message);
+    }
   }, []);
 
   useEffect(() => {
@@ -1414,26 +1417,26 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const sendMessageDirectRef = useRef<((content: string, attachments?: Attachment[]) => Promise<boolean | undefined>) | null>(null);
   const bootstrapRetryCountRef = useRef(0);
   useEffect(() => {
-    console.log("[AIPanel Bootstrap] useEffect fired: pendingMessage=", pendingMessage ? `"${pendingMessage.substring(0, 60)}"` : "null", "conversationLoaded=", conversationLoaded, "isStreaming=", isStreaming, "projectId=", projectId, "handledRef=", pendingMessageHandledRef.current ? `"${pendingMessageHandledRef.current.substring(0, 60)}"` : "null");
+    
     let messageToSend = pendingMessage;
     if (!messageToSend && conversationLoaded && !isStreaming && projectId) {
       try {
         const stored = sessionStorage.getItem(`agent-prompt-${projectId}`);
-        console.log("[AIPanel Bootstrap] fallback sessionStorage check:", stored ? `"${stored.substring(0, 60)}"` : "null");
+        
         if (stored && stored !== pendingMessageHandledRef.current) {
           messageToSend = stored;
         }
       } catch {}
     }
     if (messageToSend && conversationLoaded && !isStreaming && messageToSend !== pendingMessageHandledRef.current) {
-      console.log("[AIPanel Bootstrap] SENDING message:", messageToSend.substring(0, 80), "sendMessageDirectRef available=", !!sendMessageDirectRef.current);
+      
       pendingMessageHandledRef.current = messageToSend;
       onPendingMessageConsumed?.();
       bootstrapRetryCountRef.current = 0;
       const capturedMessage = messageToSend;
       const autoSend = () => {
         bootstrapRetryCountRef.current++;
-        console.log("[AIPanel Bootstrap] autoSend attempt", bootstrapRetryCountRef.current, "ref available=", !!sendMessageDirectRef.current);
+        
         if (sendMessageDirectRef.current) {
           sendMessageDirectRef.current(capturedMessage);
           setInput("");
@@ -1444,14 +1447,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
         } else if (bootstrapRetryCountRef.current < 25) {
           setTimeout(autoSend, 200);
         } else {
-          console.error("[AIPanel Bootstrap] FAILED: sendMessageDirectRef never became available after 25 retries");
+          console.error("[AIPanel] Bootstrap message could not be sent after retries");
         }
       };
       setTimeout(autoSend, 400);
     } else if (messageToSend && !conversationLoaded) {
-      console.log("[AIPanel Bootstrap] message ready but conversation not loaded yet — will retry when loaded");
+      
     } else if (messageToSend && messageToSend === pendingMessageHandledRef.current) {
-      console.log("[AIPanel Bootstrap] message already handled, skipping");
+      
     }
   }, [pendingMessage, conversationLoaded, isStreaming, projectId]);
 
@@ -1627,6 +1630,12 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 inlineImages.push({ filename: data.filename || "ai-generated.png", dataUri: data.imageDataUri });
               }
             } else if (data.type === "web_fetch_result") {
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantId ? {
+                  ...m,
+                  webFetchResults: [...(m.webFetchResults || []).filter(r => r.url !== data.url || r.status !== "fetching"), { url: data.url, title: data.title, content: data.content, status: data.status || "done" }],
+                } : m)
+              );
             } else if (data.type === "mcp_tool_use" || data.type === "mcp_tool_call") {
               const isFigmaTool = data.name?.startsWith("mcp__figma__");
               if (isFigmaTool) {
@@ -2071,7 +2080,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     let claudeId = claudeAgentClaudeIdRef.current || claudeAgentClaudeId;
 
     if (!sessionId || !claudeId) {
-      console.log("[Claude Agent] Creating new session for project:", projectId);
+      
       const sessionRes = await fetch(`/api/projects/${projectId}/agent/session`, {
         method: "POST",
         headers: fetchHeaders,
@@ -2090,12 +2099,10 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       claudeAgentClaudeIdRef.current = claudeId;
       setClaudeAgentSessionId(sessionId);
       setClaudeAgentClaudeId(claudeId);
-      console.log("[Claude Agent] Session created:", sessionId);
     } else {
-      console.log("[Claude Agent] Reusing session:", sessionId);
     }
 
-    console.log("[Claude Agent] Sending message, session:", sessionId, "project:", projectId);
+    
     const streamRes = await fetch(`/api/projects/${projectId}/agent/message`, {
       method: "POST",
       headers: fetchHeaders,
@@ -2146,7 +2153,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       projectId,
     };
 
-    console.log(`[AIPanel] Sending to external provider: ${provider}, session=${currentSessionId}`);
+    
 
     const res = await fetch("/api/agent-providers/message", {
       method: "POST",
@@ -2230,7 +2237,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
 
     try {
       if (agentProvider === "claude-agent") {
-        console.log("[AIPanel] Routing to Claude Agent SDK for project:", projectId);
+        
         try {
           await sendViaClaudeAgent(fullContent, assistantId);
         } catch (claudeErr: any) {
@@ -2274,7 +2281,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       }
 
       if (agentProvider !== "builtin") {
-        console.log(`[AIPanel] Routing to external provider: ${agentProvider}`);
+        
         try {
           await sendViaExternalProvider(agentProvider as "openhands" | "goose", fullContent, assistantId);
         } catch (extErr: any) {
@@ -2368,7 +2375,7 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
       }
       clearTimeout(timeoutId);
 
-      console.log("[AIPanel] Response status:", res.status);
+      
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         console.error("[AIPanel] Error response:", errData);
@@ -2576,25 +2583,25 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     if (!onExternalInput) return;
     const handlers: ExternalInputHandlers = {
       handleSubmit: (value: string) => {
-        console.log('[MobileSubmit] handleSubmit called with:', value?.slice(0, 50));
+        
         setInput("");
         setTimeout(() => {
           if (sendMessageDirectRef.current) {
             sendMessageDirectRef.current(value).catch((err: any) => {
-              console.error('[MobileSubmit] Send failed:', err);
+              console.error('[AIPanel] Mobile send failed:', err?.message);
             });
           } else {
-            console.error('[MobileSubmit] sendMessageDirectRef is null!');
+            console.error('[AIPanel] sendMessageDirectRef unavailable for mobile submit');
           }
         }, 0);
       },
       handleSubmitWithAttachments: (value: string, atts: Attachment[]) => {
-        console.log('[MobileSubmit] handleSubmitWithAttachments called');
+        
         setInput("");
         setTimeout(() => {
           if (sendMessageDirectRef.current) {
             sendMessageDirectRef.current(value, atts).catch((err: any) => {
-              console.error('[MobileSubmit] Send with attachments failed:', err);
+              console.error('[AIPanel] Mobile send with attachments failed:', err?.message);
             });
           }
           setAttachments([]);
@@ -4231,6 +4238,20 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                 )}
                 {msg.role === "assistant" && msg.webSearchResults && msg.webSearchResults.length > 0 && (
                   <WebSearchCitations results={msg.webSearchResults} />
+                )}
+                {msg.role === "assistant" && msg.webFetchResults && msg.webFetchResults.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    {msg.webFetchResults.map((wf, wi) => (
+                      <div key={wi} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--ide-surface)] border border-[var(--ide-border)] text-xs">
+                        <Globe className="w-3.5 h-3.5 text-[#0079F2] shrink-0" />
+                        <a href={wf.url} target="_blank" rel="noopener noreferrer" className="text-[#0079F2] hover:underline truncate" data-testid={`link-web-fetch-${wi}`}>
+                          {wf.title || wf.url}
+                        </a>
+                        {wf.status === "fetching" && <Loader2 className="w-3 h-3 animate-spin text-[var(--ide-text-muted)] shrink-0" />}
+                        {wf.status === "done" && <Check className="w-3 h-3 text-green-500 shrink-0" />}
+                      </div>
+                    ))}
+                  </div>
                 )}
                 {msg.role === "assistant" && figmaMcpEvents.length > 0 && idx === messages.length - 1 && msg.content.includes("Figma MCP") && (
                   <div className="mt-3">
