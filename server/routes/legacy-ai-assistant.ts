@@ -4470,35 +4470,50 @@ DESIGN QUALITY (for web projects):
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await liteGeminiClient.models.generateContent({
+          const streamResp = await liteGeminiClient.models.generateContentStream({
             model: "gemini-2.5-flash",
             contents: geminiContents,
             config: { maxOutputTokens: 8192, tools: geminiTools },
           });
 
-          const candidate = response.candidates?.[0];
-          if (!candidate?.content?.parts) { continueLoop = false; break; }
+          const accumulatedParts: any[] = [];
+          const emittedNames = new Set<string>();
+          for await (const chunk of streamResp) {
+            const cParts = chunk.candidates?.[0]?.content?.parts;
+            if (!cParts) continue;
+            for (const part of cParts) {
+              accumulatedParts.push(part);
+              if (part.text) {
+                res.write(`data: ${JSON.stringify({ type: "text", content: part.text })}\n\n`);
+              }
+              if (part.functionCall) {
+                const fnName = part.functionCall.name || "";
+                const key = `${fnName}:${accumulatedParts.length}`;
+                if (!emittedNames.has(key)) {
+                  emittedNames.add(key);
+                  const label = fnName === "create_file" ? "Creating file" : fnName === "edit_file" ? "Editing file" : fnName === "execute_command" ? "Running command" : undefined;
+                  res.write(`data: ${JSON.stringify({ type: "tool_use", name: fnName, input: label ? { label } : {} })}\n\n`);
+                }
+              }
+            }
+          }
 
-          const parts = candidate.content.parts;
+          if (accumulatedParts.length === 0) { continueLoop = false; break; }
+
           let hasToolCall = false;
           const toolResponseParts: any[] = [];
-
-          for (const part of parts) {
-            if (part.text) {
-              res.write(`data: ${JSON.stringify({ type: "text", content: part.text })}\n\n`);
-            }
+          for (const part of accumulatedParts) {
             if (part.functionCall) {
               hasToolCall = true;
               const fn = part.functionCall;
               const toolInput = fn.args as { filename: string; content: string };
-              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
               await executeToolCall(fn.name!, toolInput, projectId, existingFiles, res, liteModifiedFiles, undefined, undefined, req.session.userId!);
               toolResponseParts.push({ functionResponse: { name: fn.name, response: { result: "Done" } } });
             }
           }
 
           if (hasToolCall) {
-            geminiContents = [...geminiContents, { role: "model", parts }, { role: "user", parts: toolResponseParts }];
+            geminiContents = [...geminiContents, { role: "model", parts: accumulatedParts }, { role: "user", parts: toolResponseParts }];
           } else {
             continueLoop = false;
           }
@@ -4521,34 +4536,62 @@ DESIGN QUALITY (for web projects):
 
         while (continueLoop && iterations < MAX_AGENT_ITERATIONS) {
           iterations++;
-          const response = await liteOpenaiClient.chat.completions.create({
+          const stream = await liteOpenaiClient.chat.completions.create({
             model: liteOrModelId,
             messages: gptMessages,
             tools: openaiTools,
             max_completion_tokens: 8192,
+            stream: true,
           });
 
-          const choice = response.choices[0];
-          const message = choice.message;
+          let accumulatedContent = "";
+          const toolCallsAcc: Record<number, { id?: string; name?: string; args: string; emitted: boolean }> = {};
+          let finishReason: string | null = null;
 
-          if (message.content) {
-            res.write(`data: ${JSON.stringify({ type: "text", content: message.content })}\n\n`);
+          for await (const chunk of stream) {
+            const choice = chunk.choices?.[0];
+            if (!choice) continue;
+            const delta = choice.delta;
+            if (delta?.content) {
+              accumulatedContent += delta.content;
+              res.write(`data: ${JSON.stringify({ type: "text", content: delta.content })}\n\n`);
+            }
+            if (delta?.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index ?? 0;
+                if (!toolCallsAcc[idx]) toolCallsAcc[idx] = { args: "", emitted: false };
+                const acc = toolCallsAcc[idx];
+                if (tc.id) acc.id = tc.id;
+                if (tc.function?.name) acc.name = (acc.name || "") + tc.function.name;
+                if (tc.function?.arguments) acc.args += tc.function.arguments;
+                if (acc.name && !acc.emitted) {
+                  acc.emitted = true;
+                  const fnName = acc.name;
+                  const label = fnName === "create_file" ? "Creating file" : fnName === "edit_file" ? "Editing file" : fnName === "execute_command" ? "Running command" : undefined;
+                  res.write(`data: ${JSON.stringify({ type: "tool_use", name: fnName, input: label ? { label } : {} })}\n\n`);
+                }
+              }
+            }
+            if (choice.finish_reason) finishReason = choice.finish_reason;
           }
 
-          if (message.tool_calls && message.tool_calls.length > 0) {
+          const finalToolCalls = Object.entries(toolCallsAcc)
+            .sort(([a], [b]) => Number(a) - Number(b))
+            .map(([_, t]) => ({ id: t.id || `call_${Math.random().toString(36).slice(2, 10)}`, type: "function" as const, function: { name: t.name || "", arguments: t.args || "{}" } }));
+
+          if (finalToolCalls.length > 0) {
             const toolResultMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-            for (const toolCall of message.tool_calls) {
-              if (toolCall.type !== "function") continue;
+            for (const toolCall of finalToolCalls) {
               const fn = toolCall.function;
-              const toolInput = JSON.parse(fn.arguments) as { filename: string; content: string };
-              res.write(`data: ${JSON.stringify({ type: "tool_use", name: fn.name, input: { filename: toolInput.filename } })}\n\n`);
+              let toolInput: any = {};
+              try { toolInput = JSON.parse(fn.arguments); } catch { toolInput = {}; }
               await executeToolCall(fn.name, toolInput, projectId, existingFiles, res, liteModifiedFiles, undefined, undefined, req.session.userId!);
               toolResultMessages.push({ role: "tool", tool_call_id: toolCall.id, content: "Done" });
             }
-            gptMessages = [...gptMessages, { role: "assistant", content: message.content, tool_calls: message.tool_calls } as any, ...toolResultMessages];
+            gptMessages = [...gptMessages, { role: "assistant", content: accumulatedContent || null, tool_calls: finalToolCalls } as any, ...toolResultMessages];
           }
 
-          if (choice.finish_reason !== "tool_calls") {
+          if (finishReason !== "tool_calls") {
             continueLoop = false;
           }
         }
