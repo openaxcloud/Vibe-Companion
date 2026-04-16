@@ -4764,53 +4764,68 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                       <ChevronDown className="w-2.5 h-2.5 opacity-60" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-72 max-h-[400px] overflow-y-auto bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
+                  <DropdownMenuContent align="start" className="w-80 max-h-[420px] overflow-y-auto bg-[var(--ide-panel)] border-[var(--ide-border)] p-1">
                     {(() => {
-                      const providerMeta: Record<string, { color: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; groupKey: AIModel; isExternal: boolean }> = {
-                        openai: { color: "#10A37F", icon: OpenAILogo, groupKey: "gpt", isExternal: false },
-                        anthropic: { color: "#D4A27F", icon: AnthropicLogo, groupKey: "claude", isExternal: false },
-                        gemini: { color: "#4285F4", icon: GeminiLogo, groupKey: "gemini", isExternal: false },
-                        openhands: { color: "#10B981", icon: OpenHandsLogo, groupKey: "openhands", isExternal: true },
-                        goose: { color: "#F97316", icon: GooseLogo, groupKey: "goose", isExternal: true },
-                        "claude-agent": { color: "#D4A27F", icon: ClaudeAgentLogo, groupKey: "claude-agent" as AIModel, isExternal: true },
+                      const providerMeta: Record<string, { color: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; groupKey: AIModel; isExternal: boolean; label: string }> = {
+                        openai: { color: "#10A37F", icon: OpenAILogo, groupKey: "gpt", isExternal: false, label: "OpenAI" },
+                        anthropic: { color: "#D4A27F", icon: AnthropicLogo, groupKey: "claude", isExternal: false, label: "Anthropic" },
+                        gemini: { color: "#4285F4", icon: GeminiLogo, groupKey: "gemini", isExternal: false, label: "Google" },
+                        openhands: { color: "#10B981", icon: OpenHandsLogo, groupKey: "openhands", isExternal: true, label: "External Agents" },
+                        goose: { color: "#F97316", icon: GooseLogo, groupKey: "goose", isExternal: true, label: "External Agents" },
+                        "claude-agent": { color: "#D4A27F", icon: ClaudeAgentLogo, groupKey: "claude-agent" as AIModel, isExternal: true, label: "External Agents" },
                       };
-                      const defaultMeta = { color: "#9CA3AF", icon: Zap, groupKey: "gpt" as AIModel, isExternal: false };
-                      return liveModels.map(lm => {
+                      const defaultMeta = { color: "#9CA3AF", icon: Zap, groupKey: "gpt" as AIModel, isExternal: false, label: "Other" };
+                      const grouped: Record<string, typeof liveModels> = {};
+                      const groupOrder = ["Anthropic", "OpenAI", "Google", "External Agents", "Other"];
+                      for (const lm of liveModels) {
                         const meta = providerMeta[lm.provider] || defaultMeta;
-                        const MdlIcon = meta.icon;
-                        const modelKey = meta.isExternal ? meta.groupKey : meta.groupKey;
-                        const isSelected = specificModelId
-                          ? lm.id === specificModelId
-                          : meta.isExternal ? (agentProvider === lm.provider) : (agentProvider === "builtin" && model === meta.groupKey && (
-                            meta.groupKey === "gpt" ? lm.id.startsWith("gpt") || lm.id.startsWith("o3") || lm.id.startsWith("o4") :
-                            meta.groupKey === "claude" ? lm.id.startsWith("claude") :
-                            meta.groupKey === "gemini" ? lm.id.startsWith("gemini") : false
-                          ));
-                        return (
-                          <DropdownMenuItem key={lm.id} className="gap-2.5 text-xs text-[var(--ide-text)] focus:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5" onClick={() => {
-                            if (meta.isExternal) {
-                              setAgentProvider(lm.provider as "openhands" | "goose" | "claude-agent");
-                              setSpecificModelId(lm.id);
-                              try { localStorage.setItem("ai-agent-provider", lm.provider); localStorage.setItem("ai-specific-model-id", lm.id); } catch {}
-                            } else {
-                              setModel(meta.groupKey);
-                              setAgentProvider("builtin");
-                              setSpecificModelId(lm.id);
-                              try { localStorage.setItem("ai-preferred-model", meta.groupKey); localStorage.setItem("ai-agent-provider", "builtin"); localStorage.setItem("ai-specific-model-id", lm.id); } catch {}
-                              fetch("/api/models/preferred", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ modelId: lm.id }) }).catch(() => {});
-                            }
-                          }} data-testid={`model-${lm.id}`}>
-                            <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: `${meta.color}15` }}>
-                              <MdlIcon className="w-3 h-3" style={{ color: meta.color }} />
-                            </div>
-                            <div className="flex flex-col flex-1 min-w-0">
-                              <span className="font-medium">{lm.name}</span>
-                              <span className="text-[10px] text-[var(--ide-text-muted)]">{lm.description}</span>
-                            </div>
-                            {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B]" />}
-                          </DropdownMenuItem>
-                        );
-                      });
+                        const label = meta.label;
+                        if (!grouped[label]) grouped[label] = [];
+                        grouped[label].push(lm);
+                      }
+                      return groupOrder.filter(g => grouped[g]?.length).map((groupLabel, gi) => (
+                        <div key={groupLabel}>
+                          {gi > 0 && <div className="h-px bg-[var(--ide-border)]/50 mx-1 my-1" />}
+                          <div className="px-2 py-1">
+                            <span className="text-[9px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider">{groupLabel}</span>
+                          </div>
+                          {grouped[groupLabel].map(lm => {
+                            const meta = providerMeta[lm.provider] || defaultMeta;
+                            const MdlIcon = meta.icon;
+                            const isSelected = specificModelId
+                              ? lm.id === specificModelId
+                              : meta.isExternal ? (agentProvider === lm.provider) : (agentProvider === "builtin" && model === meta.groupKey && (
+                                meta.groupKey === "gpt" ? lm.id.startsWith("gpt") || lm.id.startsWith("o3") || lm.id.startsWith("o4") :
+                                meta.groupKey === "claude" ? lm.id.startsWith("claude") :
+                                meta.groupKey === "gemini" ? lm.id.startsWith("gemini") : false
+                              ));
+                            return (
+                              <DropdownMenuItem key={lm.id} className={`gap-2.5 text-xs cursor-pointer rounded-md px-2 py-1.5 ${isSelected ? "bg-[var(--ide-surface)] text-[var(--ide-text)]" : "text-[var(--ide-text)] focus:bg-[var(--ide-surface)]"}`} onClick={() => {
+                                if (meta.isExternal) {
+                                  setAgentProvider(lm.provider as "openhands" | "goose" | "claude-agent");
+                                  setSpecificModelId(lm.id);
+                                  try { localStorage.setItem("ai-agent-provider", lm.provider); localStorage.setItem("ai-specific-model-id", lm.id); } catch {}
+                                } else {
+                                  setModel(meta.groupKey);
+                                  setAgentProvider("builtin");
+                                  setSpecificModelId(lm.id);
+                                  try { localStorage.setItem("ai-preferred-model", meta.groupKey); localStorage.setItem("ai-agent-provider", "builtin"); localStorage.setItem("ai-specific-model-id", lm.id); } catch {}
+                                  fetch("/api/models/preferred", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ modelId: lm.id }) }).catch(() => {});
+                                }
+                              }} data-testid={`model-${lm.id}`}>
+                                <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: `${meta.color}15` }}>
+                                  <MdlIcon className="w-3 h-3" style={{ color: meta.color }} />
+                                </div>
+                                <div className="flex flex-col flex-1 min-w-0">
+                                  <span className="font-medium truncate">{lm.name}</span>
+                                  <span className="text-[10px] text-[var(--ide-text-muted)] truncate">{lm.description}</span>
+                                </div>
+                                {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-[#0CCE6B] ml-auto" />}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </div>
+                      ));
                     })()}
                   </DropdownMenuContent>
                 </DropdownMenu>

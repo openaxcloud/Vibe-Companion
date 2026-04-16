@@ -628,23 +628,25 @@ export const CreateProjectModal = ({
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="sm:max-w-[560px] bg-[var(--ecode-surface)] border-[var(--ecode-border)] max-h-[90vh] overflow-y-auto">
         {creationProgress ? (
-          <div className="py-8 flex flex-col items-center justify-center space-y-6">
+          <div className="py-8 flex flex-col items-center justify-center space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
             <div className="relative">
               {creationProgress.step === 'ready' ? (
-                <div className="h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center">
+                <div className="h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center animate-in zoom-in duration-300">
                   <CheckCircle2 className="h-10 w-10 text-green-500" />
                 </div>
               ) : creationProgress.step === 'error' ? (
-                <div className="h-16 w-16 rounded-full bg-red-500/10 flex items-center justify-center">
+                <div className="h-16 w-16 rounded-full bg-red-500/10 flex items-center justify-center animate-in zoom-in duration-200">
                   <AlertCircle className="h-10 w-10 text-red-500" />
                 </div>
               ) : (
-                <>
-                  <ECodeLoading size="lg" />
-                  <div className="absolute -top-1 -right-1">
+                <div className="relative">
+                  <div className="h-16 w-16 rounded-full border-2 border-[var(--ecode-accent)]/20 flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 text-[var(--ecode-accent)] animate-spin" />
+                  </div>
+                  <div className="absolute -top-1 -right-1 bg-[var(--ecode-surface)] rounded-full p-0.5">
                     {CREATION_STEPS[creationProgress.step].icon}
                   </div>
-                </>
+                </div>
               )}
             </div>
             
@@ -660,11 +662,25 @@ export const CreateProjectModal = ({
               )}
               
               {creationProgress.step !== 'error' && creationProgress.step !== 'ready' && (
-                <div className="pt-4">
-                  <Progress value={creationProgress.progress} className="h-2" />
-                  <p className="text-[11px] text-[var(--ecode-muted)] mt-2">
-                    {creationProgress.progress}% complete
-                  </p>
+                <div className="pt-4 space-y-3">
+                  <Progress value={creationProgress.progress} className="h-1.5" />
+                  <div className="flex items-center justify-center gap-4">
+                    {(Object.keys(CREATION_STEPS) as CreationProgress['step'][]).filter(s => s !== 'error').map((step, idx) => {
+                      const stepConfig = CREATION_STEPS[step];
+                      const currentIdx = (Object.keys(CREATION_STEPS) as CreationProgress['step'][]).filter(s => s !== 'error').indexOf(creationProgress.step);
+                      const isActive = step === creationProgress.step;
+                      const isDone = idx < currentIdx;
+                      return (
+                        <div key={step} className="flex items-center gap-1">
+                          <div className={cn(
+                            "w-1.5 h-1.5 rounded-full transition-all duration-300",
+                            isActive ? "bg-[var(--ecode-accent)] scale-125" :
+                            isDone ? "bg-green-500" : "bg-[var(--ecode-border)]"
+                          )} />
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
