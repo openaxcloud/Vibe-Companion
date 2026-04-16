@@ -2435,6 +2435,28 @@ Rules:
       res.flushHeaders();
       res.write(`data: ${JSON.stringify({ type: "status", message: "Preparing workspace..." })}\n\n`);
       const agentStartTime = Date.now();
+      const agentResponseChunks: string[] = [];
+      const agentFileOps: { type: "created" | "updated"; filename: string }[] = [];
+
+      const originalWrite = res.write.bind(res);
+      (res as any).write = function(chunk: any, ...args: any[]) {
+        if (typeof chunk === "string" && chunk.startsWith("data: ")) {
+          try {
+            const jsonStr = chunk.slice(6).trim();
+            if (jsonStr) {
+              const parsed = JSON.parse(jsonStr);
+              if (parsed.type === "text" && parsed.content) {
+                agentResponseChunks.push(parsed.content);
+              } else if (parsed.type === "file_created" && parsed.file?.filename) {
+                agentFileOps.push({ type: "created", filename: parsed.file.filename });
+              } else if (parsed.type === "file_updated" && parsed.file?.filename) {
+                agentFileOps.push({ type: "updated", filename: parsed.file.filename });
+              }
+            }
+          } catch {}
+        }
+        return originalWrite(chunk, ...args);
+      };
 
       const existingFiles = await storage.getFiles(projectId);
       res.write(`data: ${JSON.stringify({ type: "status", message: `Loaded ${existingFiles.length} project file${existingFiles.length !== 1 ? "s" : ""}` })}\n\n`);
@@ -4221,6 +4243,40 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         filesEdited: computedFilesEdited,
         filesModified: agentModifiedFiles.size,
       })}\n\n`);
+      try {
+        const fullResponseText = agentResponseChunks.join("");
+        if (fullResponseText.trim().length > 0) {
+          let conversation = await storage.getConversation(projectId, req.session.userId!);
+          if (!conversation) {
+            conversation = await storage.createConversation({
+              projectId,
+              userId: req.session.userId!,
+              title: (messages[messages.length - 1]?.content || "Agent session").slice(0, 100),
+              model: agentSelectedModel,
+            });
+          }
+
+          const lastUserMsg = messages[messages.length - 1];
+          if (lastUserMsg && lastUserMsg.role === "user") {
+            await storage.addMessage({
+              conversationId: conversation.id,
+              role: "user",
+              content: typeof lastUserMsg.content === "string" ? lastUserMsg.content : JSON.stringify(lastUserMsg.content),
+            });
+          }
+
+          await storage.addMessage({
+            conversationId: conversation.id,
+            role: "assistant",
+            content: fullResponseText.slice(0, 100000),
+            model: agentSelectedModel,
+            fileOps: agentFileOps.length > 0 ? agentFileOps : undefined,
+          });
+        }
+      } catch (convErr: any) {
+        log(`[Agent] Conversation persistence failed: ${convErr.message}`, "agent");
+      }
+
       res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
       res.end();
     } catch (error: any) {
