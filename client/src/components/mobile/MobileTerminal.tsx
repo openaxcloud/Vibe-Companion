@@ -109,41 +109,61 @@ export function MobileTerminal({
     const host = window.location.host;
     const wsUrl = `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(String(projectId))}&sessionId=${encodeURIComponent(sessionId || 'default')}`;
     
-    try {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-      
-      ws.onopen = () => {};
-      
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          
-          if (message.type === 'output') {
-            terminal.write(message.data);
-          } else if (message.type === 'error') {
-            terminal.writeln(`\r\n\x1b[31mError: ${message.error}\x1b[0m\r\n$ `);
+    const MAX_RETRIES = 3;
+    let retryCount = 0;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+
+    const connectWs = () => {
+      if (disposed) return;
+      try {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          if (disposed) { ws.close(); return; }
+          retryCount = 0;
+          terminal.writeln('\x1b[32mConnected to terminal.\x1b[0m\r\n');
+        };
+
+        ws.onmessage = (event) => {
+          if (disposed) return;
+          try {
+            const message = JSON.parse(event.data);
+
+            if (message.type === 'output') {
+              terminal.write(message.data);
+            } else if (message.type === 'error') {
+              terminal.writeln(`\r\n\x1b[31mError: ${message.error}\x1b[0m\r\n$ `);
+            }
+          } catch (error) {
+            console.error('[MobileTerminal] Failed to parse message:', error);
           }
-        } catch (error) {
-          console.error('[MobileTerminal] Failed to parse WebSocket message:', error);
-        }
-      };
-      
-      ws.onerror = (error) => {
-        console.error('[MobileTerminal] WebSocket error:', error);
-        terminal.writeln('\r\n\x1b[31mTerminal connection error. Please refresh.\x1b[0m\r\n');
-      };
-      
-      ws.onclose = () => {
-        terminal.writeln('\r\n\x1b[33mTerminal disconnected. Please refresh.\x1b[0m\r\n');
-        wsRef.current = null;
-      };
-      
-    } catch (error) {
-      console.error('[MobileTerminal] Failed to create WebSocket:', error);
-      terminal.writeln('\x1b[31mFailed to connect to terminal.\x1b[0m\r\n');
-      terminal.writeln('Type commands below (local mode - commands will not execute).\r\n$ ');
-    }
+        };
+
+        ws.onerror = (error) => {
+          console.error('[MobileTerminal] WebSocket error:', error);
+        };
+
+        ws.onclose = () => {
+          wsRef.current = null;
+          if (disposed) return;
+          retryCount++;
+          if (retryCount <= MAX_RETRIES) {
+            terminal.writeln(`\r\n\x1b[33mDisconnected. Reconnecting (${retryCount}/${MAX_RETRIES})...\x1b[0m`);
+            retryTimeout = setTimeout(connectWs, 3000);
+          } else {
+            terminal.writeln('\r\n\x1b[31mTerminal unavailable. Max retries reached.\x1b[0m\r\n');
+          }
+        };
+      } catch (error) {
+        console.error('[MobileTerminal] Failed to create WebSocket:', error);
+        terminal.writeln('\x1b[31mFailed to connect to terminal.\x1b[0m\r\n');
+        terminal.writeln('Type commands below (local mode - commands will not execute).\r\n$ ');
+      }
+    };
+
+    connectWs();
 
     terminal.onData((data) => {
       terminal.scrollToBottom();
@@ -194,6 +214,8 @@ export function MobileTerminal({
     window.addEventListener('resize', handleResize);
 
     return () => {
+      disposed = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
       window.removeEventListener('resize', handleResize);
       observer.disconnect();
       const ws = wsRef.current;

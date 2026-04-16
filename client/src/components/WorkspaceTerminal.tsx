@@ -226,7 +226,9 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
       }
     };
 
-    ws.onerror = () => {};
+    ws.onerror = (err) => {
+      console.error('[WorkspaceTerminal] WebSocket error:', err);
+    };
   }, [closeSocket]);
 
   useEffect(() => {

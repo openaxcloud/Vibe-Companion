@@ -1,5 +1,6 @@
 /* @refresh reset */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useProblemsCount } from "@/hooks/use-problems-count";
 import * as Y from "yjs";
 import { useLocation, useParams } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -241,6 +242,7 @@ function _projectPage() {
   const projectId = params.id;
   const _layoutKey = projectId || "";
   const queryClient = useQueryClient();
+  const { errorsCount, warningsCount } = useProblemsCount(projectId || "");
 
   const SPECIAL_TABS = { WEBVIEW: "__webview__", SHELL: "__shell__", CONSOLE: "__console__", CONFIG: "__config__" } as const;
   const CONFLICT_TAB_PREFIX = "__conflict__";
@@ -8626,7 +8628,7 @@ function _projectPage() {
             language={editorLanguage}
             encoding="UTF-8"
             isConnected={connected}
-            problems={{ errors: 0, warnings: 0 }}
+            problems={{ errors: errorsCount, warnings: warningsCount }}
             deploymentStatus={project?.isPublished ? 'live' : 'idle'}
             onShowShortcuts={() => setShortcutsOpen(true)}
             onDeployClick={() => openPanel("deployments")}

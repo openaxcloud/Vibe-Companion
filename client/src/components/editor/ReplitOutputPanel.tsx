@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { updateProblemsCount } from '@/hooks/use-problems-count';
 import { LazyMotionDiv } from '@/lib/motion';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -222,6 +223,12 @@ export function ReplitOutputPanel({ projectId }: ReplitOutputPanelProps) {
 
   const errorCount = output.filter(line => line.level === 'error').length;
   const warnCount = output.filter(line => line.level === 'warn').length;
+
+  useEffect(() => {
+    if (projectId) {
+      updateProblemsCount(projectId, errorCount, warnCount);
+    }
+  }, [projectId, errorCount, warnCount]);
   const showEmpty = !isLoading && output.length === 0;
   const showNoMatches = !isLoading && output.length > 0 && filteredOutput.length === 0;
 

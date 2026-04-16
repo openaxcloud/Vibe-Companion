@@ -113,8 +113,12 @@ export function ReplitConsole({ projectId, userId, isRunning, executionId, class
         previewReconnectRef.current = setTimeout(connectPreviewWs, 3000);
       };
 
-      ws.onerror = () => {};
-    } catch {}
+      ws.onerror = (err) => {
+        console.error('[ReplitConsole] Preview WebSocket error:', err);
+      };
+    } catch (err) {
+      console.error('[ReplitConsole] Preview WebSocket setup failed:', err);
+    }
   }, [projectId, addLog]);
 
   useEffect(() => {
@@ -173,8 +177,12 @@ export function ReplitConsole({ projectId, userId, isRunning, executionId, class
         if (runtimeDisposedRef.current) return;
       };
 
-      ws.onerror = () => {};
-    } catch {}
+      ws.onerror = (err) => {
+        console.error('[ReplitConsole] Runtime WebSocket error:', err);
+      };
+    } catch (err) {
+      console.error('[ReplitConsole] Runtime WebSocket setup failed:', err);
+    }
   }, [projectId, userId, addLog]);
 
   useEffect(() => {
