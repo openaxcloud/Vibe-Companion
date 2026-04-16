@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import {
   ChevronRight, ChevronDown, FileIcon, FolderOpen, Folder,
@@ -289,6 +289,14 @@ export function ReplitFileExplorer({
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  useEffect(() => {
+    const onNewFile = () => { setNewFileParentFolder(''); setNewFileName(''); setNewFileDialogOpen(true); };
+    const onNewFolder = () => { setNewFolderParentFolder(''); setNewFolderName(''); setNewFolderDialogOpen(true); };
+    window.addEventListener('ecode:new-file', onNewFile);
+    window.addEventListener('ecode:new-folder', onNewFolder);
+    return () => { window.removeEventListener('ecode:new-file', onNewFile); window.removeEventListener('ecode:new-folder', onNewFolder); };
+  }, []);
+
   const filteredFiles = useMemo(() => {
     let result = files || [];
     if (!showHiddenFiles) {
@@ -374,13 +382,13 @@ export function ReplitFileExplorer({
       if (deleteTarget.type === 'file') {
         await apiRequest('DELETE', `/api/files/${deleteTarget.id}`);
       } else {
-        // For directories, delete all files under that path
         const dirFiles = (files || []).filter((f: any) => {
           const fname = f.filename || f.name || '';
           return fname === deleteTarget.id || fname.startsWith(deleteTarget.id + '/');
         });
-        for (const f of dirFiles) {
-          await apiRequest('DELETE', `/api/files/${f.id}`);
+        const ids = dirFiles.map((f: any) => f.id);
+        if (ids.length > 0) {
+          await apiRequest('POST', '/api/files/batch-delete', { ids });
         }
       }
       invalidateFiles();

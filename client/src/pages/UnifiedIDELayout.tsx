@@ -58,6 +58,7 @@ import { ReplitTabBar } from '@/components/ide/ReplitTabBar';
 import { ReplitToolsSheet } from '@/components/ide/ReplitToolsSheet';
 import { QuickFileSearch } from '@/components/ide/QuickFileSearch';
 import { KeyboardShortcutsOverlay } from '@/components/ide/KeyboardShortcutsOverlay';
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { ReplitFileExplorer } from '@/components/editor/ReplitFileExplorer';
 // Direct imports to avoid loading ALL mobile components via barrel file
 import { ReplitMobileInputBar } from '@/components/mobile/ReplitMobileInputBar';
@@ -136,6 +137,7 @@ const PRIMARY_MOBILE_TABS: MobileTab[] = ['preview', 'agent', 'terminal', 'deplo
 function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const deviceType = useDeviceType();
   const { toast } = useToast();
+  const { getShortcutDisplay } = useKeyboardShortcuts();
   const connectionStatus = useConnectionStatus();
   const { errorsCount } = useProblemsCount(projectId);
 
@@ -1619,8 +1621,8 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           files={Array.isArray(filesRaw) ? filesRaw : []}
           isRunning={isRunning}
           onRun={handleRunStop}
-          onNewFile={() => {}}
-          onNewFolder={() => {}}
+          onNewFile={() => window.dispatchEvent(new Event('ecode:new-file'))}
+          onNewFolder={() => window.dispatchEvent(new Event('ecode:new-folder'))}
           onToggleTerminal={() => handleAddTool('terminal')}
           onToggleAI={() => { setIsSidebarCollapsed(false); setLeftPanelTab('agent'); }}
           onTogglePreview={() => handleAddTool('preview')}
@@ -1633,6 +1635,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
             handleFileSelect({ id: typeof file.id === 'string' ? parseInt(file.id, 10) : file.id, name: file.filename || file.name || '' });
           }}
           onForkProject={() => forkMutation.mutate('public')}
+          getShortcutDisplay={getShortcutDisplay}
           projectId={projectId}
         />
       </Suspense>

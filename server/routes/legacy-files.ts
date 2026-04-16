@@ -245,6 +245,43 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
     return res.json({ message: "File deleted" });
   });
 
+  app.post("/api/files/batch-delete", requireAuth, async (req: Request, res: Response) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "ids array required" });
+    }
+    if (ids.length > 500) {
+      return res.status(400).json({ message: "Too many files (max 500)" });
+    }
+    const validFiles: { id: string; projectId: string; filename: string }[] = [];
+    let projectId: string | null = null;
+    for (const id of ids) {
+      const existingFile = await storage.getFile(String(id));
+      if (!existingFile) {
+        return res.status(404).json({ message: `File ${id} not found` });
+      }
+      if (projectId === null) {
+        projectId = existingFile.projectId;
+        const project = await storage.getProject(projectId);
+        if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(projectId, req.session.userId!))) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      } else if (existingFile.projectId !== projectId) {
+        return res.status(400).json({ message: "All files must belong to the same project" });
+      }
+      validFiles.push({ id: String(id), projectId: existingFile.projectId, filename: existingFile.filename });
+    }
+    const { db: dbConn } = await import("../db");
+    const { eq, inArray } = await import("drizzle-orm");
+    const { files } = await import("@shared/schema");
+    await dbConn.delete(files).where(inArray(files.id, validFiles.map(f => f.id)));
+    for (const f of validFiles) {
+      deleteFileFromWorkspace(f.projectId, f.filename);
+    }
+    storage.updateStorageUsage(req.session.userId!).catch(() => {});
+    return res.json({ message: `Deleted ${validFiles.length} files`, deleted: validFiles.length });
+  });
+
   app.patch("/api/projects/:id", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
     if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {

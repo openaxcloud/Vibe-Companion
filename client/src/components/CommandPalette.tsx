@@ -7,6 +7,14 @@ import {
 } from "lucide-react";
 import type { File } from "@shared/schema";
 
+const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+
+function platformShortcut(keys: string | undefined): string | undefined {
+  if (!keys) return undefined;
+  if (!isMac) return keys;
+  return keys.replace(/Ctrl\+/g, '⌘').replace(/Alt\+/g, '⌥').replace(/Shift\+/g, '⇧');
+}
+
 interface CommandItem {
   id: string;
   label: string;
@@ -135,7 +143,7 @@ export function CommandPalette({
   const sc = (id: string, fallback: string): string | undefined => {
     const val = getShortcutDisplay?.(id);
     if (val === null) return undefined;
-    return val ?? fallback;
+    return platformShortcut(val ?? fallback);
   };
 
   const actionCommands: CommandItem[] = useMemo(() => [
