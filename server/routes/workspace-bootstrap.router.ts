@@ -110,6 +110,7 @@ router.post('/bootstrap', csrfProtection, async (req: Request, res: Response) =>
       projectType: "web-app",
       outputType: "web",
       visibility: options?.visibility || "public",
+      bootstrapPrompt: prompt,
     });
 
     await storage.createArtifact({
@@ -149,6 +150,29 @@ router.post('/bootstrap', csrfProtection, async (req: Request, res: Response) =>
       return res.status(400).json({ success: false, error: "Invalid request data" });
     }
     return res.status(500).json({ success: false, error: "Failed to create workspace. Please try again." });
+  }
+});
+
+router.get('/bootstrap-prompt/:projectId', ensureAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as User)?.id || (req.session as any)?.userId;
+    if (!userId) {
+      return res.status(401).json({ prompt: null });
+    }
+    const projectId = req.params.projectId;
+    const project = await storage.getProject(projectId);
+    if (!project || String(project.userId) !== String(userId)) {
+      return res.json({ prompt: null });
+    }
+    const prompt = project.bootstrapPrompt || null;
+    if (prompt) {
+      await storage.updateProject(projectId, { bootstrapPrompt: null } as any);
+      logger.info(`[Bootstrap] Prompt consumed for project ${projectId}`);
+    }
+    return res.json({ prompt });
+  } catch (error: any) {
+    logger.error("[Bootstrap] Prompt fetch error:", error);
+    return res.json({ prompt: null });
   }
 });
 

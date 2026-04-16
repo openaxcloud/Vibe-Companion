@@ -1392,22 +1392,26 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const sendMessageDirectRef = useRef<((content: string, attachments?: Attachment[]) => Promise<boolean | undefined>) | null>(null);
   const bootstrapRetryCountRef = useRef(0);
   useEffect(() => {
+    console.log("[AIPanel Bootstrap] useEffect fired: pendingMessage=", pendingMessage ? `"${pendingMessage.substring(0, 60)}"` : "null", "conversationLoaded=", conversationLoaded, "isStreaming=", isStreaming, "projectId=", projectId, "handledRef=", pendingMessageHandledRef.current ? `"${pendingMessageHandledRef.current.substring(0, 60)}"` : "null");
     let messageToSend = pendingMessage;
     if (!messageToSend && conversationLoaded && !isStreaming && projectId) {
       try {
         const stored = sessionStorage.getItem(`agent-prompt-${projectId}`);
+        console.log("[AIPanel Bootstrap] fallback sessionStorage check:", stored ? `"${stored.substring(0, 60)}"` : "null");
         if (stored && stored !== pendingMessageHandledRef.current) {
           messageToSend = stored;
         }
       } catch {}
     }
     if (messageToSend && conversationLoaded && !isStreaming && messageToSend !== pendingMessageHandledRef.current) {
+      console.log("[AIPanel Bootstrap] SENDING message:", messageToSend.substring(0, 80), "sendMessageDirectRef available=", !!sendMessageDirectRef.current);
       pendingMessageHandledRef.current = messageToSend;
       onPendingMessageConsumed?.();
       bootstrapRetryCountRef.current = 0;
       const capturedMessage = messageToSend;
       const autoSend = () => {
         bootstrapRetryCountRef.current++;
+        console.log("[AIPanel Bootstrap] autoSend attempt", bootstrapRetryCountRef.current, "ref available=", !!sendMessageDirectRef.current);
         if (sendMessageDirectRef.current) {
           sendMessageDirectRef.current(capturedMessage);
           setInput("");
@@ -1417,9 +1421,15 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
           } catch {}
         } else if (bootstrapRetryCountRef.current < 25) {
           setTimeout(autoSend, 200);
+        } else {
+          console.error("[AIPanel Bootstrap] FAILED: sendMessageDirectRef never became available after 25 retries");
         }
       };
       setTimeout(autoSend, 400);
+    } else if (messageToSend && !conversationLoaded) {
+      console.log("[AIPanel Bootstrap] message ready but conversation not loaded yet — will retry when loaded");
+    } else if (messageToSend && messageToSend === pendingMessageHandledRef.current) {
+      console.log("[AIPanel Bootstrap] message already handled, skipping");
     }
   }, [pendingMessage, conversationLoaded, isStreaming, projectId]);
 

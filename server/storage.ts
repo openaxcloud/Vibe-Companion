@@ -191,7 +191,7 @@ export interface IStorage {
   deleteProject(id: string, userId: string): Promise<boolean>;
   duplicateProject(id: string, userId: string): Promise<Project | undefined>;
   createProjectFromTemplate(userId: string, data: { name: string; language: string; projectType?: string; outputType?: string; visibility?: string; files: { filename: string; content: string }[] }): Promise<Project>;
-  updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; outputType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean }>): Promise<Project | undefined>;
+  updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; outputType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean; bootstrapPrompt: string | null }>): Promise<Project | undefined>;
 
   getFiles(projectId: string): Promise<File[]>;
   getFilesByProjectId(projectId: string): Promise<File[]>;
@@ -1052,7 +1052,7 @@ export class DatabaseStorage implements IStorage {
     return file;
   }
 
-  async updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean; outputType: string }>): Promise<Project | undefined> {
+  async updateProject(id: string, data: Partial<{ name: string; description: string; coverImageUrl: string; isPublic: boolean; language: string; projectType: string; isPublished: boolean; publishedSlug: string; customDomain: string; teamId: string; githubRepo: string; visibility: string; selectedWorkflowId: string | null; devUrlPublic: boolean; outputType: string; bootstrapPrompt: string | null }>): Promise<Project | undefined> {
     const updates: any = { updatedAt: new Date() };
     if (data.name !== undefined) updates.name = data.name;
     if (data.description !== undefined) updates.description = data.description;
@@ -1069,6 +1069,7 @@ export class DatabaseStorage implements IStorage {
     if ('selectedWorkflowId' in data) updates.selectedWorkflowId = data.selectedWorkflowId;
     if (data.devUrlPublic !== undefined) updates.devUrlPublic = data.devUrlPublic;
     if (data.outputType !== undefined) updates.outputType = data.outputType;
+    if ('bootstrapPrompt' in data) updates.bootstrapPrompt = data.bootstrapPrompt;
     const [project] = await db.update(projects).set(updates).where(eq(projects.id, id)).returning();
     return project;
   }

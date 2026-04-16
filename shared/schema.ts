@@ -199,6 +199,7 @@ export const projects = pgTable("projects", {
   forkCount: integer("fork_count").notNull().default(0),
   devUrlPublic: boolean("dev_url_public").notNull().default(true),
   enableFeedback: boolean("enable_feedback").notNull().default(false),
+  bootstrapPrompt: text("bootstrap_prompt"),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

@@ -522,15 +522,37 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const [bootstrapPendingMessage, setBootstrapPendingMessage] = useState<string | null>(null);
   useEffect(() => {
     if (bootstrapConsumedRef.current || !projectId) return;
-    const promptKey = `agent-prompt-${projectId}`;
-    const savedPrompt = sessionStorage.getItem(promptKey);
-    if (savedPrompt) {
-      bootstrapConsumedRef.current = true;
-      sessionStorage.removeItem(promptKey);
-      sessionStorage.removeItem(`agent-build-mode-${projectId}`);
-      setBootstrapPendingMessage(savedPrompt);
+    bootstrapConsumedRef.current = true;
+    let localPrompt: string | null = null;
+    try {
+      localPrompt = sessionStorage.getItem(`agent-prompt-${projectId}`);
+      if (localPrompt) {
+        sessionStorage.removeItem(`agent-prompt-${projectId}`);
+        sessionStorage.removeItem(`agent-build-mode-${projectId}`);
+      }
+    } catch {}
+    if (localPrompt) {
+      console.log("[Bootstrap] Found prompt in sessionStorage:", localPrompt.substring(0, 80));
+      setBootstrapPendingMessage(localPrompt);
       setMobileActiveTab('agent');
+      return;
     }
+    (async () => {
+      try {
+        const res = await fetch(`/api/workspace/bootstrap-prompt/${projectId}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.prompt) {
+          console.log("[Bootstrap] Found prompt from server API:", data.prompt.substring(0, 80));
+          setBootstrapPendingMessage(data.prompt);
+          setMobileActiveTab('agent');
+        } else {
+          console.log("[Bootstrap] No bootstrap prompt found (sessionStorage or server)");
+        }
+      } catch (err) {
+        console.warn("[Bootstrap] Failed to fetch bootstrap prompt from server:", err);
+      }
+    })();
   }, [projectId, setMobileActiveTab]);
 
   // Tab content animation
