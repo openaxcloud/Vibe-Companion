@@ -6,8 +6,9 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Keyboard, Search } from 'lucide-react';
+import { platformKey } from '@/lib/platform';
 
 interface ShortcutEntry {
   keys: string[];
@@ -90,7 +91,7 @@ function KeyCombo({ keys }: { keys: string[] }) {
               'shadow-[0_1px_0_var(--ide-border)]'
             )}
           >
-            {key}
+            {platformKey(key)}
           </kbd>
         </span>
       ))}

@@ -6,13 +6,11 @@ import {
   ChevronRight, Code2, Loader2,
 } from "lucide-react";
 import type { File } from "@shared/schema";
-
-const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+import { platformShortcut as _platformShortcut } from "@/lib/platform";
 
 function platformShortcut(keys: string | undefined): string | undefined {
   if (!keys) return undefined;
-  if (!isMac) return keys;
-  return keys.replace(/Ctrl\+/g, '⌘').replace(/Alt\+/g, '⌥').replace(/Shift\+/g, '⇧');
+  return _platformShortcut(keys);
 }
 
 interface CommandItem {

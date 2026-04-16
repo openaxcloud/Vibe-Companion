@@ -137,7 +137,7 @@ const PRIMARY_MOBILE_TABS: MobileTab[] = ['preview', 'agent', 'terminal', 'deplo
 function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   const deviceType = useDeviceType();
   const { toast } = useToast();
-  const { getShortcutDisplay } = useKeyboardShortcuts();
+  const { getShortcutDisplay, matchesCommand } = useKeyboardShortcuts();
   const connectionStatus = useConnectionStatus();
   const { errorsCount } = useProblemsCount(projectId);
 
@@ -653,22 +653,54 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if (matchesCommand('command-palette-alt', e)) {
         e.preventDefault();
         setShowCommandPalette(prev => !prev);
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
+      if (matchesCommand('command-palette', e)) {
+        e.preventDefault();
+        setShowQuickFileSearch(prev => !prev);
+      }
+      if (matchesCommand('command-palette-shift', e)) {
+        e.preventDefault();
+        setShowCommandPalette(prev => !prev);
+      }
+      if (matchesCommand('search-files', e)) {
         e.preventDefault();
         handleAddOpenTab('search');
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'p') {
+      if (matchesCommand('toggle-sidebar', e)) {
         e.preventDefault();
-        setShowQuickFileSearch(prev => !prev);
+        setShowFileExplorer(prev => !prev);
+      }
+      if (matchesCommand('toggle-terminal', e) || matchesCommand('toggle-terminal-alt', e)) {
+        e.preventDefault();
+        handleAddTool('terminal');
+      }
+      if (matchesCommand('toggle-preview', e)) {
+        e.preventDefault();
+        handleAddTool('preview');
+      }
+      if (matchesCommand('new-file', e)) {
+        e.preventDefault();
+        window.dispatchEvent(new Event('ecode:new-file'));
+      }
+      if (matchesCommand('run', e) || matchesCommand('run-alt', e)) {
+        e.preventDefault();
+        handleRunStop();
+      }
+      if (matchesCommand('version-control', e)) {
+        e.preventDefault();
+        handleAddOpenTab('git');
+      }
+      if (matchesCommand('keyboard-shortcuts', e)) {
+        e.preventDefault();
+        setShowKeyboardShortcuts(prev => !prev);
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [setShowQuickFileSearch, handleAddOpenTab]);
+  }, [matchesCommand, setShowQuickFileSearch, handleAddOpenTab, handleAddTool, handleRunStop]);
 
   // Mobile swipe handlers
   const mobileSwipeHandlers = useMemo(() => createPanHandlers({
@@ -1566,7 +1598,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           gitBranch={gitBranch}
           isRunning={isRunning}
           cursorPosition={cursorPosition}
-          language="TypeScript"
+          language={activeFileLanguage || "TypeScript"}
           encoding="UTF-8"
           onShowShortcuts={() => setShowKeyboardShortcuts(true)}
           isConnected={isConnected}
