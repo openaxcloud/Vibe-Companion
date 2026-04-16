@@ -48,7 +48,9 @@ import {
   Copy,
   ExternalLink,
   Lock,
-  FolderOpen
+  FolderOpen,
+  Download,
+  Upload
 } from 'lucide-react';
 import { ECodeLoading } from '@/components/ECodeLoading';
 
@@ -170,6 +172,10 @@ const SSHPanel = instrumentedLazy(() => import('@/components/SSHPanel').then(m =
 const ThreadsPanel = instrumentedLazy(() => import('@/components/ThreadsPanel').then(m => m.default ? m : { default: m.ThreadsPanel || m }), 'ThreadsPanel');
 const TestRunnerPanel = instrumentedLazy(() => import('@/components/TestRunnerPanel').then(m => m.default ? m : { default: m.TestRunnerPanel || m }), 'TestRunnerPanel');
 const SecurityScannerPanel = instrumentedLazy(() => import('@/components/SecurityScannerPanel').then(m => m.default ? m : { default: m.SecurityScannerPanel || m }), 'SecurityScannerPanel');
+const ReplitProblemsPanel = instrumentedLazy(() => import('@/components/editor/ReplitProblemsPanel').then(m => ({ default: m.ReplitProblemsPanel })), 'ReplitProblemsPanel');
+const ReplitOutputPanel = instrumentedLazy(() => import('@/components/editor/ReplitOutputPanel').then(m => ({ default: m.ReplitOutputPanel })), 'ReplitOutputPanel');
+const BillingSystem = instrumentedLazy(() => import('@/components/BillingSystem').then(m => ({ default: m.BillingSystem })), 'BillingSystem');
+const ReplitDeploymentPipeline = instrumentedLazy(() => import('@/components/ReplitDeploymentPipeline'), 'ReplitDeploymentPipeline');
 
 interface UnifiedIDELayoutProps {
   projectId: string;
@@ -187,6 +193,162 @@ const SWIPE_THRESHOLD = 50;
 const SWIPE_VELOCITY_THRESHOLD = 0.3;
 
 const mobileTabOrder: MobileTab[] = ['preview', 'agent', 'deploy', 'more'];
+
+function ProgressPanel({ projectId }: { projectId: string }) {
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [workflows, setWorkflows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [tasksRes, wfRes] = await Promise.all([
+          fetch(`/api/projects/${projectId}/tasks`, { credentials: 'include' }).catch(() => null),
+          fetch(`/api/workflows?projectId=${encodeURIComponent(projectId)}`, { credentials: 'include' }).catch(() => null),
+        ]);
+        if (cancelled) return;
+        const tasksData = tasksRes?.ok ? await tasksRes.json() : [];
+        const wfData = wfRes?.ok ? await wfRes.json() : [];
+        setTasks(Array.isArray(tasksData) ? tasksData : tasksData?.tasks || []);
+        setWorkflows(Array.isArray(wfData) ? wfData : wfData?.workflows || []);
+      } catch { /* ignore */ }
+      if (!cancelled) setLoading(false);
+    }
+    load();
+    const interval = setInterval(load, 10000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [projectId]);
+
+  const activeTasks = tasks.filter((t: any) => t.status === 'in_progress' || t.status === 'pending');
+  const completedTasks = tasks.filter((t: any) => t.status === 'completed' || t.status === 'done');
+  const runningWorkflows = workflows.filter((w: any) => w.status === 'running');
+
+  return (
+    <div className="h-full overflow-auto p-4 space-y-3">
+      <h2 className="text-[15px] font-semibold" data-testid="text-progress-title">Progress</h2>
+      {loading ? (
+        <div className="flex items-center justify-center h-20"><ECodeLoading size="sm" /></div>
+      ) : (
+        <div className="space-y-3">
+          {runningWorkflows.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">Running Workflows</h3>
+              {runningWorkflows.map((w: any, i: number) => (
+                <div key={w.id || i} className="flex items-center gap-2 text-[12px] border border-border rounded-lg p-3" data-testid={`workflow-item-${i}`}>
+                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                  <span className="font-medium">{w.name || w.command || 'Workflow'}</span>
+                  <span className="text-muted-foreground ml-auto">{w.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {activeTasks.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">Active Tasks</h3>
+              {activeTasks.map((t: any, i: number) => (
+                <div key={t.id || i} className="flex items-center gap-2 text-[12px] border border-border rounded-lg p-3" data-testid={`task-item-${i}`}>
+                  <div className={cn("w-2 h-2 rounded-full shrink-0", t.status === 'in_progress' ? 'bg-amber-500 animate-pulse' : 'bg-gray-400')} />
+                  <span className="font-medium truncate">{t.title || t.description || 'Task'}</span>
+                  <span className="text-muted-foreground ml-auto capitalize">{t.status?.replace('_', ' ')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {completedTasks.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">Completed ({completedTasks.length})</h3>
+              {completedTasks.slice(0, 5).map((t: any, i: number) => (
+                <div key={t.id || i} className="flex items-center gap-2 text-[12px] text-muted-foreground border border-border/50 rounded-lg p-2.5">
+                  <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <span className="truncate">{t.title || t.description || 'Task'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {activeTasks.length === 0 && runningWorkflows.length === 0 && completedTasks.length === 0 && (
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground border border-border rounded-lg p-3">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span>No active tasks. Start the AI agent or run a workflow to track progress.</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SessionReplayPanel({ projectId }: { projectId: string }) {
+  const [checkpoints, setCheckpoints] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedCp, setSelectedCp] = useState<any>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/checkpoints`, { credentials: 'include' });
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          setCheckpoints(Array.isArray(data) ? data : data?.checkpoints || []);
+        }
+      } catch { /* ignore */ }
+      if (!cancelled) setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  return (
+    <div className="h-full overflow-auto p-4 space-y-3">
+      <h2 className="text-[15px] font-semibold" data-testid="text-session-replay-title">Session Replay</h2>
+      {loading ? (
+        <div className="flex items-center justify-center h-20"><ECodeLoading size="sm" /></div>
+      ) : checkpoints.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-40 text-center">
+          <Monitor className="h-8 w-8 text-muted-foreground/40 mb-2" />
+          <p className="text-[12px] text-muted-foreground">No session snapshots yet.</p>
+          <p className="text-[11px] text-muted-foreground/70 mt-1">Checkpoints created by the AI agent or manually will appear here as a visual timeline.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-[11px] text-muted-foreground">{checkpoints.length} checkpoint(s) available</p>
+          <div className="relative pl-4 border-l-2 border-border space-y-3">
+            {checkpoints.slice(0, 20).map((cp: any, i: number) => {
+              const ts = cp.createdAt || cp.timestamp;
+              const label = cp.label || cp.description || cp.message || `Checkpoint ${i + 1}`;
+              return (
+                <button
+                  key={cp.id || i}
+                  onClick={() => setSelectedCp(selectedCp?.id === cp.id ? null : cp)}
+                  className={cn(
+                    "relative w-full text-left p-2.5 rounded-lg border transition-colors text-[12px]",
+                    selectedCp?.id === cp.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"
+                  )}
+                  data-testid={`checkpoint-item-${i}`}
+                >
+                  <div className="absolute -left-[1.35rem] top-3 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
+                  <div className="font-medium truncate">{label}</div>
+                  {ts && <div className="text-[10px] text-muted-foreground mt-0.5">{new Date(ts).toLocaleString()}</div>}
+                  {cp.filesChanged && <div className="text-[10px] text-muted-foreground">{cp.filesChanged} file(s) changed</div>}
+                </button>
+              );
+            })}
+          </div>
+          {selectedCp && (
+            <div className="mt-3 p-3 border border-border rounded-lg bg-surface-solid text-[12px] space-y-2">
+              <div className="font-medium">Checkpoint Details</div>
+              {selectedCp.description && <p className="text-muted-foreground">{selectedCp.description}</p>}
+              {selectedCp.files && <p className="text-muted-foreground">Files: {Array.isArray(selectedCp.files) ? selectedCp.files.length : 'N/A'}</p>}
+              <div className="text-[10px] text-muted-foreground">ID: {selectedCp.id}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function UnifiedIDELayout({ 
   projectId, 
@@ -1051,7 +1213,9 @@ function UnifiedIDELayout({
               isOpen={true}
               onClose={() => setMobileActiveTab('agent')}
               onSearch={(query, category) => {
-                console.log('[MobileSearch] Search:', query, category);
+                if (query.trim()) {
+                  handleAddTool('search');
+                }
               }}
             />
           </Suspense>
@@ -1138,10 +1302,10 @@ function UnifiedIDELayout({
         return (
           <MobileEmptyState
             variant="no-content"
-            title="Panel non disponible"
-            description="Ce panel n'est pas encore disponible sur mobile."
+            title="Panel not available"
+            description="This panel is not yet available on mobile."
             action={{
-              label: "Retour à l'Agent",
+              label: "Back to Agent",
               onClick: () => setMobileActiveTab('agent'),
             }}
           />
@@ -1475,10 +1639,7 @@ function UnifiedIDELayout({
     if (currentTab.id === 'testing' || currentTab.id === 'test-runner') {
       return (
         <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Tests..." /></div>}>
-          <div className="h-full overflow-auto p-4">
-            <h2 className="text-[15px] font-semibold mb-4">Test Runner</h2>
-            <p className="text-muted-foreground">Run and manage your tests here.</p>
-          </div>
+          <TestRunnerPanel projectId={projectId} onClose={() => handleTabClose(currentTab.id)} />
         </Suspense>
       );
     }
@@ -1486,20 +1647,21 @@ function UnifiedIDELayout({
     // Problems panel - inline
     if (currentTab.id === 'problems') {
       return (
-        <div className="h-full overflow-auto p-4">
-          <h2 className="text-[15px] font-semibold mb-4">Problems</h2>
-          <p className="text-muted-foreground">View errors and warnings in your code.</p>
-        </div>
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Problems..." /></div>}>
+          <ReplitProblemsPanel projectId={projectId} onFileNavigate={(filePath: string) => {
+            const file = workspace.files?.find((f: any) => f.path === filePath || f.name === filePath);
+            if (file) workspace.openFile?.(file);
+          }} />
+        </Suspense>
       );
     }
 
     // Output panel - inline
     if (currentTab.id === 'output') {
       return (
-        <div className="h-full overflow-auto p-4">
-          <h2 className="text-[15px] font-semibold mb-4">Output</h2>
-          <p className="text-muted-foreground">View build and runtime output here.</p>
-        </div>
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Output..." /></div>}>
+          <ReplitOutputPanel projectId={projectId} />
+        </Suspense>
       );
     }
 
@@ -1546,42 +1708,91 @@ function UnifiedIDELayout({
       );
     }
 
-    // Progress panel - inline
     if (currentTab.id === 'progress') {
-      return (
-        <div className="h-full overflow-auto p-4">
-          <h2 className="text-[15px] font-semibold mb-4">Progress</h2>
-          <p className="text-muted-foreground">View task progress and status.</p>
-        </div>
-      );
+      return <ProgressPanel projectId={projectId} />;
     }
 
-    // Video replay - inline
     if (currentTab.id === 'video-replay') {
+      return <SessionReplayPanel projectId={projectId} />;
+    }
+
+    if (currentTab.id === 'deployment-pipeline') {
       return (
-        <div className="h-full overflow-auto p-4">
-          <h2 className="text-[15px] font-semibold mb-4">Video Replay</h2>
-          <p className="text-muted-foreground">Review recorded sessions.</p>
-        </div>
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Pipeline..." /></div>}>
+          <ReplitDeploymentPipeline projectId={projectId} />
+        </Suspense>
       );
     }
 
     // Billing - inline
     if (currentTab.id === 'billing') {
       return (
-        <div className="h-full overflow-auto p-4">
-          <h2 className="text-[15px] font-semibold mb-4">Billing</h2>
-          <p className="text-muted-foreground">Manage your subscription and usage.</p>
-        </div>
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" text="Loading Billing..." /></div>}>
+          <div className="h-full overflow-auto">
+            <BillingSystem userId={workspace.project?.userId || workspace.project?.ownerId || ''} />
+          </div>
+        </Suspense>
       );
     }
 
     // Import/Export - inline
     if (currentTab.id === 'import-export') {
       return (
-        <div className="h-full overflow-auto p-4">
-          <h2 className="text-[15px] font-semibold mb-4">Import / Export</h2>
-          <p className="text-muted-foreground">Import or export project files.</p>
+        <div className="h-full overflow-auto p-4 space-y-4">
+          <h2 className="text-[15px] font-semibold">Import / Export</h2>
+          <div className="space-y-3">
+            <div className="border border-border rounded-lg p-4 space-y-2">
+              <h3 className="text-[13px] font-medium">Export Project</h3>
+              <p className="text-[11px] text-muted-foreground">Download all project files as a ZIP archive.</p>
+              <Button size="sm" variant="outline" className="text-[11px]" data-testid="button-export-zip"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/projects/${projectId}/export`, { credentials: 'include' });
+                    if (!res.ok) throw new Error('Export failed');
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${workspace.project?.name || 'project'}.zip`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  } catch (e: any) {
+                    toast({ title: 'Export failed', description: e.message, variant: 'destructive' });
+                  }
+                }}>
+                <Download className="h-3 w-3 mr-1" /> Download ZIP
+              </Button>
+            </div>
+            <div className="border border-border rounded-lg p-4 space-y-2">
+              <h3 className="text-[13px] font-medium">Import Files</h3>
+              <p className="text-[11px] text-muted-foreground">Upload files or a ZIP archive to add to the project.</p>
+              <Button size="sm" variant="outline" className="text-[11px]" data-testid="button-import-files"
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.multiple = true;
+                  input.accept = '.zip,.tar,.gz,*';
+                  input.onchange = async (ev) => {
+                    const files = (ev.target as HTMLInputElement).files;
+                    if (!files?.length) return;
+                    const formData = new FormData();
+                    for (let i = 0; i < files.length; i++) formData.append('files', files[i]);
+                    try {
+                      const res = await fetch(`/api/projects/${projectId}/import`, { method: 'POST', credentials: 'include', body: formData });
+                      if (!res.ok) throw new Error('Import failed');
+                      const result = await res.json();
+                      toast({ title: 'Files imported successfully', description: `${result.imported} file(s) added` });
+                      window.dispatchEvent(new CustomEvent('ecode:files-changed', { detail: { projectId } }));
+                    } catch (e: any) {
+                      toast({ title: 'Import failed', description: e.message, variant: 'destructive' });
+                    }
+                  };
+                  input.click();
+                }}>
+                <Upload className="h-3 w-3 mr-1" /> Upload Files
+              </Button>
+            </div>
+          </div>
         </div>
       );
     }

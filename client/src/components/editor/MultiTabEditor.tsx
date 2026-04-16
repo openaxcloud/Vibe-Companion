@@ -62,6 +62,7 @@ export function MultiTabEditor({
   const onChangeRef = useRef(onChange);
   const [minimapContent, setMinimapContent] = useState('');
   const [minimapLine, setMinimapLine] = useState(1);
+  const [minimapVisibleRange, setMinimapVisibleRange] = useState<{ start: number; end: number } | undefined>();
   const minimapEnabledRef = useRef(minimapEnabled);
   minimapEnabledRef.current = minimapEnabled;
   
@@ -88,9 +89,18 @@ export function MultiTabEditor({
             setMinimapContent(newContent);
           }
         }
-        if ((update.selectionSet || update.docChanged) && minimapEnabledRef.current && file.id === activeFileIdRef.current) {
+        if ((update.selectionSet || update.docChanged || update.geometryChanged) && minimapEnabledRef.current && file.id === activeFileIdRef.current) {
           const cursor = update.state.selection.main.head;
           setMinimapLine(update.state.doc.lineAt(cursor).number);
+          const dom = update.view.dom;
+          if (dom) {
+            const rect = dom.getBoundingClientRect();
+            const startBlock = update.view.lineBlockAtHeight(update.view.scrollDOM.scrollTop);
+            const endBlock = update.view.lineBlockAtHeight(update.view.scrollDOM.scrollTop + rect.height);
+            const startLine = update.state.doc.lineAt(startBlock.from).number;
+            const endLine = update.state.doc.lineAt(endBlock.from).number;
+            setMinimapVisibleRange({ start: startLine, end: endLine });
+          }
         }
       });
 
@@ -346,6 +356,7 @@ export function MultiTabEditor({
           <ReplitMinimap
             content={minimapContent}
             currentLine={minimapLine}
+            visibleRange={minimapVisibleRange}
             onLineClick={(line) => {
               const instance = editorsRef.current.get(currentActiveFileId);
               if (instance) {

@@ -69,7 +69,7 @@ export default function About() {
       ],
       milestones: [
         { year: '2024', event: 'E-Code founded with a vision to democratize software creation.' },
-        { year: '2025', event: 'Global launch of the Vibe platform.' }
+        { year: '2025', event: 'Global launch of the E-Code platform.' }
       ],
       team: [
         { name: 'Sarah Chen', role: 'CEO & Founder', avatar: 'SC' },
@@ -136,16 +136,16 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
               Series A raise in progress · Targeting $25M for global launch
             </Badge>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold">
-              Orchestrating the <span className="text-primary">Vibe coding era</span> for global enterprises
+              Orchestrating the <span className="text-primary">AI coding era</span> for global enterprises
             </h1>
             <p className="text-base sm:text-[15px] md:text-xl text-muted-foreground max-w-3xl mx-auto px-4 sm:px-0">
               E-Code partners with the world’s most ambitious engineering, product, and data teams to choreograph
-              creation in the cloud. Our Vibe platform blends human craft with adaptive AI so leaders can launch
+              creation in the cloud. Our platform blends human craft with adaptive AI so leaders can launch
               resilient software, govern responsibly, and scale talent with confidence.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
               <Button size="lg" onClick={() => navigate('/ai-agent')} data-testid="button-about-discover-platform">
-                Discover the Vibe platform
+                Discover the E-Code platform
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
               <Button
@@ -212,7 +212,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
                 <CardContent className="p-8">
                   <div className="text-center space-y-6">
                     <div className="text-6xl font-bold text-primary">$25M</div>
-                    <p className="text-xl font-semibold">Series A growth capital powering the Vibe platform</p>
+                    <p className="text-xl font-semibold">Series A growth capital powering the E-Code platform</p>
                     <p className="text-[13px] text-muted-foreground max-w-md mx-auto">
                       The raise accelerates enterprise go-to-market, compliance automation, and sovereign-ready
                       infrastructure investments so customers can scale with confidence.
@@ -245,7 +245,7 @@ function AboutContent({ data, navigate, user }: { data: AboutData, navigate: any
           <div className="text-center mb-12">
             <Badge variant="default" className="mb-4 text-[13px] px-4 py-1">
               <Sparkles className="h-4 w-4 mr-1" />
-              The Vibe platform
+              The E-Code platform
             </Badge>
             <h2 className="text-4xl font-bold mb-6">
               Where human rhythm meets autonomous software creation

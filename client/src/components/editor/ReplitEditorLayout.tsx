@@ -228,7 +228,8 @@ export function ReplitEditorLayout({
       default:
         return (
           <div className="p-4 text-center text-muted-foreground">
-            <p className="text-[13px]">{activeTool} coming soon...</p>
+            <p className="text-[13px] capitalize">{activeTool?.replace(/-/g, ' ')}</p>
+            <p className="text-[11px] mt-1 opacity-60">Open this tool from the toolbar above.</p>
           </div>
         );
     }

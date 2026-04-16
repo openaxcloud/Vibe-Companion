@@ -93,6 +93,7 @@ const defaultItems: ActivityBarItem[] = [
   { id: 'mcp', icon: Cpu, label: 'MCP' },
   { id: 'collaboration', icon: Users, label: 'Collaboration', separator: true },
   { id: 'security-scanner', icon: Shield, label: 'Security' },
+  { id: 'ssh', icon: Globe, label: 'SSH' },
 ];
 
 const bottomItems: ActivityBarItem[] = [

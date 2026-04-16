@@ -190,6 +190,7 @@ export class MainRouter {
       extensionsMod,
       workflowsMod,
       projectShellMod,
+      projectArchiveMod,
       mcpServersMod,
       networkingMod,
       videoMod,
@@ -289,6 +290,7 @@ export class MainRouter {
       safeImport("extensions", () => import("./extensions.router")),
       safeImport("workflows", () => import("./workflows.router")),
       safeImport("project-shell", () => import("./shell.router")),
+      safeImport("project-archive", () => import("./project-archive.router")),
       safeImport("mcp-servers", () => import("./mcp-servers.router")),
       safeImport("networking", () => import("./networking.router")),
       safeImport("video", () => import("./video.router")),
@@ -439,6 +441,7 @@ export class MainRouter {
     mount(app, '/api/extensions', tierLimiters.api, def(extensionsMod));
     mount(app, '/api/workflows', tierLimiters.api, def(workflowsMod));
     mount(app, '/api/projects', tierLimiters.api, def(projectShellMod));
+    mount(app, '/api', tierLimiters.api, def(projectArchiveMod));
     mount(app, '/api/projects', tierLimiters.api, def(mcpServersMod));
     mount(app, '/api/projects', tierLimiters.api, def(networkingMod));
     mount(app, '/api/projects', tierLimiters.api, def(videoMod));

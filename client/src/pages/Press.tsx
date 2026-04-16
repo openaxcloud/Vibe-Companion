@@ -51,9 +51,9 @@ export default function Press() {
   const pressReleases: PressRelease[] = [
     {
       date: '2025-07-08',
-      title: 'E-Code Exits Stealth with Vibe Coding Beta for Collaborative Teams',
+      title: 'E-Code Exits Stealth with AI Coding Beta for Collaborative Teams',
       description:
-        'Launch introduces a playful, guided AI building experience tailored for product squads adopting vibe-driven workflows.',
+        'Launch introduces a playful, guided AI building experience tailored for product squads adopting AI-powered workflows.',
       link: '#'
     },
     {
@@ -115,7 +115,7 @@ export default function Press() {
     {
       outlet: 'BetaList',
       date: '2025-07-10',
-      title: 'E-Code Introduces “Vibe Coding” for the Next Wave of Makers',
+      title: 'E-Code Introduces “AI Coding” for the Next Wave of Makers',
       quote: 'E-Code\'s friendly AI feels like pairing with your most creative teammate.',
       link: '#'
     },
@@ -135,7 +135,7 @@ export default function Press() {
     {
       outlet: 'Indie Hackers',
       date: '2025-05-29',
-      title: 'How Vibe Coding Helps Small Teams Feel 10x Bigger',
+      title: 'How AI Coding Helps Small Teams Feel 10x Bigger',
       quote: 'This is the first AI workspace that feels built for the creative energy of shipping together.',
       link: '#'
     }
@@ -151,7 +151,7 @@ export default function Press() {
     {
       value: '150',
       label: 'Daily Projects',
-      description: 'Average vibe-coded launches happening across beta',
+      description: 'Average AI-coded launches happening across beta',
       icon: Zap
     },
     {
@@ -184,7 +184,7 @@ export default function Press() {
     {
       title: 'Built for creative shipping squads',
       description:
-        'Teams use guided prompts, saved rituals, and realtime pair-building to keep momentum high without losing the vibe.',
+        'Teams use guided prompts, saved rituals, and realtime pair-building to keep momentum high without losing the flow.',
       icon: Rocket
     },
     {
@@ -217,7 +217,7 @@ export default function Press() {
               Press Center
             </h1>
             <p className="text-[15px] md:text-xl text-muted-foreground">
-              Explore the latest stories, milestones, and resources from E-Code — the vibe coding
+              Explore the latest stories, milestones, and resources from E-Code — the AI coding
               platform helping small teams feel like crews of 50.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -406,7 +406,7 @@ export default function Press() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p>
-                E-Code is the vibe coding platform pairing human creativity with joyful AI rituals.
+                E-Code is the AI coding platform pairing human creativity with joyful AI rituals.
                 We launched our private beta just three months ago to help small, ambitious teams
                 co-create production-ready software without losing their unique flavor.
               </p>
@@ -420,7 +420,7 @@ export default function Press() {
                 <div>
                   <h4 className="font-semibold mb-2">Key Features</h4>
                   <ul className="space-y-1 text-[13px] text-muted-foreground">
-                    <li>• Guided vibe prompts tuned for each team ritual</li>
+                    <li>• Guided AI prompts tuned for each team ritual</li>
                     <li>• Live co-building with clear diff reviews</li>
                     <li>• Instant previews and hosted sandboxes</li>
                     <li>• Shared knowledge base of reusable flows</li>

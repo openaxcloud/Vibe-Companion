@@ -119,6 +119,7 @@ function getGitStatusIndicator(path: string, gitChangedFiles?: Set<string>): Rea
 function TreeItem({
   node, depth, selectedFileId, expandedDirs, toggleDir, onFileSelect,
   gitChangedFiles, dirtyFiles, onRename, onDelete, onCopyPath, onNewFile, onNewFolder,
+  inlineRenameId, onStartInlineRename, onCommitInlineRename, onCancelInlineRename,
 }: {
   node: FileNode; depth: number; selectedFileId: string | null;
   expandedDirs: Set<string>; toggleDir: (path: string) => void;
@@ -130,10 +131,16 @@ function TreeItem({
   onCopyPath: (path: string) => void;
   onNewFile: (parentFolder: string) => void;
   onNewFolder: (parentFolder: string) => void;
+  inlineRenameId?: string | null;
+  onStartInlineRename?: (id: string, name: string) => void;
+  onCommitInlineRename?: (id: string, newName: string) => void;
+  onCancelInlineRename?: () => void;
 }) {
   const isExpanded = expandedDirs.has(node.path);
   const isSelected = node.type === 'file' && node.fileId === selectedFileId;
   const isDirty = node.type === 'file' && node.fileId && dirtyFiles?.has(node.fileId);
+  const isInlineRenaming = node.fileId && inlineRenameId === node.fileId;
+  const inlineInputRef = useRef<HTMLInputElement>(null);
 
   const contextMenuItems = node.type === 'dir' ? (
     <>
@@ -175,7 +182,7 @@ function TreeItem({
       <ContextMenuSeparator className="bg-[var(--ide-surface)]" />
       <ContextMenuItem
         className="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-surface)] cursor-pointer rounded-md px-2 py-1.5"
-        onClick={() => { if (node.fileId) onRename(node.fileId, node.path); }}
+        onClick={() => { if (node.fileId && onStartInlineRename) onStartInlineRename(node.fileId, node.name); else if (node.fileId) onRename(node.fileId, node.path); }}
       >
         <Pencil className="w-3 h-3" /> Rename
       </ContextMenuItem>
@@ -224,7 +231,39 @@ function TreeItem({
                 <FileTypeIcon filename={node.name} />
               </>
             )}
-            <span className="text-[11px] truncate flex-1">{node.name}</span>
+            {isInlineRenaming ? (
+              <input
+                ref={inlineInputRef}
+                className="text-[11px] flex-1 bg-[var(--ide-surface)] text-[var(--ide-text)] border border-[#0079F2] rounded px-1 py-0 outline-none min-w-0"
+                defaultValue={node.name}
+                autoFocus
+                data-testid={`input-inline-rename-${node.fileId}`}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={(e) => {
+                  const val = e.target.value.trim();
+                  if (val && val !== node.name && node.fileId && onCommitInlineRename) {
+                    onCommitInlineRename(node.fileId, val);
+                  } else {
+                    onCancelInlineRename?.();
+                  }
+                }}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') {
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (val && val !== node.name && node.fileId && onCommitInlineRename) {
+                      onCommitInlineRename(node.fileId, val);
+                    } else {
+                      onCancelInlineRename?.();
+                    }
+                  } else if (e.key === 'Escape') {
+                    onCancelInlineRename?.();
+                  }
+                }}
+              />
+            ) : (
+              <span className="text-[11px] truncate flex-1">{node.name}</span>
+            )}
             {getGitStatusIndicator(node.path, gitChangedFiles)}
             {isDirty && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Unsaved changes" />}
           </button>
@@ -249,6 +288,10 @@ function TreeItem({
           onCopyPath={onCopyPath}
           onNewFile={onNewFile}
           onNewFolder={onNewFolder}
+          inlineRenameId={inlineRenameId}
+          onStartInlineRename={onStartInlineRename}
+          onCommitInlineRename={onCommitInlineRename}
+          onCancelInlineRename={onCancelInlineRename}
         />
       ))}
     </div>
@@ -284,6 +327,7 @@ export function ReplitFileExplorer({
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ id: string; currentName: string } | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [inlineRenameId, setInlineRenameId] = useState<string | null>(null);
 
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -306,13 +350,16 @@ export function ReplitFileExplorer({
         return next;
       });
     };
+    const onFilesChanged = () => { invalidateFiles(); };
     window.addEventListener('ecode:new-file', onNewFile);
     window.addEventListener('ecode:new-folder', onNewFolder);
     window.addEventListener('ecode:reveal-path', onRevealPath);
+    window.addEventListener('ecode:files-changed', onFilesChanged);
     return () => {
       window.removeEventListener('ecode:new-file', onNewFile);
       window.removeEventListener('ecode:new-folder', onNewFolder);
       window.removeEventListener('ecode:reveal-path', onRevealPath);
+      window.removeEventListener('ecode:files-changed', onFilesChanged);
     };
   }, []);
 
@@ -435,6 +482,30 @@ export function ReplitFileExplorer({
       toast({ title: 'Failed to rename', description: err.message, variant: 'destructive' });
     }
   }, [renameTarget, renameValue, invalidateFiles, toast]);
+
+  const handleStartInlineRename = useCallback((id: string, _name: string) => {
+    setInlineRenameId(id);
+  }, []);
+
+  const handleCommitInlineRename = useCallback(async (id: string, newName: string) => {
+    setInlineRenameId(null);
+    const file = files?.find((f: any) => String(f.id) === String(id));
+    if (!file) return;
+    const currentPath = file.filename || file.name || file.path || '';
+    const dir = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/') + 1) : '';
+    const fullNewName = dir + newName;
+    try {
+      await apiRequest('PATCH', `/api/files/${id}`, { filename: fullNewName });
+      invalidateFiles();
+      toast({ title: 'Renamed', description: newName });
+    } catch (err: any) {
+      toast({ title: 'Failed to rename', description: err.message, variant: 'destructive' });
+    }
+  }, [files, invalidateFiles, toast]);
+
+  const handleCancelInlineRename = useCallback(() => {
+    setInlineRenameId(null);
+  }, []);
 
   // --- Upload ---
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -688,6 +759,10 @@ export function ReplitFileExplorer({
               onCopyPath={copyPathToClipboard}
               onNewFile={openNewFileDialog}
               onNewFolder={openNewFolderDialog}
+              inlineRenameId={inlineRenameId}
+              onStartInlineRename={handleStartInlineRename}
+              onCommitInlineRename={handleCommitInlineRename}
+              onCancelInlineRename={handleCancelInlineRename}
             />
           ))
         )}

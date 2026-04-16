@@ -1,9 +1,99 @@
-import { useState, useEffect, useRef } from "react";
-import { Search, X, Mic, Clock, TrendingUp, Filter, Command } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Search, X, Mic, Clock, TrendingUp, Filter, Command, FileCode, Users, Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+function SearchResults({ query, category, onNewSearch }: { query: string; category: string; onNewSearch: () => void }) {
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function doSearch() {
+      setLoading(true);
+      try {
+        const endpoints: string[] = [];
+        if (category === 'all' || category === 'projects') {
+          endpoints.push(`/api/projects?search=${encodeURIComponent(query)}&limit=10`);
+        }
+        if (category === 'all' || category === 'templates') {
+          endpoints.push(`/api/marketplace/templates?search=${encodeURIComponent(query)}`);
+        }
+        if (category === 'all' || category === 'users') {
+          endpoints.push(`/api/users/search?q=${encodeURIComponent(query)}&limit=10`);
+        }
+        const responses = await Promise.all(
+          endpoints.map(url => fetch(url, { credentials: 'include' }).then(r => r.ok ? r.json() : []).catch(() => []))
+        );
+        if (cancelled) return;
+        const combined: any[] = [];
+        for (const data of responses) {
+          const items = Array.isArray(data) ? data : data?.projects || data?.templates || data?.users || [];
+          combined.push(...items);
+        }
+        setResults(combined.slice(0, 20));
+      } catch { /* ignore */ }
+      if (!cancelled) setLoading(false);
+    }
+    if (query.trim()) doSearch();
+    return () => { cancelled = true; };
+  }, [query, category]);
+
+  const getIcon = (item: any) => {
+    if (item.language || item.projectType) return <FileCode className="h-4 w-4 text-blue-500 shrink-0" />;
+    if (item.username || item.email) return <Users className="h-4 w-4 text-purple-500 shrink-0" />;
+    return <Folder className="h-4 w-4 text-amber-500 shrink-0" />;
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[13px] font-medium text-muted-foreground" data-testid="text-search-results">
+          Results for "{query}"
+        </h3>
+        <button
+          onClick={onNewSearch}
+          className="text-[11px] text-primary active:scale-95 transition-transform"
+          data-testid="button-new-search"
+        >
+          New search
+        </button>
+      </div>
+      {loading ? (
+        [1, 2, 3].map((_, index) => (
+          <div key={index} className={cn("p-4 mb-3 bg-surface-solid rounded-lg animate-slideInUp", `animate-stagger-${Math.min(index + 1, 5)}`)}>
+            <div className="h-4 bg-secondary rounded w-3/4 mb-2" />
+            <div className="h-3 bg-surface-solid rounded w-full mb-2" />
+            <div className="h-3 bg-surface-solid rounded w-2/3" />
+          </div>
+        ))
+      ) : results.length === 0 ? (
+        <div className="text-center py-8">
+          <Search className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="text-[13px] text-muted-foreground">No results found for "{query}"</p>
+          <p className="text-[11px] text-muted-foreground/70 mt-1">Try a different search term</p>
+        </div>
+      ) : (
+        results.map((item, index) => (
+          <div
+            key={item.id || index}
+            className={cn("flex items-start gap-3 p-3 mb-2 bg-surface-solid rounded-lg animate-slideInUp", `animate-stagger-${Math.min(index + 1, 5)}`)}
+            data-testid={`search-result-${index}`}
+          >
+            {getIcon(item)}
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-medium truncate">{item.name || item.displayName || item.username || item.title || 'Untitled'}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{item.description || item.email || item.language || ''}</div>
+            </div>
+            {item.language && <Badge variant="secondary" className="text-[10px] shrink-0">{item.language}</Badge>}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
 
 interface SearchCategory {
   name: string;
@@ -290,33 +380,7 @@ export function MobileSearch({ isOpen, onClose, onSearch }: MobileSearchProps) {
             </div>
           </>
         ) : (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[13px] font-medium text-muted-foreground">
-                Results for "{query}"
-              </h3>
-              <button
-                onClick={() => setShowResults(false)}
-                className="text-[11px] text-primary active:scale-95 transition-transform"
-              >
-                New search
-              </button>
-            </div>
-            
-            {[1, 2, 3, 4, 5].map((_, index) => (
-              <div
-                key={index}
-                className={cn(
-                  "p-4 mb-3 bg-surface-solid rounded-lg animate-slideInUp",
-                  `animate-stagger-${Math.min(index + 1, 5)}`
-                )}
-              >
-                <div className="h-4 bg-secondary rounded w-3/4 mb-2" />
-                <div className="h-3 bg-surface-solid rounded w-full mb-2" />
-                <div className="h-3 bg-surface-solid rounded w-2/3" />
-              </div>
-            ))}
-          </div>
+          <SearchResults query={query} category={activeCategory} onNewSearch={() => setShowResults(false)} />
         )}
       </ScrollArea>
     </div>

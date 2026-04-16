@@ -102,7 +102,7 @@ router.get('/features', (_req, res) => {
       { name: 'Autonomous Agent', icon: 'Brain', description: 'Fully autonomous multi-step task execution' },
       { name: 'Code Completion', icon: 'Code2', description: 'Context-aware inline completions in the editor' },
       { name: 'Inline Actions', icon: 'Zap', description: 'Explain, debug, test, optimize with one click' },
-      { name: 'Voice Vibe Coding', icon: 'Mic', description: 'Speak your idea — AI writes the code' },
+      { name: 'Voice Coding', icon: 'Mic', description: 'Speak your idea — AI writes the code' },
       { name: 'Memory Bank', icon: 'Database', description: 'Persistent project context across sessions' },
       { name: 'Checkpoint & Rollback', icon: 'History', description: 'Atomic snapshots at every AI step' }
     ],

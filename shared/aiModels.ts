@@ -220,7 +220,7 @@ export const AI_MODELS_REGISTRY: Record<string, AIModel> = {
     id: 'gemini-3-pro',
     name: 'Gemini 3 Pro',
     provider: 'gemini',
-    description: 'State-of-the-art reasoning - best multimodal, vibe coding (Dec 2025)',
+    description: 'State-of-the-art reasoning - best multimodal, AI coding (Dec 2025)',
     capabilities: {
       extendedThinking: true,
       toolUse: true,
