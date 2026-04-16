@@ -30,8 +30,7 @@ import {
   Puzzle,
   Zap,
   MessageSquareText,
-  Link2,
-  LogOut
+  Link2
 } from 'lucide-react';
 
 interface ToolsDropdownProps {
@@ -42,21 +41,21 @@ interface ToolsDropdownProps {
 export const ToolsDropdown: React.FC<ToolsDropdownProps> = ({ onSelectTool, currentTools }) => {
   const tools = [
     // Primary Tools
-    { id: 'assistant', label: 'Assistant', icon: Bot, description: 'Move existing tab here' },
-    { id: 'database', label: 'Database', icon: Database, description: 'Move existing tab here' },
-    { id: 'shell', label: 'Shell', icon: Terminal, description: 'Move existing tab here' },
-    { id: 'workflows', label: 'Workflows', icon: Zap, description: 'Move existing tab here' },
-    { id: 'secrets', label: 'Secrets', icon: Key, description: 'Move existing tab here' },
-    { id: 'console', label: 'Console', icon: Code, description: 'Move existing tab here' },
-    { id: 'authentication', label: 'Authentication', icon: Shield, description: 'Move existing tab here' },
-    { id: 'preview', label: 'Preview', icon: Eye, description: 'Move existing tab here' },
-    { id: 'agent', label: 'Agent', icon: Bot, description: 'Move existing tab here' },
-    { id: 'deployments', label: 'Deployments', icon: Cloud, description: 'Move existing tab here' },
+    { id: 'assistant', label: 'Assistant', icon: Bot, description: 'AI-powered coding assistant for your project' },
+    { id: 'database', label: 'Database', icon: Database, description: 'Browse and query your project database' },
+    { id: 'shell', label: 'Shell', icon: Terminal, description: 'Interactive terminal for running commands' },
+    { id: 'workflows', label: 'Workflows', icon: Zap, description: 'Automate build, test, and deploy workflows' },
+    { id: 'secrets', label: 'Secrets', icon: Key, description: 'Manage environment variables and API keys' },
+    { id: 'console', label: 'Console', icon: Code, description: 'View application output and logs' },
+    { id: 'authentication', label: 'Authentication', icon: Shield, description: 'Configure user authentication for your app' },
+    { id: 'preview', label: 'Preview', icon: Eye, description: 'Live preview of your running application' },
+    { id: 'agent', label: 'Agent', icon: Bot, description: 'AI agent that builds features autonomously' },
+    { id: 'deployments', label: 'Deployments', icon: Cloud, description: 'Deploy and manage production releases' },
     
     // Additional Tools
-    { id: 'auth', label: 'Auth', icon: Users, description: 'Get users log in to your App using a prebuild login page' },
-    { id: 'code-search', label: 'Code Search', icon: FileSearch, description: 'Search through the text contents of your App' },
-    { id: 'install', label: 'Install, upgrade, and manage dependencies for your environment, build apps, and application runtime', icon: Package, description: '' },
+    { id: 'auth', label: 'Auth', icon: Users, description: 'Get users to log in to your app using a prebuilt login page' },
+    { id: 'code-search', label: 'Code Search', icon: FileSearch, description: 'Search through the text contents of your app' },
+    { id: 'install', label: 'Packages', icon: Package, description: 'Install, upgrade, and manage dependencies' },
     { id: 'docs', label: 'Docs', icon: MessageSquareText, description: 'View Replit Documentation to learn about workspace features, AI, Deployments, and more' },
     { id: 'extension-store', label: 'Extension Store', icon: Puzzle, description: 'Find and install workspace extensions' },
     

@@ -10,7 +10,7 @@
  * Migrated from Monaco to CodeMirror 6 for smaller bundle size and better performance.
  */
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { File } from '@shared/schema';
 import { EditorView } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { useLayoutStore } from '@/../../shared/stores/layoutStore';
 import { DraggableTabBar } from './DraggableTabBar';
 import { EditorToolbar } from './EditorToolbar';
+import { ReplitMinimap } from '@/components/replit/ReplitMinimap';
 
 interface EditorInstance {
   view: EditorView;
@@ -59,8 +60,14 @@ export function MultiTabEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const editorsRef = useRef<Map<number, EditorInstance>>(new Map());
   const onChangeRef = useRef(onChange);
+  const [minimapContent, setMinimapContent] = useState('');
+  const [minimapLine, setMinimapLine] = useState(1);
+  const minimapEnabledRef = useRef(minimapEnabled);
+  minimapEnabledRef.current = minimapEnabled;
   
   const currentActiveFileId = activeFileId ?? storeActiveFileId;
+  const activeFileIdRef = useRef(currentActiveFileId);
+  activeFileIdRef.current = currentActiveFileId;
 
   onChangeRef.current = onChange;
 
@@ -77,6 +84,13 @@ export function MultiTabEditor({
           if (onChangeRef.current && file.id) {
             onChangeRef.current(file.id, newContent);
           }
+          if (minimapEnabledRef.current && file.id === activeFileIdRef.current) {
+            setMinimapContent(newContent);
+          }
+        }
+        if ((update.selectionSet || update.docChanged) && minimapEnabledRef.current && file.id === activeFileIdRef.current) {
+          const cursor = update.state.selection.main.head;
+          setMinimapLine(update.state.doc.lineAt(cursor).number);
         }
       });
 
@@ -178,6 +192,12 @@ export function MultiTabEditor({
       });
 
       activeInstance.container.style.display = 'block';
+      
+      if (minimapEnabled) {
+        setMinimapContent(activeInstance.view.state.doc.toString());
+        const cursor = activeInstance.view.state.selection.main.head;
+        setMinimapLine(activeInstance.view.state.doc.lineAt(cursor).number);
+      }
 
       if (activeInstance.savedSelection) {
         const { anchor, head } = activeInstance.savedSelection;
@@ -196,6 +216,16 @@ export function MultiTabEditor({
 
     switchEditor();
   }, [currentActiveFileId, files, getOrCreateEditor]);
+
+  useEffect(() => {
+    if (!minimapEnabled || !currentActiveFileId) return;
+    const instance = editorsRef.current.get(currentActiveFileId);
+    if (instance) {
+      setMinimapContent(instance.view.state.doc.toString());
+      const cursor = instance.view.state.selection.main.head;
+      setMinimapLine(instance.view.state.doc.lineAt(cursor).number);
+    }
+  }, [minimapEnabled, currentActiveFileId]);
 
   useEffect(() => {
     files.forEach((file) => {
@@ -304,11 +334,31 @@ export function MultiTabEditor({
         />
       )}
       
-      <div ref={containerRef} className="flex-1 relative overflow-hidden bg-[var(--ecode-editor-bg)]">
-        {!currentActiveFileId && (
-          <div className="flex items-center justify-center h-full text-[var(--ecode-text-muted)]">
-            <p className="text-[13px] font-[family-name:var(--ecode-font-sans)]">Select a file to start editing</p>
-          </div>
+      <div className="flex-1 flex overflow-hidden">
+        <div ref={containerRef} className="flex-1 relative overflow-hidden bg-[var(--ecode-editor-bg)]">
+          {!currentActiveFileId && (
+            <div className="flex items-center justify-center h-full text-[var(--ecode-text-muted)]">
+              <p className="text-[13px] font-[family-name:var(--ecode-font-sans)]">Select a file to start editing</p>
+            </div>
+          )}
+        </div>
+        {minimapEnabled && currentActiveFileId && minimapContent && (
+          <ReplitMinimap
+            content={minimapContent}
+            currentLine={minimapLine}
+            onLineClick={(line) => {
+              const instance = editorsRef.current.get(currentActiveFileId);
+              if (instance) {
+                const lineInfo = instance.view.state.doc.line(Math.min(line, instance.view.state.doc.lines));
+                instance.view.dispatch({
+                  selection: { anchor: lineInfo.from },
+                  effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
+                });
+                instance.view.focus();
+              }
+            }}
+            className="w-[60px] shrink-0 border-l border-[var(--ecode-border)]"
+          />
         )}
       </div>
     </div>
