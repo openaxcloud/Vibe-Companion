@@ -155,9 +155,9 @@ export function ReplitOutputPanel({ projectId }: ReplitOutputPanelProps) {
   const getLevelColor = (level: string) => {
     switch (level) {
       case 'error':
-        return 'text-foreground';
+        return 'text-red-400';
       case 'warn':
-        return 'text-muted-foreground';
+        return 'text-yellow-400';
       case 'info':
         return 'text-muted-foreground';
       case 'debug':
@@ -171,13 +171,13 @@ export function ReplitOutputPanel({ projectId }: ReplitOutputPanelProps) {
     switch (level) {
       case 'error':
         return (
-          <span className="text-[11px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded bg-muted text-foreground">
+          <span className="text-[11px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">
             ERROR
           </span>
         );
       case 'warn':
         return (
-          <span className="text-[11px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+          <span className="text-[11px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400">
             WARN
           </span>
         );
@@ -220,6 +220,8 @@ export function ReplitOutputPanel({ projectId }: ReplitOutputPanelProps) {
     }
   };
 
+  const errorCount = output.filter(line => line.level === 'error').length;
+  const warnCount = output.filter(line => line.level === 'warn').length;
   const showEmpty = !isLoading && output.length === 0;
   const showNoMatches = !isLoading && output.length > 0 && filteredOutput.length === 0;
 
@@ -229,9 +231,19 @@ export function ReplitOutputPanel({ projectId }: ReplitOutputPanelProps) {
         <div className="flex items-center gap-1.5">
           <Terminal className="w-3.5 h-3.5 text-[var(--ecode-text-muted)]" />
           <span className="text-xs font-medium text-[var(--ecode-text)]">Output</span>
-          <span className="text-[9px] px-1 rounded bg-[var(--ecode-sidebar-hover)] text-[var(--ecode-text-muted)]">
+          <span className="text-[9px] px-1 rounded bg-[var(--ecode-sidebar-hover)] text-[var(--ecode-text-muted)]" data-testid="text-output-count">
             {filteredOutput.length}
           </span>
+          {errorCount > 0 && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-medium" data-testid="text-error-count">
+              {errorCount} error{errorCount !== 1 ? 's' : ''}
+            </span>
+          )}
+          {warnCount > 0 && errorCount === 0 && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 font-medium" data-testid="text-warn-count">
+              {warnCount} warning{warnCount !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-0.5">

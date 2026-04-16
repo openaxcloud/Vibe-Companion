@@ -5,6 +5,58 @@ import { previewEvents } from '../preview/preview-websocket';
 
 const fname = (f: any): string => f.filename || f.name || '';
 
+const RUNNABLE_EXTENSIONS = new Set([
+  '.html', '.htm',
+  '.py', '.pyw',
+  '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx',
+  '.go',
+  '.rb',
+  '.rs',
+  '.java', '.kt', '.kts',
+  '.c', '.cpp', '.cc', '.cxx', '.h',
+  '.cs',
+  '.php',
+  '.swift',
+  '.scala',
+  '.lua',
+  '.r',
+  '.sh', '.bash',
+  '.dart',
+  '.ex', '.exs',
+  '.zig',
+  '.nim',
+  '.pl', '.pm',
+]);
+
+const RUNNABLE_FILENAMES = new Set([
+  'package.json',
+  'cargo.toml',
+  'go.mod',
+  'gemfile',
+  'requirements.txt',
+  'pyproject.toml',
+  'makefile',
+  'dockerfile',
+  'docker-compose.yml',
+  'docker-compose.yaml',
+  'pom.xml',
+  'build.gradle',
+  'build.gradle.kts',
+  'composer.json',
+  'mix.exs',
+  'pubspec.yaml',
+]);
+
+function hasRunnableFiles(files: any[]): boolean {
+  return files.some(f => {
+    if (f.isDirectory) return false;
+    const name = fname(f).toLowerCase();
+    if (RUNNABLE_FILENAMES.has(name)) return true;
+    const ext = name.includes('.') ? '.' + name.split('.').pop() : '';
+    return RUNNABLE_EXTENSIONS.has(ext);
+  });
+}
+
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
   const userId = (req as any).session?.userId || (req as any).user?.id;
   if (!userId) {
@@ -320,14 +372,8 @@ router.get('/url', requireAuth, async (req, res) => {
       }
     }
     
-    // Check if project has runnable files
     const files = await storage.getFiles(projectId);
-    const hasHtmlFile = files.some(f => fname(f).endsWith('.html') && !f.isDirectory);
-    const hasPackageJson = files.some(f => fname(f) === 'package.json' && !f.isDirectory);
-    const hasPythonFiles = files.some(f => fname(f).endsWith('.py') && !f.isDirectory);
-    
-    if (!hasHtmlFile && !hasPackageJson && !hasPythonFiles) {
-      // No runnable files, return null URL
+    if (!hasRunnableFiles(files)) {
       return res.json({ 
         previewUrl: null,
         status: 'no_runnable_files',
@@ -359,8 +405,15 @@ router.get('/url', requireAuth, async (req, res) => {
     }
     
     if (!preview || preview.status !== 'running') {
-      // For HTML-only projects, return static preview URL
-      if (hasHtmlFile && !hasPackageJson && !hasPythonFiles) {
+      const isStaticOnly = files.some(f => fname(f).endsWith('.html') && !f.isDirectory) &&
+        !files.some(f => {
+          const n = fname(f).toLowerCase();
+          return !f.isDirectory && (n === 'package.json' || n.endsWith('.py') || n === 'go.mod' ||
+            n === 'cargo.toml' || n === 'gemfile' || n === 'pom.xml' || n === 'composer.json' ||
+            n === 'mix.exs' || n.endsWith('.rb') || n.endsWith('.go') || n.endsWith('.rs') ||
+            n.endsWith('.java') || n.endsWith('.php') || n.endsWith('.ex'));
+        });
+      if (isStaticOnly) {
         const previewUrl = `/api/preview/projects/${projectId}/preview/`;
         return res.json({ 
           previewUrl,
@@ -369,7 +422,6 @@ router.get('/url', requireAuth, async (req, res) => {
         });
       }
       
-      // For projects needing a server, indicate it's not running
       return res.json({ 
         previewUrl: null,
         status: 'stopped',
@@ -896,13 +948,8 @@ router.get('/projects/:id/preview-url', requireAuth, ensureProjectAccess, async 
       return res.status(404).json({ error: 'Project not found' });
     }
     
-    // Check if it's an HTML project or has runnable code
     const files = await storage.getFiles(projectId);
-    const hasHtmlFile = files.some(f => fname(f).endsWith('.html') && !f.isDirectory);
-    const hasPackageJson = files.some(f => fname(f) === 'package.json' && !f.isDirectory);
-    const hasPythonFiles = files.some(f => fname(f).endsWith('.py') && !f.isDirectory);
-    
-    if (!hasHtmlFile && !hasPackageJson && !hasPythonFiles) {
+    if (!hasRunnableFiles(files)) {
       return res.status(400).json({ error: 'No runnable files found in project' });
     }
     
