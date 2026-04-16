@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getCsrfToken } from "@/lib/queryClient";
 
 interface ResponsiveWebPreviewProps {
   projectId: string;
@@ -76,10 +77,11 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
     setIframeLoaded(false);
     setRefreshKey(k => k + 1);
     try {
+      const csrf = getCsrfToken();
       const res = await fetch(`${basePreviewUrl}/start`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(csrf ? { "x-csrf-token": csrf } : {}) },
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -101,9 +103,11 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
 
   const stopPreview = useCallback(async () => {
     try {
+      const csrf = getCsrfToken();
       await fetch(`${basePreviewUrl}/stop`, {
         method: "POST",
         credentials: "include",
+        headers: csrf ? { "x-csrf-token": csrf } : {},
       });
     } catch {}
     setPreviewStatus("stopped");
