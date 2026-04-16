@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: Inter, system-ui, sans-serif;
+  }
+  
+  body {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl;
+  }
+  
+  .btn-primary {
+    @apply bg-gradient-to-r from-amber-500 to-amber-600 text-white px-6 py-3 rounded-xl font-semibold 
+           hover:from-amber-600 hover:to-amber-700 transform hover:scale-105 transition-all duration-200 
+           shadow-lg hover:shadow-xl active:scale-95;
+  }
+  
+  .btn-secondary {
+    @apply bg-white/10 backdrop-blur-xl text-white px-6 py-3 rounded-xl font-semibold 
+           hover:bg-white/20 transform hover:scale-105 transition-all duration-200 
+           shadow-lg hover:shadow-xl active:scale-95 border border-white/20;
+  }
+}

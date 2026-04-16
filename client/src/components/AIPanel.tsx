@@ -258,6 +258,98 @@ function TypingIndicator() {
   );
 }
 
+function formatElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  return m > 0 ? `${m}m ${rs}s` : `${rs}s`;
+}
+
+function AgentWorkingBanner({
+  startedAt,
+  currentStep,
+  filesCount,
+  stepsDone,
+  latestText,
+  onStop,
+}: {
+  startedAt: number;
+  currentStep: string;
+  filesCount: number;
+  stepsDone: number;
+  latestText: string;
+  onStop?: () => void;
+}) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const tick = () => setElapsed(Date.now() - startedAt);
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+
+  const slowHint = elapsed > 30000;
+  const verySlowHint = elapsed > 90000;
+
+  return (
+    <div
+      className="sticky bottom-0 z-10 mx-0 mt-3 rounded-xl border border-[#7C65CB]/30 bg-gradient-to-r from-[#7C65CB]/10 to-[#0079F2]/10 backdrop-blur-sm overflow-hidden animate-[fade-in_0.2s_ease-out]"
+      data-testid="agent-working-banner"
+    >
+      <div className="flex items-center gap-2.5 px-3 py-2">
+        <div className="relative flex items-center justify-center w-6 h-6 shrink-0">
+          <span className="absolute inset-0 rounded-full bg-[#7C65CB]/20 animate-ping" />
+          <Loader2 className="w-4 h-4 text-[#7C65CB] animate-spin relative" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[12px] font-semibold text-[var(--ide-text)]" data-testid="text-agent-status">
+              {currentStep || "Agent is working"}
+            </span>
+            <span className="text-[10px] text-[var(--ide-text-muted)] font-mono tabular-nums" data-testid="text-agent-elapsed">
+              · {formatElapsed(elapsed)}
+            </span>
+            {stepsDone > 0 && (
+              <span className="text-[10px] text-[#7C65CB] font-medium">
+                · {stepsDone} step{stepsDone !== 1 ? "s" : ""}
+              </span>
+            )}
+            {filesCount > 0 && (
+              <span className="text-[10px] text-[#0CCE6B] font-medium">
+                · {filesCount} file{filesCount !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+          {latestText && (
+            <div className="text-[10.5px] text-[var(--ide-text-muted)] truncate mt-0.5" data-testid="text-agent-detail">
+              {latestText}
+            </div>
+          )}
+          {verySlowHint ? (
+            <div className="text-[10px] text-[#F5A623] mt-0.5">
+              Large project — still generating. This can take several minutes for full apps.
+            </div>
+          ) : slowHint ? (
+            <div className="text-[10px] text-[var(--ide-text-muted)]/80 mt-0.5">
+              Thinking through the architecture — files will appear shortly.
+            </div>
+          ) : null}
+        </div>
+        {onStop && (
+          <button
+            onClick={onStop}
+            className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors"
+            data-testid="button-stop-agent"
+          >
+            <Square className="w-2.5 h-2.5" />
+            Stop
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function FileOpProgress({ ops }: { ops: { type: "created" | "updated"; filename: string }[] }) {
   return (
     <div className="mt-3 rounded-lg overflow-hidden border border-[#0CCE6B]/20">
@@ -821,6 +913,14 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingStartedAt, setStreamingStartedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (isStreaming && !streamingStartedAt) {
+      setStreamingStartedAt(Date.now());
+    } else if (!isStreaming && streamingStartedAt) {
+      setStreamingStartedAt(null);
+    }
+  }, [isStreaming, streamingStartedAt]);
   const [copied, setCopied] = useState<string | null>(null);
   const [agentProvider, setAgentProvider] = useState<"builtin" | "openhands" | "goose" | "claude-agent">(() => {
     try {
@@ -4325,6 +4425,29 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
             </div>
           );
         })}
+        {isStreaming && streamingStartedAt && (() => {
+          const lastMsg = activeMessages[activeMessages.length - 1];
+          const steps = (lastMsg?.role === "assistant" ? lastMsg.agentSteps : undefined) || [];
+          const runningStep = [...steps].reverse().find(s => s.status === "running");
+          const lastStep = steps[steps.length - 1];
+          const statusLabel = runningStep?.label
+            || (lastStep?.status === "done" ? lastStep.label : undefined)
+            || (lastMsg?.content ? "Generating response..." : "Thinking...");
+          const stepsDone = steps.filter(s => s.status === "done").length;
+          const filesCount = (lastMsg?.fileOps?.length || 0)
+            || steps.filter(s => (s.type === "create_file" || s.type === "edit_file") && s.status === "done").length;
+          const detail = runningStep?.detail || lastStep?.detail || "";
+          return (
+            <AgentWorkingBanner
+              startedAt={streamingStartedAt}
+              currentStep={statusLabel}
+              filesCount={filesCount}
+              stepsDone={stepsDone}
+              latestText={detail}
+              onStop={() => abortRef.current?.abort()}
+            />
+          );
+        })()}
         </div>
       </div>
 

@@ -60,6 +60,7 @@ export default function Editor(props: EditorProps = {}) {
   const [isProjectRunning, setIsProjectRunning] = useState(false);
   const [executionId, setExecutionId] = useState<string | undefined>();
   const [initialAgentPrompt, setInitialAgentPrompt] = useState<string | null>(null);
+  const agentAutoFocusedRef = useRef(false);
   const [agentWebSocketConnected, setAgentWebSocketConnected] = useState(false); // Track WebSocket connection state
   
   const [enableShortcutHint, setEnableShortcutHint] = useState(() => {
@@ -216,18 +217,22 @@ export default function Editor(props: EditorProps = {}) {
           initialPrompt = promptFromSession;
         }
         
-        if (isAgent && initialPrompt) {
-          // Open the agent panel
-          setActiveRightPanel('agent');
-          setRightPanelOpen(true);
+        if (initialPrompt) {
+          // Open the agent panel — auto-focus whenever there's a pending prompt
+          // (from URL param or sessionStorage set by project creation flow)
+          if (!agentAutoFocusedRef.current) {
+            agentAutoFocusedRef.current = true;
+            setActiveRightPanel('agent');
+            setRightPanelOpen(true);
+          }
           setInitialAgentPrompt(initialPrompt);
           hasStartedAgent.current = true;
-          
+
           // Clean up sessionStorage to prevent re-trigger
           if (promptFromSession) {
             window.sessionStorage.removeItem(`agent-prompt-${resolvedProjectId}`);
           }
-          
+
           // Clean up the URL to remove the query parameters
           const cleanUrl = window.location.pathname;
           window.history.replaceState({}, '', cleanUrl);
