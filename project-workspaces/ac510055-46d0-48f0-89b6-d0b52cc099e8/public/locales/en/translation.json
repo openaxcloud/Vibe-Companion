@@ -1,0 +1,20 @@
+
+{
+  "welcome_message": "Hello! I'm your AI assistant. How can I help you today?",
+  "select_or_create_conversation": "Select a conversation from the sidebar or start a new one.",
+  "ai_is_typing": "AI is typing...",
+  "type_your_message": "Type your message...",
+  "error_fetching_response": "Oops! Something went wrong. Please try again.",
+  "search_conversations": "Search conversations...",
+  "no_conversations_found": "No conversations found.",
+  "start_new_conversation": "Start a new conversation to begin!",
+  "clear_all_conversations": "Clear all conversations",
+  "language": "Language",
+  "upload_failed": "Upload failed. Please try again.",
+  "confirm_upload": "Confirm Upload",
+  "error": "Error",
+  "drop_files_here": "Drop files here...",
+  "code_execution_placeholder": "Code execution is a placeholder for now. In a real app, this would run in a sandbox.",
+  "execute_code": "Execute Code",
+  "copy_code": "Copy Code"
+}

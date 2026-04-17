@@ -512,6 +512,65 @@ export class PreviewService {
 
       const written = toWrite.length;
 
+      // ── Normalize known incompatible config patterns ──────────────────────
+      // When package.json has `"type": "module"` AND postcss/tailwind configs
+      // are written as `.ts`, vite/postcss-load-config falls back to ts-node
+      // which throws ERR_REQUIRE_ESM. Drop a `.cjs` sibling that takes
+      // precedence in postcss-load-config's resolution order.
+      try {
+        const pkgPath = path.join(previewPath, 'package.json');
+        const pkgRaw = await fs.readFile(pkgPath, 'utf-8').catch(() => null);
+        if (pkgRaw) {
+          let pkg: any = {};
+          try { pkg = JSON.parse(pkgRaw); } catch {}
+          const isEsm = pkg?.type === 'module';
+          const deps = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) };
+          const hasTailwind = !!deps.tailwindcss;
+          const hasAutoprefixer = !!deps.autoprefixer;
+
+          if (isEsm) {
+            const postcssTs = path.join(previewPath, 'postcss.config.ts');
+            const postcssJs = path.join(previewPath, 'postcss.config.js');
+            const postcssMjs = path.join(previewPath, 'postcss.config.mjs');
+            const postcssCjs = path.join(previewPath, 'postcss.config.cjs');
+            const hasAnyPostcss =
+              await fs.stat(postcssTs).then(() => true).catch(() => false) ||
+              await fs.stat(postcssJs).then(() => true).catch(() => false) ||
+              await fs.stat(postcssMjs).then(() => true).catch(() => false);
+            if (hasAnyPostcss || hasTailwind) {
+              const plugins: string[] = [];
+              if (hasTailwind) plugins.push("    tailwindcss: {},");
+              if (hasAutoprefixer) plugins.push("    autoprefixer: {},");
+              const cjsContent = `module.exports = {\n  plugins: {\n${plugins.join('\n') || ''}\n  },\n};\n`;
+              await fs.writeFile(postcssCjs, cjsContent, 'utf-8');
+              // Remove the .ts variant so postcss never tries to require it
+              await fs.unlink(postcssTs).catch(() => {});
+            }
+
+            const tailwindTs = path.join(previewPath, 'tailwind.config.ts');
+            const tailwindCjs = path.join(previewPath, 'tailwind.config.cjs');
+            const hasTailwindTs = await fs.stat(tailwindTs).then(() => true).catch(() => false);
+            if (hasTailwindTs && hasTailwind) {
+              const tsRaw = await fs.readFile(tailwindTs, 'utf-8').catch(() => '');
+              // Convert basic ESM→CJS: `export default X` → `module.exports = X`,
+              // strip type-only imports. Best-effort; falls back to a permissive shim.
+              let cjs = tsRaw
+                .replace(/^\s*import\s+type\s+[^;]+;?\s*$/gm, '')
+                .replace(/^\s*import\s+[^;]+;?\s*$/gm, '')
+                .replace(/export\s+default\s+/g, 'module.exports = ')
+                .replace(/satisfies\s+\w+/g, '');
+              if (!/module\.exports\s*=/.test(cjs)) {
+                cjs = `module.exports = {\n  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],\n  theme: { extend: {} },\n  plugins: [],\n};\n`;
+              }
+              await fs.writeFile(tailwindCjs, cjs, 'utf-8');
+              await fs.unlink(tailwindTs).catch(() => {});
+            }
+          }
+        }
+      } catch (err: any) {
+        logger.warn(`[preview-sync] config normalization skipped for ${projectId}: ${err?.message || err}`);
+      }
+
       const syncMs = Date.now() - syncStart;
       logger.info(`[preview-sync] project=${projectId} written=${written} skipped=${skipped} removed=${removed} total=${files.length} syncMs=${syncMs}`);
     } catch (err: any) {
