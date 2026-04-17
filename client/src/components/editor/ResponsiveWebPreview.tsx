@@ -63,10 +63,40 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
     } else if (statusData.status === "starting") {
       setPreviewStatus("starting");
     } else if (statusData.status === "error") {
-      setPreviewStatus("error");
-      setPreviewError(statusData.error || "Preview failed to start");
+      // Don't surface raw failures to the user — keep showing the "starting" loader
+      // and let the silent auto-retry effect below handle it in the background.
+      setPreviewStatus("starting");
+      setShowIframe(true);
+      setPreviewError(null);
     }
   }, [statusData]);
+
+  // Silent retry loop: while the dev server isn't running yet (typical when the
+  // agent is still generating files), keep re-calling /start every ~6 seconds
+  // until it succeeds. The user only ever sees the loader, never raw errors.
+  const startRetryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (!statusData) return;
+    if (statusData.status === "running" || statusData.running) {
+      if (startRetryTimerRef.current) { clearTimeout(startRetryTimerRef.current); startRetryTimerRef.current = null; }
+      return;
+    }
+    if (statusData.status !== "error") return;
+    // Schedule a silent retry
+    if (startRetryTimerRef.current) clearTimeout(startRetryTimerRef.current);
+    startRetryTimerRef.current = setTimeout(async () => {
+      try {
+        const csrf = getCsrfToken();
+        await fetch(`${basePreviewUrl}/start`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", ...(csrf ? { "x-csrf-token": csrf } : {}) },
+        });
+      } catch {}
+      refetchStatus();
+    }, 6000);
+    return () => { if (startRetryTimerRef.current) clearTimeout(startRetryTimerRef.current); };
+  }, [statusData, basePreviewUrl, refetchStatus]);
 
   // Surface dev-server build/compile errors (Vite, webpack, postcss, etc.)
   const buildErrors: string[] = (() => {
