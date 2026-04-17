@@ -2683,14 +2683,19 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const addFilesExternalRef = useRef(addFilesExternal);
   addFilesExternalRef.current = addFilesExternal;
 
-  // Listen for external "send a message to the agent" events (e.g. auto-fix from preview build errors)
+  // Listen for external "send a message to the agent" events (e.g. auto-fix from preview build errors).
+  // If the agent is currently streaming, queue the message and send it as soon as streaming ends.
+  const pendingExternalMessageRef = useRef<string | null>(null);
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       if (detail.projectId && detail.projectId !== projectId) return;
       const content = String(detail.content || "").trim();
       if (!content) return;
-      if (isStreaming) return;
+      if (isStreaming) {
+        pendingExternalMessageRef.current = content;
+        return;
+      }
       if (sendMessageDirectRef.current) {
         sendMessageDirectRef.current(content).catch((err: any) => {
           console.error('[AIPanel] Auto-send failed:', err?.message);
@@ -2700,6 +2705,22 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
     window.addEventListener('ecode:agent-send-message', handler);
     return () => window.removeEventListener('ecode:agent-send-message', handler);
   }, [projectId, isStreaming]);
+
+  // Flush any queued external message once the agent finishes streaming
+  useEffect(() => {
+    if (isStreaming) return;
+    const pending = pendingExternalMessageRef.current;
+    if (!pending) return;
+    pendingExternalMessageRef.current = null;
+    if (sendMessageDirectRef.current) {
+      // Small delay so the previous turn's UI fully settles before the new send
+      setTimeout(() => {
+        sendMessageDirectRef.current?.(pending).catch((err: any) => {
+          console.error('[AIPanel] Queued auto-send failed:', err?.message);
+        });
+      }, 400);
+    }
+  }, [isStreaming]);
 
   useEffect(() => {
     if (!onExternalInput) return;

@@ -82,7 +82,8 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
     return out.slice(-5);
   })();
 
-  // Auto-fix: dispatch errors to the agent once per unique error set, debounced 4s
+  // Auto-fix: silently dispatch errors to the agent once per unique error set (1.5s debounce).
+  // The user never sees the raw error — they just see a "Finishing setup" loader while the agent fixes it.
   const lastAutoFixFingerprintRef = useRef<string>("");
   useEffect(() => {
     if (buildErrors.length === 0) return;
@@ -91,13 +92,15 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
     const t = setTimeout(() => {
       if (fingerprint === lastAutoFixFingerprintRef.current) return;
       lastAutoFixFingerprintRef.current = fingerprint;
-      const prompt = `The dev server reported these build errors. Please fix them:\n\n${buildErrors.map(e => `- ${e}`).join("\n")}\n\nMake sure all imported files exist and all referenced npm packages are listed in package.json. Then verify the preview loads.`;
+      const prompt = `Auto-detected build errors from the preview dev server. Please fix them silently and continue:\n\n${buildErrors.map(e => `- ${e}`).join("\n")}\n\nFor each missing import, create the file. For each missing npm package, add it to package.json (and install it if needed). After fixing, the preview will reload automatically.`;
       window.dispatchEvent(new CustomEvent('ecode:agent-send-message', {
         detail: { projectId, content: prompt }
       }));
-      // Refresh the iframe shortly after so it picks up fixes
-      setTimeout(() => setRefreshKey(k => k + 1), 8000);
-    }, 4000);
+      // Reload the iframe progressively so it picks up fixes without user action
+      setTimeout(() => setRefreshKey(k => k + 1), 6000);
+      setTimeout(() => setRefreshKey(k => k + 1), 15000);
+      setTimeout(() => setRefreshKey(k => k + 1), 30000);
+    }, 1500);
     return () => clearTimeout(t);
   }, [buildErrors.join("\n"), projectId]);
 
@@ -532,23 +535,16 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
                 </div>
               )}
               {iframeLoaded && buildErrors.length > 0 && (
-                <div className="absolute inset-x-3 bottom-3 z-20 bg-red-950/95 border border-red-500/40 rounded-lg shadow-2xl backdrop-blur-sm p-3 max-h-[40%] overflow-auto" data-testid="preview-build-errors">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-red-400" />
-                      <span className="text-[12px] font-semibold text-red-200">Dev server errors</span>
-                      <span className="text-[10px] text-red-400/70">({buildErrors.length})</span>
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-[var(--ide-surface)]/95 backdrop-blur-sm" data-testid="preview-finalizing">
+                  <div className="text-center space-y-3 max-w-xs">
+                    <div className="w-12 h-12 mx-auto rounded-xl bg-[var(--ide-panel)] border border-[var(--ide-border)] flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 text-[#7C65CB] animate-spin" />
                     </div>
-                    <Button size="sm" variant="ghost" onClick={refresh} className="h-6 px-2 text-[10px] text-red-200 hover:bg-red-900/40" data-testid="button-retry-after-errors">
-                      <RotateCcw className="w-3 h-3 mr-1" /> Reload
-                    </Button>
+                    <div>
+                      <p className="text-[13px] font-medium text-[var(--ide-text)]">Finishing setup</p>
+                      <p className="text-[11px] text-[var(--ide-text-muted)] mt-1">Installing dependencies and wiring things up — your app will appear in a moment.</p>
+                    </div>
                   </div>
-                  <div className="space-y-1 font-mono text-[10.5px] text-red-100/90">
-                    {buildErrors.map((e, i) => (
-                      <div key={i} className="whitespace-pre-wrap break-words leading-snug">{e}</div>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-[10px] text-red-300/70">Ask the agent to fix these errors, or edit the files directly.</p>
                 </div>
               )}
               <iframe
