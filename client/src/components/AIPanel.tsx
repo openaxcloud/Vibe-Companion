@@ -2683,6 +2683,24 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
   const addFilesExternalRef = useRef(addFilesExternal);
   addFilesExternalRef.current = addFilesExternal;
 
+  // Listen for external "send a message to the agent" events (e.g. auto-fix from preview build errors)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (detail.projectId && detail.projectId !== projectId) return;
+      const content = String(detail.content || "").trim();
+      if (!content) return;
+      if (isStreaming) return;
+      if (sendMessageDirectRef.current) {
+        sendMessageDirectRef.current(content).catch((err: any) => {
+          console.error('[AIPanel] Auto-send failed:', err?.message);
+        });
+      }
+    };
+    window.addEventListener('ecode:agent-send-message', handler);
+    return () => window.removeEventListener('ecode:agent-send-message', handler);
+  }, [projectId, isStreaming]);
+
   useEffect(() => {
     if (!onExternalInput) return;
     const handlers: ExternalInputHandlers = {

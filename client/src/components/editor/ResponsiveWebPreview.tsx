@@ -82,6 +82,25 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
     return out.slice(-5);
   })();
 
+  // Auto-fix: dispatch errors to the agent once per unique error set, debounced 4s
+  const lastAutoFixFingerprintRef = useRef<string>("");
+  useEffect(() => {
+    if (buildErrors.length === 0) return;
+    const fingerprint = buildErrors.join("\n");
+    if (fingerprint === lastAutoFixFingerprintRef.current) return;
+    const t = setTimeout(() => {
+      if (fingerprint === lastAutoFixFingerprintRef.current) return;
+      lastAutoFixFingerprintRef.current = fingerprint;
+      const prompt = `The dev server reported these build errors. Please fix them:\n\n${buildErrors.map(e => `- ${e}`).join("\n")}\n\nMake sure all imported files exist and all referenced npm packages are listed in package.json. Then verify the preview loads.`;
+      window.dispatchEvent(new CustomEvent('ecode:agent-send-message', {
+        detail: { projectId, content: prompt }
+      }));
+      // Refresh the iframe shortly after so it picks up fixes
+      setTimeout(() => setRefreshKey(k => k + 1), 8000);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [buildErrors.join("\n"), projectId]);
+
   const startPreview = useCallback(async () => {
     setPreviewStatus("starting");
     setPreviewError(null);
