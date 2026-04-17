@@ -68,6 +68,20 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
     }
   }, [statusData]);
 
+  // Surface dev-server build/compile errors (Vite, webpack, postcss, etc.)
+  const buildErrors: string[] = (() => {
+    const logs: string[] = statusData?.logs || [];
+    const out: string[] = [];
+    for (const line of logs) {
+      const norm = String(line).trim();
+      if (!norm) continue;
+      if (/\b(error|failed to resolve|cannot find module|syntaxerror|module not found|enoent)\b/i.test(norm)) {
+        out.push(norm.replace(/\[[^\]]*dev server:\d+\]\s*/g, "").trim());
+      }
+    }
+    return out.slice(-5);
+  })();
+
   const startPreview = useCallback(async () => {
     setPreviewStatus("starting");
     setPreviewError(null);
@@ -496,6 +510,26 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
               {!iframeLoaded && (
                 <div className="absolute inset-0 flex items-center justify-center bg-[var(--ide-surface)]/80 z-10">
                   <Loader2 className="w-5 h-5 text-[#7C65CB] animate-spin" />
+                </div>
+              )}
+              {iframeLoaded && buildErrors.length > 0 && (
+                <div className="absolute inset-x-3 bottom-3 z-20 bg-red-950/95 border border-red-500/40 rounded-lg shadow-2xl backdrop-blur-sm p-3 max-h-[40%] overflow-auto" data-testid="preview-build-errors">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-400" />
+                      <span className="text-[12px] font-semibold text-red-200">Dev server errors</span>
+                      <span className="text-[10px] text-red-400/70">({buildErrors.length})</span>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={refresh} className="h-6 px-2 text-[10px] text-red-200 hover:bg-red-900/40" data-testid="button-retry-after-errors">
+                      <RotateCcw className="w-3 h-3 mr-1" /> Reload
+                    </Button>
+                  </div>
+                  <div className="space-y-1 font-mono text-[10.5px] text-red-100/90">
+                    {buildErrors.map((e, i) => (
+                      <div key={i} className="whitespace-pre-wrap break-words leading-snug">{e}</div>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[10px] text-red-300/70">Ask the agent to fix these errors, or edit the files directly.</p>
                 </div>
               )}
               <iframe

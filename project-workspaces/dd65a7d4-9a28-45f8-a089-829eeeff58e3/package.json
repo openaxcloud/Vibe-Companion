@@ -1,0 +1,35 @@
+{
+  "name": "personal-blog",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "marked": "^9.1.6",
+    "highlight.js": "^11.9.0",
+    "date-fns": "^2.30.0",
+    "lucide-react": "^0.294.0",
+    "gray-matter": "^4.0.3",
+    "rss": "^1.2.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@types/marked": "^6.0.0",
+    "@types/rss": "^0.0.32",
+    "@vitejs/plugin-react": "^4.1.1",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.6",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0"
+  }
+}
