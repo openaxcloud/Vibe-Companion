@@ -19,13 +19,16 @@ import { initMonitoring } from "./monitoring";
 import fs from "fs";
 import path from "path";
 
-// Global error handlers — log but keep server running in dev mode
-process.on("uncaughtException", (error) => {
+// Global error handlers — log but keep server running in dev mode.
+// EXCEPTION: always exit on fatal bind errors (EADDRINUSE, EACCES) so a
+// restart attempt doesn't turn into a silent zombie holding the port open.
+process.on("uncaughtException", (error: any) => {
   console.error("[FATAL] Uncaught Exception:", error);
-  if (process.env.NODE_ENV === "production") {
+  const fatalCodes = new Set(["EADDRINUSE", "EACCES", "EADDRNOTAVAIL"]);
+  if (process.env.NODE_ENV === "production" || fatalCodes.has(error?.code)) {
     process.exit(1);
   }
-  // In development, keep the server alive so Replit doesn't show "artifact error"
+  // In development, keep the server alive for other errors so Replit doesn't show "artifact error"
 });
 
 process.on("unhandledRejection", (reason, promise) => {
