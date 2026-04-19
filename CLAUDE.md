@@ -4,7 +4,7 @@
 - **Propriétaire** : Henri (openaxcloud)
 - **Repo GitHub** : https://github.com/openaxcloud/Vibe-Companion
 - **Replit** : https://replit.com/@henri45/E-code
-- **Dossier local** : `Documents/=github/vibe companion` (machine Henri)
+- **Dossier local** : `~/Documents/GitHub/Vibe-Companion` (Mac d'Henri)
 - **Langue de travail** : Français
 
 ## Objectif global
