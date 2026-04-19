@@ -45,12 +45,13 @@ Finaliser la plateforme (clone Replit amélioré) pour qu'elle soit **prête pou
 
 ### T3 — Plan modernisation "dernière génération"
 
-**PHASE 1 — Quick wins (semaine 1, ~6h)**
-- [ ] Passer température de 0.3 → 0.6 pour génération design (`code-generation.router.ts:84`)
-- [ ] Activer le design-system.ts dormant dans les scaffolds (`speculative-scaffold.service.ts`)
-- [ ] Injecter shadcn/ui + components.json par défaut dans templates React
-- [ ] Ajouter section "Advanced Animations / Framer Motion" dans `agent-system-prompt.ts`
-- [ ] Créer `modern-design-system.ts` (glassmorphism, micro-interactions, dark mode)
+**PHASE 1 — Quick wins (semaine 1, ~6h)** ✅ TERMINÉ
+- [x] Passer température de 0.3 → 0.6 pour génération design (commit `4cee6daf`)
+- [x] Activer le design-system.ts dormant dans les scaffolds (via `modern-design-system.ts`)
+- [x] Injecter shadcn/ui + components.json par défaut dans templates React
+- [x] Ajouter section "Modern Design" dans `agent-system-prompt.ts` (+ context `'design'`)
+- [x] Créer `modern-design-system.ts` (palette hsl, shadcn, Framer Motion, dark mode)
+- [x] Migration SQL `0018_users_schema_sync.sql` pour colonnes users manquantes
 
 **PHASE 2 — Qualité (semaine 2, ~8h)**
 - [ ] Upgrade fallback chain : Opus 4.7 + Sonnet 4.6 (`ai-provider-manager.ts:60-67`)

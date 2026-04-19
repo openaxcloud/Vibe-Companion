@@ -5,6 +5,7 @@
  * Last updated: April 7, 2026
  */
 import { DESIGN_SYSTEM_PROMPT } from './design-system';
+import { MODERN_DESIGN_PROMPT } from './modern-design-system';
 
 export const AGENT_SYSTEM_PROMPT = `
 <identity>
@@ -471,19 +472,25 @@ export default router;
 /**
  * Get context-specific system prompt based on operation type
  */
-export function getSystemPromptForContext(context: 'coding' | 'review' | 'explanation' | 'general' = 'general'): string {
-  const basePrompt = AGENT_SYSTEM_PROMPT + '\n\n' + DESIGN_SYSTEM_PROMPT;
-  
+export function getSystemPromptForContext(context: 'coding' | 'review' | 'explanation' | 'general' | 'design' = 'general'): string {
+  // Modern design guidance is always included for coding/design/general contexts
+  // so generated apps match 2026 shadcn/Linear/Vercel quality, not 2023 Tailwind defaults.
+  const basePrompt = AGENT_SYSTEM_PROMPT + '\n\n' + DESIGN_SYSTEM_PROMPT + '\n\n' + MODERN_DESIGN_PROMPT;
+
   switch (context) {
     case 'coding':
-      return basePrompt + '\n\nFOCUS: You are in coding mode. Prioritize writing clean, tested, production-ready code.';
-    
+      return basePrompt + '\n\nFOCUS: You are in coding mode. Prioritize writing clean, tested, production-ready code with 2026-grade UI patterns.';
+
+    case 'design':
+      return basePrompt + '\n\nFOCUS: You are in design mode. Every pixel must feel like shadcn.com / Linear / Vercel. Reject any output that looks like a 2023 Bootstrap tutorial.';
+
     case 'review':
-      return basePrompt + '\n\nFOCUS: You are in code review mode. Analyze for bugs, security issues, performance problems, and best practices violations.';
-    
+      // Reviews don't need design guidance — focus on correctness.
+      return AGENT_SYSTEM_PROMPT + '\n\nFOCUS: You are in code review mode. Analyze for bugs, security issues, performance problems, and best practices violations.';
+
     case 'explanation':
-      return basePrompt + '\n\nFOCUS: You are in teaching mode. Explain code clearly and thoroughly for developers of all skill levels.';
-    
+      return AGENT_SYSTEM_PROMPT + '\n\nFOCUS: You are in teaching mode. Explain code clearly and thoroughly for developers of all skill levels.';
+
     case 'general':
     default:
       return basePrompt;

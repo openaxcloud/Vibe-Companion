@@ -100,7 +100,13 @@ const FRAMEWORK_TEMPLATES: Record<string, {
           '@tanstack/react-query': '^5.0.0',
           'lucide-react': '^0.300.0',
           'clsx': '^2.0.0',
-          'tailwind-merge': '^2.0.0'
+          'tailwind-merge': '^2.0.0',
+          // shadcn/ui + modern UI stack
+          'class-variance-authority': '^0.7.0',
+          '@radix-ui/react-slot': '^1.0.2',
+          'framer-motion': '^11.0.0',
+          'next-themes': '^0.3.0',
+          'tailwindcss-animate': '^1.0.7'
         },
         devDependencies: {
           '@types/react': '^18.2.0',
@@ -181,11 +187,32 @@ export default defineConfig({
       }, null, 2),
       'tailwind.config.js': `/** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: ['class'],
   content: ['./client/index.html', './client/src/**/*.{js,ts,jsx,tsx}'],
   theme: {
-    extend: {},
+    container: { center: true, padding: '2rem', screens: { '2xl': '1400px' } },
+    extend: {
+      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+      colors: {
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
+        secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
+        muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
+        accent: { DEFAULT: 'hsl(var(--accent))', foreground: 'hsl(var(--accent-foreground))' },
+        card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' }
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)'
+      }
+    }
   },
-  plugins: [],
+  plugins: [require('tailwindcss-animate')]
 };`,
       'postcss.config.js': `export default {
   plugins: {
@@ -194,10 +221,13 @@ export default {
   },
 };`,
       'client/index.html': `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" suppressHydrationWarning>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <title>App</title>
   </head>
   <body>
@@ -208,6 +238,7 @@ export default {
       'client/src/main.tsx': `import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider } from 'next-themes';
 import App from './App';
 import './index.css';
 
@@ -215,9 +246,11 @@ const queryClient = new QueryClient();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </ThemeProvider>
   </StrictMode>
 );`,
       'client/src/App.tsx': `import { Route, Switch } from 'wouter';
@@ -225,7 +258,7 @@ import HomePage from './pages/HomePage';
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground antialiased">
       <Switch>
         <Route path="/" component={HomePage} />
       </Switch>
@@ -236,10 +269,50 @@ export default function App() {
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; font-family: 'Inter', system-ui, sans-serif; }
+  h1, h2, h3 { text-wrap: balance; }
 }`,
       'client/src/pages/HomePage.tsx': `import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export default function HomePage() {
   const { data, isLoading } = useQuery({
@@ -248,26 +321,109 @@ export default function HomePage() {
   });
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold text-gray-900 mb-4" data-testid="text-title">
-        Welcome to Your App
-      </h1>
-      <p className="text-gray-600 mb-8" data-testid="text-description">
-        Your full-stack application is ready to customize.
-      </p>
-      <div className="bg-white rounded-lg shadow p-6" data-testid="card-status">
-        <h2 className="text-[15px] font-semibold mb-2">Server Status</h2>
-        {isLoading ? (
-          <p className="text-gray-500">Loading...</p>
-        ) : (
-          <p className="text-green-600" data-testid="text-status">
-            {data?.status || 'Connected'}
+    <main className="relative overflow-hidden">
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.08),transparent_60%)]" aria-hidden />
+
+      <section className="container mx-auto max-w-4xl px-6 py-24 sm:py-32 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
+            <span className="bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text text-transparent">
+              Build something great
+            </span>
+          </h1>
+          <p className="mt-6 text-lg leading-8 text-muted-foreground">
+            Your full-stack app is ready. Replace this page with your idea — the stack is modern, the defaults are sane.
           </p>
-        )}
-      </div>
-    </div>
+          <div className="mt-10 flex items-center justify-center gap-4">
+            <Button size="lg" className="gap-2" data-testid="button-get-started">
+              Get started <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button size="lg" variant="outline" data-testid="button-docs">
+              Documentation
+            </Button>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          className="mt-16 mx-auto max-w-md rounded-lg border border-border/40 bg-card p-6 text-left shadow-sm"
+          data-testid="card-status"
+        >
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-foreground/80" />
+            <h2 className="text-sm font-semibold">Server status</h2>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground" data-testid="text-status">
+            {isLoading ? 'Checking…' : (data?.status || 'Connected')}
+          </p>
+        </motion.div>
+      </section>
+    </main>
   );
 }`,
+      'client/src/components/ui/button.tsx': `import * as React from 'react';
+import { Slot } from '@radix-ui/react-slot';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '@/lib/utils';
+
+const buttonVariants = cva(
+  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  {
+    variants: {
+      variant: {
+        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        ghost: 'hover:bg-accent hover:text-accent-foreground',
+        link: 'text-primary underline-offset-4 hover:underline'
+      },
+      size: {
+        default: 'h-10 px-4 py-2',
+        sm: 'h-9 rounded-md px-3',
+        lg: 'h-11 rounded-md px-8',
+        icon: 'h-10 w-10'
+      }
+    },
+    defaultVariants: { variant: 'default', size: 'default' }
+  }
+);
+
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button';
+    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+  }
+);
+Button.displayName = 'Button';
+`,
+      'components.json': JSON.stringify({
+        '$schema': 'https://ui.shadcn.com/schema.json',
+        style: 'default',
+        rsc: false,
+        tsx: true,
+        tailwind: {
+          config: 'tailwind.config.js',
+          css: 'client/src/index.css',
+          baseColor: 'neutral',
+          cssVariables: true,
+          prefix: ''
+        },
+        aliases: {
+          components: '@/components',
+          utils: '@/lib/utils',
+          ui: '@/components/ui'
+        }
+      }, null, 2),
       'client/src/lib/utils.ts': `import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
