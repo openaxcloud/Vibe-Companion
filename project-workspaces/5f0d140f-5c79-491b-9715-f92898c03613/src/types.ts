@@ -1,1 +1,0 @@
-export interface Message {\n  id: number;\n  text: string;\n  userId: number;\n} \n\nexport interface Channel {\n  id: number;\n  name: string;\n  isPrivate: boolean;\n  members: number[]; // User IDs\n}

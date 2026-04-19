@@ -15,3 +15,7 @@ vite.config.ts.*
 # IDE
 .idea
 .vscode
+
+# Runtime preview/runner workspaces
+project-workspaces/
+
