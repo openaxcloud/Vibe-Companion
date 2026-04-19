@@ -21,12 +21,48 @@ Finaliser la plateforme (clone Replit amélioré) pour qu'elle soit **prête pou
 - [ ] Vérifier sync du dossier local d'Henri → Henri doit lancer `git status` + `git pull` sur sa machine
 - [ ] Vérifier sync Replit `@henri45/E-code` → Henri doit confirmer dans Replit (pull depuis GitHub)
 
-### T2 — Audit production-readiness
-- [ ] Auditer `server/` (APIs, auth, sécurité, rate-limit)
-- [ ] Auditer `client/` (UI, thèmes, composants)
-- [ ] Auditer pipeline génération IA (prompts, modèles utilisés, qualité output)
-- [ ] Auditer preview + déploiement (erreurs build, config)
-- [ ] Lister bugs bloquants et dettes techniques
+### T2 — Audit production-readiness ✅ TERMINÉ
+- [x] Pipeline IA audit → **4.5/10**
+  - Température 0.3 trop basse pour le design (`server/routes/code-generation.router.ts:84`)
+  - Modèles pas à jour : `gpt-4.1` en primary, manque Opus 4.7 / Sonnet 4.6 (`server/ai/ai-provider-manager.ts:60-67`)
+  - Prompt système basique, pas orienté "modern UX" (`server/ai/prompts/agent-system-prompt.ts`)
+  - Pipeline one-shot, pas agentic, pas de post-processing (lint/format/tsc)
+- [x] Preview + déploiement → **Preview OK, déploiement fragmenté**
+  - Preview hot-reload + auto-fix client fonctionne bien
+  - Risque boucle silent retry infinie si build échoue à répétition
+  - Modules K8s/buildpack/autoscale abandonnés
+- [x] Sécurité serveur → **6.5/10**
+  - 🔴 Session store in-memory (`Map<>`) → perte sessions au restart (bloquant prod)
+  - 🔴 Helmet CSP désactivé (`server/index.ts:77`)
+  - 🟠 Console.log non structurés, risque fuite secrets
+  - 🟠 Seed DB avec password "password"
+  - ✅ Auth solide (bcrypt cost 12, CSRF, rate-limit tier, Zod, Drizzle)
+- [x] Templates & design → **CAUSE RACINE du problème d'Henri**
+  - Shadcn/ui installé mais JAMAIS injecté dans scaffolds générés
+  - Framer Motion installé mais jamais utilisé dans les apps générées
+  - `server/ai/prompts/design-system.ts` défini mais DORMANT
+  - Templates produits = Tailwind gris générique (look 2023)
+
+### T3 — Plan modernisation "dernière génération"
+
+**PHASE 1 — Quick wins (semaine 1, ~6h)**
+- [ ] Passer température de 0.3 → 0.6 pour génération design (`code-generation.router.ts:84`)
+- [ ] Activer le design-system.ts dormant dans les scaffolds (`speculative-scaffold.service.ts`)
+- [ ] Injecter shadcn/ui + components.json par défaut dans templates React
+- [ ] Ajouter section "Advanced Animations / Framer Motion" dans `agent-system-prompt.ts`
+- [ ] Créer `modern-design-system.ts` (glassmorphism, micro-interactions, dark mode)
+
+**PHASE 2 — Qualité (semaine 2, ~8h)**
+- [ ] Upgrade fallback chain : Opus 4.7 + Sonnet 4.6 (`ai-provider-manager.ts:60-67`)
+- [ ] Pipeline post-processing (prettier + eslint --fix + tsc --noEmit)
+- [ ] Auto-fix UI : bouton "stop silent retry" après 3 échecs
+
+**PHASE 3 — Production-ready (semaine 3, ~6h)**
+- [ ] Session store PostgreSQL (`connect-pg-simple` déjà installé)
+- [ ] Helmet CSP/HSTS activés, retirer `false` injustifiés
+- [ ] Unifier logging Winston/Pino, désactiver console en prod
+- [ ] Nettoyer seed DB (plus de password "password")
+- [ ] Consolider déploiement : choisir 1 stratégie, archiver le reste
 
 ### T3 — Moderniser la génération "dernière génération"
 - [ ] Upgrader les modèles IA (Claude Opus 4.7 / Sonnet 4.6 selon coût/qualité)
