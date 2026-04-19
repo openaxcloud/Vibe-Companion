@@ -301,11 +301,11 @@ ${context}`;
       // Try Claude first for better code understanding
       if (process.env.ANTHROPIC_API_KEY) {
         const response = await this.anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
           max_tokens: 16384,
-          temperature: 0.3
+          temperature: 0.6
         });
 
         const content = response.content[0];
@@ -327,7 +327,7 @@ ${context}`;
             { role: 'user', content: userPrompt }
           ],
           max_tokens: 16384,
-          temperature: 0.3,
+          temperature: 0.6,
           response_format: { type: "json_object" }
         });
 

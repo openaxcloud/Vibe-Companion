@@ -42,8 +42,24 @@ router.post('/generate', tierRateLimiters.api, async (req, res) => {
       return;
     }
     
-    // Build system prompt
-    const systemPrompt = `You are an expert ${language || 'code'} developer. Generate clean, production-ready code based on the user's requirements.
+    // Build system prompt — UI languages get modern design guidance injected
+    const designLanguages = ['html', 'css', 'tsx', 'jsx', 'vue', 'svelte'];
+    const isDesignTask = designLanguages.includes((language || '').toLowerCase());
+
+    const modernDesignBlock = isDesignTask ? `
+
+Design excellence (MANDATORY for UI code):
+- Stack: Tailwind CSS + shadcn/ui patterns (Radix + CVA + lucide-react icons)
+- Look & feel: shadcn.com quality — neutral palette, generous whitespace, subtle depth
+- Dark mode FIRST-CLASS: use CSS variables (hsl) + dark: prefix, never hardcoded colors
+- Typography: Inter font, tracking-tight on headings, text-balance on h1
+- Depth via shadow-sm / shadow-md (never shadow-lg by default), border on cards (border-border/40)
+- Interactions: hover:bg-accent, focus-visible:ring-2 ring-ring, transition-colors duration-150
+- Animations: subtle only — opacity + translate-y of 4-8px, duration 200-300ms, ease-out
+- Layout: container mx-auto max-w-6xl, gap-6, p-6, responsive with sm:/md:/lg:
+- NEVER: gray-500 everywhere, centered hero with "Welcome", emoji as icons, hardcoded #colors` : '';
+
+    const systemPrompt = `You are an expert ${language || 'code'} developer generating production-ready code for a 2026-grade app.
 
 ${context ? `Context: ${context}` : ''}
 
@@ -51,10 +67,10 @@ ${files && files.length > 0 ? `Referenced Files:\n${files.map(f => `\n--- ${f.pa
 
 Requirements:
 1. Write ${language || 'code'} code only (no explanations unless asked)
-2. Follow best practices and conventions for ${language || 'the language'}
-3. Include proper error handling
-4. Add comments for complex logic
-5. Make code production-ready and maintainable
+2. Follow modern best practices and idiomatic patterns for ${language || 'the language'}
+3. Proper error handling at boundaries (user input, network, I/O) — trust internal calls
+4. Keep comments minimal; code should be self-documenting via good names
+5. Production-ready: type-safe, accessible, responsive${modernDesignBlock}
 
 Generate the code now:`;
 
@@ -81,7 +97,12 @@ Generate the code now:`;
     // Only add temperature for models that support it (GPT-4, Claude, Gemini, etc.)
     // GPT-4.1 family and o-series models don't support custom temperature
     if (!usesMaxCompletionTokens) {
-      streamOptions.temperature = 0.3; // Lower temperature for more consistent code
+      // Design-oriented languages need higher creativity for modern UX patterns
+      // (glassmorphism, micro-interactions, animations). Pure backend/logic
+      // languages keep lower temperature for determinism.
+      const designLanguages = ['html', 'css', 'tsx', 'jsx', 'vue', 'svelte'];
+      const isDesignTask = designLanguages.includes((language || '').toLowerCase());
+      streamOptions.temperature = isDesignTask ? 0.7 : 0.5;
     }
     
     const stream = aiProviderManager.streamChat(model, messages, streamOptions);
