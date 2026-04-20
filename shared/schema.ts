@@ -764,15 +764,17 @@ export function getProviderPricing(provider: string): { input: number; output: n
   return providerMap[provider] || providerMap.openai;
 }
 
+// All OpenAI entries use direct provider models (gpt-4o / gpt-4o-mini) via
+// OPENAI_API_KEY, not Replit ModelFarm's gpt-4.1 family.
 export const AGENT_MODE_MODELS: Record<AgentMode, Record<string, string>> = {
-  economy: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4.1-mini", gemini: "gemini-2.5-flash" },
-  power: { claude: "claude-opus-4-20250514", gpt: "gpt-4.1", gemini: "gemini-2.5-pro" },
+  economy: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4o-mini", gemini: "gemini-2.5-flash" },
+  power: { claude: "claude-opus-4-20250514", gpt: "gpt-4o", gemini: "gemini-2.5-pro" },
   turbo: { claude: "claude-opus-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro" },
 };
 
 export const TOP_AGENT_MODE_MODELS: Record<TopAgentMode, Record<string, string>> = {
-  lite: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4.1-nano", gemini: "gemini-2.5-flash" },
-  autonomous: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4.1", gemini: "gemini-2.5-flash" },
+  lite: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4o-mini", gemini: "gemini-2.5-flash" },
+  autonomous: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
   max: { claude: "claude-opus-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro" },
 };
 
@@ -2958,6 +2960,7 @@ export const teamWorkspaces = pgTable("team_workspaces", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamId: varchar("team_id").notNull(),
   name: text("name").notNull(),
+  description: text("description"),
   config: json("config"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

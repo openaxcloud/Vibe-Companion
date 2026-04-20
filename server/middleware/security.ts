@@ -39,7 +39,14 @@ const baseCSPDirectives = {
   ],
   mediaSrc: ["'self'"],
   objectSrc: ["'none'"],
-  frameSrc: ["'self'", "https://js.stripe.com"],
+  // Allow same-origin (for /preview/:id proxy), Stripe, and localhost with any
+  // port so dev-mode preview iframes (Vite on 20000-29999) don't get CSP-blocked.
+  frameSrc: [
+    "'self'",
+    "https://js.stripe.com",
+    "http://localhost:*",
+    "http://127.0.0.1:*"
+  ],
   workerSrc: ["'self'", "blob:"],
   childSrc: ["'self'", "blob:"],
   formAction: ["'self'"],

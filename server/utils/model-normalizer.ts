@@ -115,8 +115,8 @@ const MODEL_NORMALIZATION_MAP: Record<string, string> = {
 };
 
 const PROVIDER_DEFAULTS: Record<string, string> = {
-  'openai':     'gpt-4.1',
-  'anthropic':  'claude-sonnet-4-20250514',
+  'openai':     'gpt-4o',                     // Direct OpenAI (OPENAI_API_KEY)
+  'anthropic':  'claude-sonnet-4-20250514',   // Direct Anthropic (ANTHROPIC_API_KEY)
   'gemini':     'gemini-2.5-flash',
   'google':     'gemini-2.5-flash',
   'xai':        'grok-3',
@@ -138,7 +138,7 @@ export function normalizeModelName(modelName: string | any | undefined, provider
   }
 
   if (!normalizedInput) {
-    const fallback = PROVIDER_DEFAULTS[provider.toLowerCase()] || 'gpt-4.1';
+    const fallback = PROVIDER_DEFAULTS[provider.toLowerCase()] || 'gpt-4o';
     logger.warn(`Model name undefined/null, using provider default: ${fallback}`);
     return fallback;
   }
@@ -152,6 +152,6 @@ export function normalizeModelName(modelName: string | any | undefined, provider
   }
 
   logger.warn(`Unknown model: "${normalizedInput}" (provider: ${provider}) — using provider default`);
-  AlertService.unknownModel(normalizedInput, provider, PROVIDER_DEFAULTS[provider.toLowerCase()] || 'gpt-4.1').catch(() => {});
-  return PROVIDER_DEFAULTS[provider.toLowerCase()] || 'gpt-4.1';
+  AlertService.unknownModel(normalizedInput, provider, PROVIDER_DEFAULTS[provider.toLowerCase()] || 'gpt-4o').catch(() => {});
+  return PROVIDER_DEFAULTS[provider.toLowerCase()] || 'gpt-4o';
 }

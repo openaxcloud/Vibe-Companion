@@ -58,12 +58,12 @@ function clampMaxTokens(modelId: string, requested: number): number {
  * UPDATED January 2025: kimi-k2-0711-preview → kimi-k2-0905-preview (September 2025 upgrade)
  */
 const PROVIDER_FALLBACK_CHAIN = [
-  'gpt-4.1',                   // Free via Replit ModelFarm
-  'claude-sonnet-4-20250514',  // Anthropic Claude 4 Sonnet
-  'gemini-2.5-flash',          // Google Gemini 2.5 Flash
-  'grok-3',                    // xAI Grok 3
-  'kimi-k2',                   // Moonshot Kimi K2
-  'moonshot-v1-32k'            // Moonshot Kimi 32K (legacy)
+  'claude-sonnet-4-20250514',  // Primary: Anthropic direct (ANTHROPIC_API_KEY)
+  'gpt-4o',                    // OpenAI direct (OPENAI_API_KEY) — replaces Replit ModelFarm gpt-4.1
+  'gemini-2.5-flash',          // Google direct (GEMINI_API_KEY)
+  'grok-3',                    // xAI direct (XAI_API_KEY)
+  'kimi-k2',                   // Moonshot direct (MOONSHOT_API_KEY)
+  'moonshot-v1-32k'            // Moonshot legacy
 ];
 
 export class AIProviderManager {
