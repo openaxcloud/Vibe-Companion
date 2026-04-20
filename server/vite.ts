@@ -21,9 +21,14 @@ export function log(message: string, source = "express") {
 export { serveStatic } from "./static";
 
 export async function setupVite(server: Server, app: Express) {
+  // HMR: use 443 only on Replit (HTTPS), else let browser connect on same port
+  // as the Express server so HMR WS works on plain http://localhost:5173.
+  const isReplit = !!(process.env.REPL_ID || process.env.REPLIT_DOMAINS);
   const serverOptions = {
     middlewareMode: true,
-    hmr: { server, path: "/vite-hmr", clientPort: 443 },
+    hmr: isReplit
+      ? { server, path: "/vite-hmr", clientPort: 443 }
+      : { server, path: "/vite-hmr" },
     allowedHosts: true as const,
   };
 
