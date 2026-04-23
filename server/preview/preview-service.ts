@@ -756,7 +756,7 @@ export class PreviewService {
     
     let startCommand: string[] = [];
     if (frameworkInfo.hasVite) {
-      startCommand = ['npx', 'vite', '--port', port.toString(), '--host', '127.0.0.1'];
+      startCommand = ['npx', 'vite', '--port', port.toString(), '--host', '0.0.0.0'];
     } else if (frameworkInfo.packageJson.scripts?.dev) {
       startCommand = ['npm', 'run', 'dev'];
     } else if (frameworkInfo.packageJson.scripts?.start) {
