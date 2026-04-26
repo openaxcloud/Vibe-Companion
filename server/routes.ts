@@ -15,7 +15,6 @@ function qstr(val: unknown): string {
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import compression from "compression";
 import { storage } from "./storage";
@@ -1124,32 +1123,7 @@ export async function registerRoutes(
 
   app.use(compression());
 
-  const PgStore = connectPgSimple(session);
-  const sessionMiddleware = session({
-    store: new PgStore({
-      conString: process.env.DATABASE_URL,
-      createTableIfMissing: true,
-      tableName: "user_sessions",
-    }),
-    secret: (() => {
-      const s = process.env.SESSION_SECRET;
-      if (!s && process.env.NODE_ENV === "production") {
-        throw new Error("SESSION_SECRET is required in production");
-      }
-      return s || crypto.randomBytes(32).toString("hex");
-    })(),
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      httpOnly: true,
-      // On Replit, the preview runs in an iframe over HTTPS, requiring secure+sameSite=none
-      // regardless of NODE_ENV so session cookies are sent cross-origin
-      secure: !!(process.env.NODE_ENV === "production" || process.env.REPL_ID || process.env.REPLIT_DOMAINS || process.env.REPL_SLUG),
-      sameSite: !!(process.env.NODE_ENV === "production" || process.env.REPL_ID || process.env.REPLIT_DOMAINS || process.env.REPL_SLUG) ? "none" as const : "lax" as const,
-      domain: process.env.COOKIE_DOMAIN || undefined,
-    },
-  });
+  const { sessionMiddleware } = await import("./middleware/session-config");
   app.use(sessionMiddleware);
 
   app.use((req, _res, next) => {
