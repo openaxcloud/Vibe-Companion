@@ -476,24 +476,33 @@ export class EnhancedAutonomousAgent {
   }
   
   private planStyling(analysis: any): any {
+    // Modern stack — semantic hsl() tokens (see modern-design-system.ts).
+    // Hardcoded #667eea/#764ba2 are anti-patterns now.
     return {
       framework: 'tailwind',
       theme: {
-        primary: '#667eea',
-        secondary: '#764ba2',
-        accent: '#06b6d4',
-        dark: '#0f172a',
-        light: '#f8fafc',
-        style: analysis.uiStyle || 'modern'
+        primary: 'hsl(var(--primary))',
+        primaryForeground: 'hsl(var(--primary-foreground))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        muted: 'hsl(var(--muted))',
+        mutedForeground: 'hsl(var(--muted-foreground))',
+        border: 'hsl(var(--border))',
+        accent: 'hsl(var(--accent))',
+        style: analysis.uiStyle || 'modern',
       },
-      cdn: 'https://cdn.tailwindcss.com',
+      // Production-grade React/Next.js apps: configure Tailwind locally via
+      // PostCSS for tree-shaking + dark-mode `class` strategy. CDN only for
+      // static landing pages (autonomous-builder templates).
+      cdn: null,
       font: 'Inter',
-      designSystem: 'mandatory-tailwind-design-system'
+      ui: { components: 'shadcn/ui', icons: 'lucide-react', motion: 'framer-motion' },
+      designSystem: 'modern-design-system',
     };
   }
-  
-  private getThemeColor(style: string): string {
-    return '#667eea';
+
+  private getThemeColor(_style: string): string {
+    return 'hsl(var(--primary))';
   }
   
   private planFunctionality(analysis: any): string[] {

@@ -261,28 +261,23 @@ API Design:
 
 UI/UX Standards:
 
-Design System (Mandatory for ALL generated apps):
-- Always include Tailwind CSS CDN: <script src="https://cdn.tailwindcss.com"></script>
-- Always include Inter font: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-- Color palette: Primary #667eea, Secondary #764ba2, Dark #0f172a, Light #f8fafc, Accent #06b6d4
-- Gradient hero: background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)
-- 8px grid spacing via Tailwind: p-2, p-4, p-6, p-8
-- Cards: rounded-2xl shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-200
-- Buttons: bg-gradient-to-r from-[#667eea] to-[#764ba2] rounded-xl hover:scale-105
-- Glassmorphism: bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl
-- Typography: Inter font, text-4xl font-extrabold for h1, text-3xl font-bold for h2
-
-Dark Mode:
-- Support via class="dark" on html element
-- Use Tailwind dark: prefix for all colors
-- Background: bg-slate-50 dark:bg-slate-900
-- Cards: bg-white dark:bg-slate-800
-- Ensure proper contrast ratios (WCAG AA)
+Design System:
+- The full opinionated 2026-grade design rules are appended to this prompt as
+  "Modern Design Excellence". You MUST follow them. Key non-negotiables:
+  semantic Tailwind tokens (bg-background, text-foreground, text-muted-foreground,
+  border-border) — NEVER hardcoded hex like #667eea/#764ba2/#fff/#000;
+  shadcn/ui components (Radix + CVA + lucide-react) — NEVER reinvent
+  Button/Dialog/Input; Framer Motion for subtle micro-interactions only;
+  next-themes for first-class dark mode with CSS variables; Inter font.
+- For React/Next.js projects: configure Tailwind locally via PostCSS (NOT the
+  CDN), so dark-mode `class` strategy and tree-shaking work in production.
+- For plain HTML/landing pages where local Tailwind is overkill: the CDN
+  snippet in TAILWIND_CDN_HEAD already wires the modern hsl() variables.
 
 Responsive Design:
 - Mobile-first with Tailwind breakpoints: sm: md: lg:
 - Touch targets minimum 44x44px (min-h-[44px] min-w-[44px])
-- Container: max-w-7xl mx-auto px-4 sm:px-6 lg:px-8
+- Container: mx-auto max-w-6xl px-4 sm:px-6 lg:px-8
 - Full height layouts: min-h-screen
 
 Accessibility:
@@ -290,7 +285,7 @@ Accessibility:
 - Proper heading hierarchy (h1, h2, h3)
 - ARIA labels on all interactive elements
 - Keyboard navigation support
-- Focus states: focus:ring-2 focus:ring-[#667eea] focus:outline-none
+- Focus states: focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none
 
 Security Standards:
 

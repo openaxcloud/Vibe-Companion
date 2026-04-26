@@ -4,6 +4,7 @@ import type { File, Project } from '@shared/schema';
 import { aiSecurityService, type ValidatedAction } from './ai-security.service';
 import { aiApprovalQueue } from './ai-approval-queue.service';
 import { aiProviderManager, type AIModel } from '../ai/ai-provider-manager';
+import { getSystemPromptForContext } from '../ai/prompts/agent-system-prompt';
 import { createLogger } from '../utils/logger';
 import { previewEvents } from '../preview/preview-websocket';
 
@@ -81,14 +82,20 @@ export class ProjectAIAgentService {
       const fileList = files.map(f => f.path).join('\n');
 
       // Build system prompt with file context if provided
-      let systemPrompt = `You are a world-class full-stack developer and UI designer helping to build a ${project.language} project named "${project.name}".
+      // The 2026-grade design rules (shadcn/ui + Framer Motion + next-themes +
+      // hsl() semantic tokens) come from getSystemPromptForContext('design').
+      // This used to be an inline 2023-era block that explicitly told the
+      // model to use #667eea gradients and shadow-xl glassmorphism — i.e.
+      // the exact "forbidden patterns" listed in MODERN_DESIGN_PROMPT.
+      const designPrompt = getSystemPromptForContext('design');
+      let systemPrompt = `You are E-Code AI Agent helping to build a ${project.language} project named "${project.name}".
 
 Current project files:
 ${fileList || 'No files yet'}
 
 When the user asks you to build something:
 1. Analyze their request thoroughly — think about ALL features a real user would need
-2. Create ALL necessary files with complete, polished, working code (minimum 8-15 files for any app)
+2. Create ALL necessary files with complete, polished, working code (minimum 8-15 files for any non-trivial app)
 3. Respond with JSON actions to create/edit files
 4. Use this exact JSON format:
 
@@ -107,19 +114,9 @@ For explanations, use:
   "content": "your explanation"
 }
 
-MANDATORY DESIGN STANDARDS:
-- Always use Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>
-- Always use Inter font: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-- Premium color palette: Primary #667eea, Secondary #764ba2, Accent #06b6d4
-- Gradient hero sections, glassmorphism cards, smooth hover animations
-- Dark mode support, mobile-first responsive design
-- Semantic HTML, ARIA labels, proper heading hierarchy
-- The result MUST look like a premium SaaS product — not a basic tutorial page
-- Include proper footer, navigation, and all sections users would expect
-- ALWAYS use real images from Unsplash (https://images.unsplash.com/photo-{ID}?w=800&h=600&fit=crop) or Picsum (https://picsum.photos/800/600?random=N) — NEVER use emoji or placeholder text as images
-- For avatars use https://i.pravatar.cc/150?img=N
+Always generate COMPLETE, production-ready code. No placeholders or TODOs.
 
-Always generate COMPLETE, production-ready code. No placeholders or TODOs.`;
+${designPrompt}`;
 
       // IMPORTANT: Merge file/code context into system prompt to preserve context
       if (context?.file && context?.code) {
@@ -280,8 +277,10 @@ Always generate COMPLETE, production-ready code. No placeholders or TODOs.`;
       const files = await this.storage.getProjectFiles(projectId);
       const fileList = files.map(f => f.path).join('\n');
 
-      // Build system prompt for build mode
-      const systemPrompt = `You are a world-class full-stack developer and UI designer building a ${project.language} project named "${project.name}".
+      // Build system prompt for build mode (modern design rules injected via
+      // getSystemPromptForContext('design') — see chat-mode comment above).
+      const designPrompt = getSystemPromptForContext('design');
+      const systemPrompt = `You are E-Code AI Agent building a ${project.language} project named "${project.name}".
 
 Current project files:
 ${fileList || 'No files yet'}
@@ -300,16 +299,13 @@ Generate ALL necessary files with complete, working code. Respond with JSON acti
 }
 
 CRITICAL REQUIREMENTS:
-1. Generate a COMPLETE, FEATURE-RICH application — minimum 8-15 files
-2. Every HTML file MUST include Tailwind CSS CDN and Inter font
-3. Use premium design: gradients (#667eea → #764ba2), glassmorphism, rounded-2xl cards, shadow-xl
-4. Include dark mode support, animations (fadeIn), smooth transitions
-5. Mobile-first responsive design with proper breakpoints
-6. Include ALL necessary files: HTML pages, CSS, JS modules, config, data files
-7. NO placeholders, NO TODOs — every file must be complete and production-ready
-8. The final result must look like a premium SaaS product, not a basic tutorial app
-9. Include a proper footer, navigation, and all sections a real user would expect
-10. ALWAYS use real images from Unsplash (https://images.unsplash.com/photo-{ID}?w=800&h=600&fit=crop) or Picsum (https://picsum.photos/800/600?random=N) — NEVER use emoji or placeholder text as images`;
+1. Generate a COMPLETE, FEATURE-RICH application — minimum 8-15 files for non-trivial apps
+2. Include ALL necessary files: components, pages, hooks, utils, config, types
+3. NO placeholders, NO TODOs — every file must be complete and production-ready
+4. The final result must look like a premium SaaS product (shadcn.com / Linear / Vercel quality)
+5. Include a proper footer, navigation, and all sections a real user would expect
+
+${designPrompt}`;
 
       // Use specified model or intelligently fallback to first available model
       let selectedModel = modelId;

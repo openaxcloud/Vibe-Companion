@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { aiProviderManager } from '../ai/ai-provider-manager';
 import { postProcessGeneratedFiles } from '../ai/post-processing';
+import { MODERN_DESIGN_PROMPT } from '../ai/prompts/modern-design-system';
 import { createLogger } from '../utils/logger';
 import { tierRateLimiters } from '../middleware/tier-rate-limiter';
 import { validateAndSetSSEHeaders } from '../utils/sse-headers';
@@ -43,22 +44,13 @@ router.post('/generate', tierRateLimiters.api, async (req, res) => {
       return;
     }
     
-    // Build system prompt — UI languages get modern design guidance injected
+    // UI languages get the FULL modern design rule set (~177 lines of
+    // shadcn/ui + Framer Motion + next-themes + hsl() semantic tokens) so
+    // the model has unambiguous guidance, not the short summary block we
+    // used to inline here.
     const designLanguages = ['html', 'css', 'tsx', 'jsx', 'vue', 'svelte'];
     const isDesignTask = designLanguages.includes((language || '').toLowerCase());
-
-    const modernDesignBlock = isDesignTask ? `
-
-Design excellence (MANDATORY for UI code):
-- Stack: Tailwind CSS + shadcn/ui patterns (Radix + CVA + lucide-react icons)
-- Look & feel: shadcn.com quality — neutral palette, generous whitespace, subtle depth
-- Dark mode FIRST-CLASS: use CSS variables (hsl) + dark: prefix, never hardcoded colors
-- Typography: Inter font, tracking-tight on headings, text-balance on h1
-- Depth via shadow-sm / shadow-md (never shadow-lg by default), border on cards (border-border/40)
-- Interactions: hover:bg-accent, focus-visible:ring-2 ring-ring, transition-colors duration-150
-- Animations: subtle only — opacity + translate-y of 4-8px, duration 200-300ms, ease-out
-- Layout: container mx-auto max-w-6xl, gap-6, p-6, responsive with sm:/md:/lg:
-- NEVER: gray-500 everywhere, centered hero with "Welcome", emoji as icons, hardcoded #colors` : '';
+    const modernDesignBlock = isDesignTask ? `\n\n${MODERN_DESIGN_PROMPT}` : '';
 
     const systemPrompt = `You are an expert ${language || 'code'} developer generating production-ready code for a 2026-grade app.
 
