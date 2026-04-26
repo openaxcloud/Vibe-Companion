@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { aiProviderManager } from '../ai/ai-provider-manager';
+import { postProcessGeneratedFiles } from '../ai/post-processing';
 import { createLogger } from '../utils/logger';
 import { tierRateLimiters } from '../middleware/tier-rate-limiter';
 import { validateAndSetSSEHeaders } from '../utils/sse-headers';
@@ -177,6 +178,43 @@ router.get('/models', tierRateLimiters.api, async (req, res) => {
   } catch (error: any) {
     logger.error('[Code Generation] Error getting models:', error);
     res.status(500).json({ error: 'Failed to get available models' });
+  }
+});
+
+/**
+ * POST /api/code-generation/post-process
+ * Run prettier + eslint --fix + tsc on a set of generated files.
+ * If TS errors are found, retry the IA up to 2x to fix them.
+ *
+ * Best-effort: missing tools (prettier/eslint not installed) are skipped silently.
+ */
+const postProcessSchema = z.object({
+  files: z.array(z.object({
+    path: z.string().min(1).max(500),
+    content: z.string().max(2_000_000),
+  })).min(1).max(100),
+});
+
+router.post('/post-process', tierRateLimiters.api, async (req, res) => {
+  try {
+    const { files } = postProcessSchema.parse(req.body);
+    logger.info('[Post-process] Received files', { count: files.length });
+
+    const result = await postProcessGeneratedFiles(files);
+    res.json({
+      files: result.files,
+      report: {
+        prettier: result.prettier,
+        eslint: result.eslint,
+        typecheck: result.typecheck,
+      },
+    });
+  } catch (error: any) {
+    logger.error('[Post-process] Error', error);
+    res.status(error?.issues ? 400 : 500).json({
+      error: error?.message || 'Post-processing failed',
+      issues: error?.issues,
+    });
   }
 });
 
