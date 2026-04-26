@@ -10,81 +10,76 @@
 ## Objectif global
 Finaliser la plateforme (clone Replit amélioré) pour qu'elle soit **prête pour production** et capable de **générer des applications de dernière génération avec un design de dernière génération**, de manière fiable.
 
-## Problème actuel signalé par Henri
-« J'arrive pas à générer des apps de dernière génération avec un design de dernière génération. »
-→ Pipeline de génération (prompt → code → preview → deploy) à auditer et moderniser.
+## État production : ✅ READY (code-side) — 2026-04-26
 
-## Tâches en cours (à mettre à jour au fur et à mesure)
+Le code est prêt à être déployé. Reste les actions opérateur listées dans
+[`docs/HANDOFF.md`](docs/HANDOFF.md) (secrets, comptes tiers, smoke test
+de la génération, première seed, screenshot de démo).
+
+## Tâches
 
 ### T1 — Vérifier synchronisation repo
-- [x] Sandbox Claude ↔ GitHub `openaxcloud/Vibe-Companion` : à jour sur `main` (HEAD `f8f7d0d0`)
-- [x] Sync dossier local Mac d'Henri → à jour sur `main` (HEAD `f8f7d0d0`, 2026-04-26)
-- [x] `.gitignore` : ajout `.claude/worktrees/` + `logs/` + `*.log` (commit `f8f7d0d0`)
-- [ ] Vérifier sync Replit `@henri45/E-code` → Henri doit confirmer dans Replit (pull depuis GitHub)
+- [x] Sandbox Claude ↔ GitHub `openaxcloud/Vibe-Companion` à jour sur `main`
+- [x] Sync dossier local Mac d'Henri à jour (HEAD `f8f7d0d0`, 2026-04-26)
+- [x] `.gitignore` : `.claude/worktrees/` + `logs/` + `*.log` (commit `f8f7d0d0`)
+- [ ] Sync Replit `@henri45/E-code` → Henri doit confirmer dans Replit (pull depuis GitHub)
 
 ### T2 — Audit production-readiness ✅ TERMINÉ
-- [x] Pipeline IA audit → **4.5/10**
-  - Température 0.3 trop basse pour le design (`server/routes/code-generation.router.ts:84`)
-  - Modèles pas à jour : `gpt-4.1` en primary, manque Opus 4.7 / Sonnet 4.6 (`server/ai/ai-provider-manager.ts:60-67`)
-  - Prompt système basique, pas orienté "modern UX" (`server/ai/prompts/agent-system-prompt.ts`)
-  - Pipeline one-shot, pas agentic, pas de post-processing (lint/format/tsc)
-- [x] Preview + déploiement → **Preview OK, déploiement fragmenté**
-  - Preview hot-reload + auto-fix client fonctionne bien
-  - Risque boucle silent retry infinie si build échoue à répétition
-  - Modules K8s/buildpack/autoscale abandonnés
-- [x] Sécurité serveur → **6.5/10**
-  - 🔴 Session store in-memory (`Map<>`) → perte sessions au restart (bloquant prod)
-  - 🔴 Helmet CSP désactivé (`server/index.ts:77`)
-  - 🟠 Console.log non structurés, risque fuite secrets
-  - 🟠 Seed DB avec password "password"
-  - ✅ Auth solide (bcrypt cost 12, CSRF, rate-limit tier, Zod, Drizzle)
-- [x] Templates & design → **CAUSE RACINE du problème d'Henri**
-  - Shadcn/ui installé mais JAMAIS injecté dans scaffolds générés
-  - Framer Motion installé mais jamais utilisé dans les apps générées
-  - `server/ai/prompts/design-system.ts` défini mais DORMANT
-  - Templates produits = Tailwind gris générique (look 2023)
+- [x] Pipeline IA audit → 4.5/10 (causes corrigées en Phase 1+2)
+- [x] Preview + déploiement → Preview OK ; déploiement consolidé sur Replit deploy
+- [x] Sécurité serveur → 6.5/10 (corrigé en Phase 3)
+- [x] Templates & design → CAUSE RACINE identifiée + corrigée en Phase 1
 
 ### T3 — Plan modernisation "dernière génération"
 
-**PHASE 1 — Quick wins (semaine 1, ~6h)** ✅ TERMINÉ
-- [x] Passer température de 0.3 → 0.6 pour génération design (commit `4cee6daf`)
-- [x] Activer le design-system.ts dormant dans les scaffolds (via `modern-design-system.ts`)
+**PHASE 1 — Quick wins** ✅ TERMINÉ
+- [x] Température 0.3 → 0.6 pour génération design (commit `4cee6daf`)
+- [x] Activer `design-system.ts` dormant via `modern-design-system.ts`
 - [x] Injecter shadcn/ui + components.json par défaut dans templates React
-- [x] Ajouter section "Modern Design" dans `agent-system-prompt.ts` (+ context `'design'`)
-- [x] Créer `modern-design-system.ts` (palette hsl, shadcn, Framer Motion, dark mode)
-- [x] Migration SQL `0018_users_schema_sync.sql` pour colonnes users manquantes
+- [x] Section "Modern Design" dans `agent-system-prompt.ts` (+ context `'design'`)
+- [x] Migration SQL `0018_users_schema_sync.sql`
 
-**PHASE 2 — Qualité (semaine 2, ~8h)**
-- [ ] Upgrade fallback chain : Opus 4.7 + Sonnet 4.6 (`ai-provider-manager.ts:60-67`)
-- [ ] Pipeline post-processing (prettier + eslint --fix + tsc --noEmit)
-- [ ] Auto-fix UI : bouton "stop silent retry" après 3 échecs
+**PHASE 2 — Qualité génération IA** ✅ TERMINÉ
+- [x] Fallback chain : Opus 4.7 (primary, 1M ctx) → Sonnet 4.6 → GPT-4.1 → Gemini → Grok-3 → Kimi
+- [x] Cheap tier : Haiku 4.5 (`FAST_CHEAP_MODEL`)
+- [x] Pipeline post-processing (`server/ai/post-processing.ts`) : prettier + eslint --fix + tsc --noEmit (retry IA x2 si erreurs)
+- [x] Auto-fix UI : stop après 3 échecs consécutifs avec banner d'alerte + bouton "Resume"
+- [x] Renommage cohérent de tous les modèles legacy (`claude-sonnet-4-20250514` → `claude-sonnet-4-6`, …) sur 41 fichiers
+- [x] Fix bug duplicate-key dans `ai-pricing.ts` (Haiku 4.5 mal labellisé Sonnet)
 
-**PHASE 3 — Production-ready (semaine 3, ~6h)**
-- [ ] Session store PostgreSQL (`connect-pg-simple` déjà installé)
-- [ ] Helmet CSP/HSTS activés, retirer `false` injustifiés
-- [ ] Unifier logging Winston/Pino, désactiver console en prod
-- [ ] Nettoyer seed DB (plus de password "password")
-- [ ] Consolider déploiement : choisir 1 stratégie, archiver le reste
+**PHASE 3 — Production-ready** ✅ TERMINÉ
+- [x] Session store PostgreSQL consolidé (`server/middleware/session-config.ts`), fail-fast si pas de DB en prod
+- [x] Helmet CSP + HSTS activés (whitelist Anthropic/OpenAI/Gemini/xAI/Moonshot/Stripe/Sentry/Replicate)
+- [x] Logger enrichi : redaction de secrets (`password`, `token`, `apikey`, Bearer, `sk-/pk-`, postgres URLs) + `silenceConsoleInProduction()` (Pino non-migré, choix documenté dans le commit — winston/viteLog déjà partout, refactor à 100+ fichiers trop coûteux pour le gain)
+- [x] Seed DB sécurisé : random base64url affiché une seule fois au stdout, plus de `password` literal en dev
+- [x] Consolidation déploiement : 13 stratégies dormantes archivées dans `archive/deploy-strategies/` avec README ; `tsconfig.json` exclut `archive/`
 
-### T3 — Moderniser la génération "dernière génération"
-- [ ] Upgrader les modèles IA (Claude Opus 4.7 / Sonnet 4.6 selon coût/qualité)
-- [ ] Revoir les prompts système de génération
-- [ ] Ajouter templates de design modernes (Tailwind + shadcn/ui + animations)
-- [ ] Ajouter patterns modernes (Next.js 15, Server Components, streaming)
-- [ ] Tests E2E sur apps générées
+**PHASE 4 — CI / monitoring / docs** ✅ TERMINÉ
+- [x] CI GitHub Actions : 4 jobs (lint + typecheck non-bloquant avec annotation du baseline + tests + build)
+- [x] `.env.production.example` exhaustif (~70 vars curées sur 341 trouvées par grep)
+- [x] Sentry serveur (`server/monitoring.ts`) + client (`client/src/lib/sentry.ts`) conditionnels (soft dep, dynamic import, opt-in via `SENTRY_DSN` / `VITE_SENTRY_DSN`)
+- [x] `README.md` quickstart + `docs/ARCHITECTURE.md` (1 page, schéma pipeline génération)
 
 ### T4 — Production
-- [ ] Variables d'env prod (`.env.production`)
-- [ ] CI/CD (GitHub Actions)
-- [ ] Monitoring + logs
-- [ ] Doc utilisateur + dev
+- [x] Variables d'env prod (`.env.production.example`)
+- [x] CI/CD (GitHub Actions amélioré)
+- [x] Monitoring + logs (Sentry conditionnel + logger redactor)
+- [x] Doc utilisateur + dev (README + ARCHITECTURE + HANDOFF)
+- [ ] Henri exécute la checklist de [`docs/HANDOFF.md`](docs/HANDOFF.md)
 
-## Ce dont Claude a besoin pour travailler en autonomie
-Voir section « Inputs requis » dans la conversation courante — à compléter dès qu'Henri répond.
+## Dette technique connue (non bloquante)
+
+| Item | Pourquoi reporté | Quand revisiter |
+|---|---|---|
+| ~3781 erreurs TS strict-mode | Baseline pré-existante, build non-bloquant | Au fil de l'eau, par module touché |
+| `container-orchestrator.ts` encore dans `server/deployment/` | Encore importé par `polyglot-routes.ts` + `edge/edge-manager.ts` | Archiver quand ces routes seront retirées |
+| Tests E2E avec base de données réelle | Aucun pour l'instant | Quand la bandwidth le permet (Playwright + Postgres-in-CI) |
+| Migration vers Pino | Le wrapper actuel fait déjà redaction + console-silencing | Si la perf devient un bottleneck |
 
 ## Règles de travail
-1. Toujours travailler sur la branche `claude/sync-vibe-companion-kpLLm` (ou branches dédiées)
-2. Commits clairs et fréquents
-3. Ne jamais push sur `main` directement
-4. Mettre à jour ce fichier quand une tâche avance ou qu'une nouvelle consigne est donnée
+1. Branches `claude/<sujet>` créées depuis `main` à jour
+2. Commits clairs et fréquents (conventional commits : `feat:`, `fix:`, `chore:`, …)
+3. Push sur `main` autorisé après tests verts (typecheck baseline + boot 30s OK)
+4. Mettre à jour ce fichier quand une tâche avance
 5. Répondre en français
+6. JAMAIS `--no-verify` — corriger la cause racine si un hook plante
