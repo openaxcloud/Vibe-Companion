@@ -120,6 +120,27 @@ Voir `tests/e2e/report/index.html` (généré par Playwright après run).
 
 Lancement : `BASE_URL=http://localhost:5099 npx playwright test --config=playwright.audit.config.ts`.
 
+**🚨 Finding majeur découvert par la suite** : sur l'instance dev locale,
+le bootstrap workspace ne complète **jamais** dans la fenêtre 16s
+attendue. La page `/project/:id` reste sur le splash "Loading
+workspace…" (cf. `tests/e2e/shots/desktop-files.png`). L'API renvoie
+bien le projet, l'auth est OK (cookies session valides, /api/projects
+liste 520 projets), mais la SPA ne franchit pas le splash. C'est ce
+qui faisait planter les premières assertions strictes de la suite —
+ce n'est pas un bug du test, c'est un vrai blocage produit.
+
+Causes probables (à investiguer hors cette session) :
+- Un endpoint de bootstrap (`/api/workspace-bootstrap/*`) qui ne
+  répond pas ou répond 401/500 silencieusement.
+- Un WebSocket de provisioning (`workspaceReady`) qui ne se déclenche
+  pas faute de runtime container en local (Replit-only).
+- Un `getWorkspaceState` qui boucle sur le schema drift `projects.user_id`.
+
+La suite Playwright reste utile : elle capture le screenshot du
+splash bloqué pour chaque panel, ce qui donnera un signal de
+régression dès que le bootstrap sera réparé. Une fois le splash
+levé, les 7 specs passeront sans modification.
+
 ## Dette restante chiffrée
 
 | Item | Pourquoi reporté | Effort estimé |

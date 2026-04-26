@@ -1,17 +1,15 @@
 /**
- * Authenticate the seeded admin user via the public auth endpoints
- * and provide one shared project ID for the panel suite (creating a
- * fresh project per test would hit the per-user project limit on the
- * default plan and isn't needed — panel mount checks are read-only).
+ * Authenticate via the same browser context the page lives in
+ * (page.request shares cookies with page). Reuses one project across
+ * the whole suite to dodge the per-user create rate limit.
  *
  * Run scripts/reset-e2e-admin.ts before this suite to ensure the
  * admin account exists, has the expected password, and is on the
  * enterprise tier (no project rate limit).
  */
-import { APIRequestContext, expect, test as base } from '@playwright/test';
+import { Page, expect, test as base } from '@playwright/test';
 
 type Fixtures = {
-  authedRequest: APIRequestContext;
   freshProjectId: string;
 };
 
@@ -20,26 +18,25 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'e2e-admin-password';
 
 let cachedProjectId: string | null = null;
 
-async function getCsrfToken(request: APIRequestContext) {
-  const r = await request.get('/api/csrf-token');
+async function getCsrf(page: Page): Promise<string | null> {
+  const r = await page.request.get('/api/csrf-token');
   if (!r.ok()) return null;
   const body = await r.json().catch(() => null);
   return body?.csrfToken || body?.token || null;
 }
 
-async function login(request: APIRequestContext) {
-  const csrf = await getCsrfToken(request);
-  const r = await request.post('/api/auth/login', {
+async function login(page: Page) {
+  const csrf = await getCsrf(page);
+  const r = await page.request.post('/api/auth/login', {
     data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
     headers: csrf ? { 'x-csrf-token': csrf } : {},
   });
-  expect(r.ok(), `login failed: status=${r.status()} body=${await r.text()}`).toBeTruthy();
+  expect(r.ok(), `login failed: ${r.status()} ${await r.text()}`).toBeTruthy();
 }
 
-async function getOrCreateProject(request: APIRequestContext): Promise<string> {
+async function getOrCreateProject(page: Page): Promise<string> {
   if (cachedProjectId) return cachedProjectId;
-  // Try to reuse an existing project to avoid the per-user create rate limit.
-  const list = await request.get('/api/projects');
+  const list = await page.request.get('/api/projects');
   if (list.ok()) {
     const body = await list.json().catch(() => null);
     const projects = Array.isArray(body) ? body : (body?.projects ?? []);
@@ -48,9 +45,8 @@ async function getOrCreateProject(request: APIRequestContext): Promise<string> {
       return cachedProjectId;
     }
   }
-  // Fall back to creating one.
-  const csrf = await getCsrfToken(request);
-  const r = await request.post('/api/projects', {
+  const csrf = await getCsrf(page);
+  const r = await page.request.post('/api/projects', {
     data: { name: `e2e-audit-${Date.now()}`, language: 'javascript', visibility: 'private' },
     headers: csrf ? { 'x-csrf-token': csrf } : {},
   });
@@ -61,12 +57,9 @@ async function getOrCreateProject(request: APIRequestContext): Promise<string> {
 }
 
 export const test = base.extend<Fixtures>({
-  authedRequest: async ({ request }, use) => {
-    await login(request);
-    await use(request);
-  },
-  freshProjectId: async ({ authedRequest }, use) => {
-    const id = await getOrCreateProject(authedRequest);
+  freshProjectId: async ({ page }, use) => {
+    await login(page);
+    const id = await getOrCreateProject(page);
     await use(id);
   },
 });
