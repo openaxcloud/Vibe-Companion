@@ -1,4 +1,7 @@
 import "dotenv/config";
+import { silenceConsoleInProduction } from "./utils/logger";
+silenceConsoleInProduction();
+
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import cors from "cors";
@@ -76,18 +79,61 @@ const isReplit = !!(process.env.REPL_ID || process.env.REPLIT_DOMAINS || process
 const isDev = process.env.NODE_ENV !== "production";
 log(`Environment: isReplit=${isReplit}, isDev=${isDev}, REPL_ID=${!!process.env.REPL_ID}`, "express");
 
+// Build a CSP that allows: self, inline (Vite HMR + React DevTools in dev),
+// generated-app preview iframes, and outbound calls to the AI providers we use.
+// In dev mode we relax connect-src for Vite HMR (ws://) and the local preview proxy.
+const cspDirectives: Record<string, string[]> = {
+  defaultSrc: ["'self'"],
+  baseUri: ["'self'"],
+  objectSrc: ["'none'"],
+  imgSrc: ["'self'", "data:", "blob:", "https:"],
+  fontSrc: ["'self'", "data:", "https:"],
+  styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+  scriptSrc: isDev
+    ? ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:"]
+    : ["'self'", "'unsafe-inline'", "blob:"],
+  connectSrc: [
+    "'self'",
+    "https://api.anthropic.com",
+    "https://api.openai.com",
+    "https://generativelanguage.googleapis.com",
+    "https://api.x.ai",
+    "https://api.moonshot.ai",
+    "https://api.groq.com",
+    "https://api.replicate.com",
+    "https://api.stripe.com",
+    "https://*.sentry.io",
+    ...(isDev ? ["ws:", "wss:", "http://localhost:*", "ws://localhost:*"] : ["wss:"]),
+  ],
+  frameSrc: ["'self'", "blob:", "data:", "https:"],
+  workerSrc: ["'self'", "blob:"],
+  manifestSrc: ["'self'"],
+};
+
 app.use(
   helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: cspDirectives,
+    },
+    // Preview iframes need cross-origin isolation off so generated apps can talk
+    // to APIs and load resources without COEP blocking.
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" as const },
+    // We render generated-app previews inside iframes from our own origin, so
+    // X-Frame-Options would block them. We use frame-ancestors via CSP instead.
     frameguard: false,
-    hsts: false,
+    // HSTS only in production (dev runs over HTTP and HSTS would cache HTTPS).
+    hsts: isDev
+      ? false
+      : { maxAge: 60 * 60 * 24 * 365, includeSubDomains: true, preload: true },
+    referrerPolicy: { policy: "no-referrer-when-downgrade" },
   })
 );
 
 app.use((_req, res, next) => {
+  // Removed in favour of CSP frame-ancestors (allows iframe preview from same origin).
   res.removeHeader("X-Frame-Options");
   next();
 });

@@ -6,23 +6,25 @@ import { createLogger } from './utils/logger';
 const logger = createLogger('db-seed');
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Generate secure random password for production if not provided
-function getSecurePassword(envVar: string, devDefault: string): string {
+// Generate a strong random password unless explicitly provided.
+// In every environment we now prefer random over a hardcoded literal so
+// dev installs can't be brute-forced from a leaked default.
+// The generated password is printed ONCE to stdout so the operator can save it.
+function getSecurePassword(envVar: string, label: string): string {
   const envPassword = process.env[envVar];
-  
-  if (envPassword) {
-    return envPassword;
-  }
-  
-  if (isProduction) {
-    // In production, generate random password and log it securely
-    const randomPassword = crypto.randomBytes(32).toString('hex');
-    logger.warn(`[Security] ${envVar} not set - generated random password (check logs)`);
-    return randomPassword;
-  }
-  
-  // Only use hardcoded defaults in development/test
-  return devDefault;
+  if (envPassword) return envPassword;
+
+  const randomPassword = crypto.randomBytes(18).toString('base64url');
+  // Emit to plain stdout (not the structured logger, which may be silenced
+  // in prod) so the password is never lost in log redaction.
+  process.stdout.write(
+    `\n` +
+    `==================================================================\n` +
+    `  [seed] Generated ${label} password (set ${envVar} to override):\n` +
+    `  ${randomPassword}\n` +
+    `==================================================================\n\n`
+  );
+  return randomPassword;
 }
 
 // Password hashing function - uses bcrypt to match auth.router.ts
@@ -45,7 +47,7 @@ export async function seedDatabase() {
     
     if (!testUser) {
       // Create test user with secure password handling
-      const testPassword = getSecurePassword('TEST_USER_PASSWORD', 'testpass123');
+      const testPassword = getSecurePassword('TEST_USER_PASSWORD', 'testuser');
       const hashedPassword = await hashPassword(testPassword);
       testUser = await storage.createUser({
         username: "testuser",
@@ -167,7 +169,7 @@ This project is automatically created for E2E testing.
     // Create admin user for E2E testing if it doesn't exist
     const existingAdmin = await storage.getUserByUsername("admin");
     if (!existingAdmin) {
-      const adminPassword = getSecurePassword('ADMIN_USER_PASSWORD', 'adminpass123');
+      const adminPassword = getSecurePassword('ADMIN_USER_PASSWORD', 'admin');
       const adminHashedPassword = await hashPassword(adminPassword);
       const adminUser = await storage.createUser({
         username: "admin",
@@ -175,19 +177,13 @@ This project is automatically created for E2E testing.
         email: "admin@test.com",
         displayName: "Admin User",
       });
-      
-      // Update to mark as admin (role='admin') and email verified
+
       await storage.updateUser(String(adminUser.id), {
         role: 'admin',
         emailVerified: true
       });
-      
-      // ✅ B-C2 FIX: Don't leak password in logs - only show if using dev default
-      if (!process.env.ADMIN_USER_PASSWORD && !isProduction) {
-        logger.info('✅ Admin user seeded (admin@test.com / adminpass123 - DEV ONLY)');
-      } else {
-        logger.info('✅ Admin user seeded (admin@test.com / [password from env or random])');
-      }
+
+      logger.info('✅ Admin user seeded (admin@test.com)');
     } else if (!existingAdmin.emailVerified || existingAdmin.role !== 'admin') {
       // Update existing admin to have email verified and admin role
       await storage.updateUser(String(existingAdmin.id), {

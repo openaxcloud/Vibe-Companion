@@ -3,39 +3,52 @@ import connectPgSimple from "connect-pg-simple";
 import crypto from "crypto";
 import type { Request, Response, NextFunction } from "express";
 
+const isProduction = process.env.NODE_ENV === "production";
+const isReplit = !!(process.env.REPL_ID || process.env.REPLIT_DOMAINS || process.env.REPL_SLUG);
+
 if (!process.env.SESSION_SECRET) {
+  if (isProduction) {
+    throw new Error("SESSION_SECRET is required in production");
+  }
   process.env.SESSION_SECRET = crypto.randomBytes(32).toString("hex");
-  console.warn("[WARN] SESSION_SECRET not set, using random value (sessions won't persist across restarts)");
+  console.warn("[session] SESSION_SECRET not set — generated ephemeral secret (sessions will not survive restart)");
 }
 
-const PgSession = connectPgSimple(session);
-let sessionStore: session.Store;
+const PgStore = connectPgSimple(session);
+let store: session.Store;
+
 if (process.env.DATABASE_URL) {
-  sessionStore = new PgSession({
+  store = new PgStore({
     conString: process.env.DATABASE_URL,
-    tableName: "session",
+    tableName: "user_sessions",
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15,
-    errorLog: (err: Error) => console.error("[PgSessionStore]", err.message),
+    errorLog: (err: Error) => console.error("[session][pg-store]", err.message),
   });
-  console.log("[Session Store] Using PostgreSQL (persistent)");
+  console.log("[session] store=postgres table=user_sessions");
 } else {
-  sessionStore = new session.MemoryStore();
-  console.log("[Session Store] Using MemoryStore (fallback)");
+  if (isProduction) {
+    throw new Error("DATABASE_URL is required in production for persistent session storage");
+  }
+  store = new session.MemoryStore();
+  console.warn("[session] store=memory (DEV ONLY — sessions lost on restart)");
 }
+
+export const sessionStore = store;
 
 export const sessionMiddleware = session({
   secret: process.env.SESSION_SECRET!,
   resave: false,
   saveUninitialized: false,
-  store: sessionStore,
+  store,
   name: "ecode.sid",
   proxy: true,
   cookie: {
-    secure: process.env.NODE_ENV === "production" || !!process.env.REPL_ID,
-    httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    sameSite: process.env.NODE_ENV === "production" || !!process.env.REPL_ID ? "none" as const : "lax" as const,
+    httpOnly: true,
+    secure: isProduction || isReplit,
+    sameSite: isProduction || isReplit ? ("none" as const) : ("lax" as const),
+    domain: process.env.COOKIE_DOMAIN || undefined,
   },
 });
 
@@ -45,5 +58,3 @@ export function ensureCsrfToken(req: Request, _res: Response, next: NextFunction
   }
   next();
 }
-
-export { sessionStore };
