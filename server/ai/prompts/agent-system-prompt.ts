@@ -270,7 +270,7 @@ Design System:
   Button/Dialog/Input; Framer Motion for subtle micro-interactions only;
   next-themes for first-class dark mode with CSS variables; Inter font.
 - For React/Next.js projects: configure Tailwind locally via PostCSS (NOT the
-  CDN), so dark-mode `class` strategy and tree-shaking work in production.
+  CDN), so dark-mode "class" strategy and tree-shaking work in production.
 - For plain HTML/landing pages where local Tailwind is overkill: the CDN
   snippet in TAILWIND_CDN_HEAD already wires the modern hsl() variables.
 

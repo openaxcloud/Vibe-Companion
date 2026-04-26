@@ -604,15 +604,23 @@ export class AIProviderManager {
       promptCacheManager.cacheSystemPrompt(systemMessage, 'anthropic');
     }
     
+    // Newer Anthropic models (Opus 4.7, future thinking-enabled models) reject
+    // the `temperature` parameter — the API returns 400 "`temperature` is
+    // deprecated for this model.". Detect this family and skip the field.
+    const isThinkingModel = /^claude-opus-4-7\b/.test(modelId);
+    const requestParams: any = {
+      model: modelId,
+      messages: cachedMessages as any,
+      system: cachedSystem as any,
+      max_tokens: clampMaxTokens(modelId, options?.max_tokens || 8192),
+      stream: true,
+    };
+    if (!isThinkingModel) {
+      requestParams.temperature = options?.temperature ?? 0.4;
+    }
+
     try {
-      const stream = await this.anthropicClient.messages.create({
-        model: modelId,
-        messages: cachedMessages as any,
-        system: cachedSystem as any,
-        max_tokens: clampMaxTokens(modelId, options?.max_tokens || 8192),
-        temperature: options?.temperature || 0.4,
-        stream: true,
-      });
+      const stream = await this.anthropicClient.messages.create(requestParams);
       
       let buffer = '';
       for await (const chunk of stream) {
