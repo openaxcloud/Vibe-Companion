@@ -98,22 +98,27 @@ export async function registerAiUsageTrackingRoutes(app: Express, ctx: any): Pro
     }
   });
 
-  await storage.seedDemoProject();
-  log("Demo project seeded", "seed");
-  await storage.seedPlanConfigs();
-  log("Plan configs seeded", "seed");
-  await storage.seedIntegrationCatalog();
-  log("Integration catalog seeded", "seed");
-  await storage.seedOfficialFrameworks();
-  log("Official frameworks seeded", "seed");
-  await storage.seedArtifactTemplates();
-  log("Artifact templates seeded", "seed");
-
-  try {
-    await storage.backfillStorageBuckets();
-    log("Storage buckets backfilled", "seed");
-  } catch (err: any) {
-    log(`Storage bucket backfill error: ${err.message}`, "seed");
+  // Seeds are wrapped individually so a single DB-schema-drift failure
+  // doesn't stop the router from registering the routes defined below
+  // (community posts/replies/likes, slack bot, automation scheduler, etc).
+  // Previously, when seedDemoProject hit the projects.user_id vs owner_id
+  // drift, the whole router import threw and ~20 user-facing routes
+  // never got registered.
+  const seeds: Array<[string, () => Promise<void>]> = [
+    ['Demo project', () => storage.seedDemoProject()],
+    ['Plan configs', () => storage.seedPlanConfigs()],
+    ['Integration catalog', () => storage.seedIntegrationCatalog()],
+    ['Official frameworks', () => storage.seedOfficialFrameworks()],
+    ['Artifact templates', () => storage.seedArtifactTemplates()],
+    ['Storage buckets backfill', () => storage.backfillStorageBuckets()],
+  ];
+  for (const [label, fn] of seeds) {
+    try {
+      await fn();
+      log(`${label} seeded`, 'seed');
+    } catch (err: any) {
+      log(`${label} seed skipped: ${err.message}`, 'seed');
+    }
   }
 
   const { setExpressApp } = await import("./slackBot");

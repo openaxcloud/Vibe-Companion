@@ -55,12 +55,13 @@ export class SlackAlertService {
         this.webhookUrl = typeof value === 'string' ? value : value.url || null;
         this.lastConfigLoad = Date.now();
       } else if (!this.webhookUrl) {
-        // No DB config and no env var - initialize empty setting
-        await db.insert(systemSettings).values({
-          key: 'slack_webhook_url',
-          value: null,
-          description: 'Slack webhook URL for AI optimization alerts',
-        }).onConflictDoNothing();
+        // No DB config and no env var — nothing to do. Previously we
+        // INSERTed a placeholder row here, but that combined with an
+        // older live-DB schema (extra `description`/`encrypted` columns
+        // alongside the schema's id/key/value/updated_at) produced the
+        // confusing "null value in column id" boot warning. The
+        // service simply stays in "Slack alerts disabled" mode until
+        // an admin POSTs a webhook via the management endpoint.
       }
     } catch (error) {
       console.warn('[Slack Alert] Failed to load configuration:', error);
