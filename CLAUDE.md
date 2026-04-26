@@ -17,8 +17,9 @@ Finaliser la plateforme (clone Replit amélioré) pour qu'elle soit **prête pou
 ## Tâches en cours (à mettre à jour au fur et à mesure)
 
 ### T1 — Vérifier synchronisation repo
-- [x] Sandbox Claude ↔ GitHub `openaxcloud/Vibe-Companion` : à jour sur `main` (HEAD `ccd8fb1d`)
-- [ ] Vérifier sync du dossier local d'Henri → Henri doit lancer `git status` + `git pull` sur sa machine
+- [x] Sandbox Claude ↔ GitHub `openaxcloud/Vibe-Companion` : à jour sur `main` (HEAD `f8f7d0d0`)
+- [x] Sync dossier local Mac d'Henri → à jour sur `main` (HEAD `f8f7d0d0`, 2026-04-26)
+- [x] `.gitignore` : ajout `.claude/worktrees/` + `logs/` + `*.log` (commit `f8f7d0d0`)
 - [ ] Vérifier sync Replit `@henri45/E-code` → Henri doit confirmer dans Replit (pull depuis GitHub)
 
 ### T2 — Audit production-readiness ✅ TERMINÉ
