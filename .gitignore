@@ -22,3 +22,8 @@ vite.config.ts.*
 # Runtime preview/runner workspaces
 project-workspaces/
 
+
+# Playwright generated artifacts (audit)
+tests/e2e/report/
+tests/e2e/shots/
+test-results/
