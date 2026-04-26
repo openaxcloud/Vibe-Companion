@@ -14,7 +14,7 @@
 // ║  New (RECOMMENDED):                                                      ║
 // ║    import { aiProviderManager } from './ai/ai-provider-manager';        ║
 // ║    const result = await aiProviderManager.generateChat(                 ║
-// ║      'claude-sonnet-4-20250514', messages, { max_tokens: 1024 }          ║
+// ║      'claude-sonnet-4-6', messages, { max_tokens: 1024 }          ║
 // ║    );                                                                    ║
 // ║                                                                          ║
 // ║  Why migrate?                                                            ║
@@ -186,9 +186,9 @@ export class AnthropicProvider implements AIProvider {
   // Get default model from AI_MODELS catalog
   private static getDefaultModel(): string {
     const anthropicModels = AI_MODELS.filter(m => m.provider === 'anthropic');
-    return anthropicModels.find(m => m.id === 'claude-sonnet-4-20250514')?.id
-        || anthropicModels.find(m => m.id === 'claude-opus-4-20250514')?.id
-        || 'claude-sonnet-4-20250514';
+    return anthropicModels.find(m => m.id === 'claude-sonnet-4-6')?.id
+        || anthropicModels.find(m => m.id === 'claude-opus-4-7')?.id
+        || 'claude-sonnet-4-6';
   }
 
   constructor(apiKey?: string) {

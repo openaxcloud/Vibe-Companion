@@ -114,15 +114,47 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
 
   // Auto-fix: silently dispatch errors to the agent once per unique error set (1.5s debounce).
   // The user never sees the raw error — they just see a "Finishing setup" loader while the agent fixes it.
+  // Safety: after 3 consecutive failed attempts (errors persist after each fix), STOP retrying and surface a control
+  // so the user can intervene rather than burning tokens in a loop.
+  const MAX_AUTO_FIX_ATTEMPTS = 3;
   const lastAutoFixFingerprintRef = useRef<string>("");
+  const autoFixAttemptsRef = useRef<number>(0);
+  const [autoFixStopped, setAutoFixStopped] = useState(false);
+  const [autoFixAttemptCount, setAutoFixAttemptCount] = useState(0);
+  const [autoFixLastErrors, setAutoFixLastErrors] = useState<string[]>([]);
+
+  const resumeAutoFix = useCallback(() => {
+    autoFixAttemptsRef.current = 0;
+    lastAutoFixFingerprintRef.current = "";
+    setAutoFixStopped(false);
+    setAutoFixAttemptCount(0);
+  }, []);
+
   useEffect(() => {
-    if (buildErrors.length === 0) return;
+    if (autoFixStopped) return;
+    if (buildErrors.length === 0) {
+      // Errors cleared — auto-fix worked, reset the attempt counter for the next batch.
+      if (autoFixAttemptsRef.current > 0) {
+        autoFixAttemptsRef.current = 0;
+        setAutoFixAttemptCount(0);
+      }
+      return;
+    }
     const fingerprint = buildErrors.join("\n");
     if (fingerprint === lastAutoFixFingerprintRef.current) return;
     const t = setTimeout(() => {
       if (fingerprint === lastAutoFixFingerprintRef.current) return;
       lastAutoFixFingerprintRef.current = fingerprint;
-      const prompt = `Auto-detected build errors from the preview dev server. Please fix them silently and continue:\n\n${buildErrors.map(e => `- ${e}`).join("\n")}\n\nFor each missing import, create the file. For each missing npm package, add it to package.json (and install it if needed). After fixing, the preview will reload automatically.`;
+      autoFixAttemptsRef.current += 1;
+      setAutoFixAttemptCount(autoFixAttemptsRef.current);
+      setAutoFixLastErrors(buildErrors);
+
+      if (autoFixAttemptsRef.current > MAX_AUTO_FIX_ATTEMPTS) {
+        setAutoFixStopped(true);
+        return;
+      }
+
+      const prompt = `Auto-detected build errors from the preview dev server (attempt ${autoFixAttemptsRef.current}/${MAX_AUTO_FIX_ATTEMPTS}). Please fix them silently and continue:\n\n${buildErrors.map(e => `- ${e}`).join("\n")}\n\nFor each missing import, create the file. For each missing npm package, add it to package.json (and install it if needed). After fixing, the preview will reload automatically.`;
       window.dispatchEvent(new CustomEvent('ecode:agent-send-message', {
         detail: { projectId, content: prompt }
       }));
@@ -132,7 +164,7 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
       setTimeout(() => setRefreshKey(k => k + 1), 30000);
     }, 1500);
     return () => clearTimeout(t);
-  }, [buildErrors.join("\n"), projectId]);
+  }, [buildErrors.join("\n"), projectId, autoFixStopped]);
 
   const startPreview = useCallback(async () => {
     setPreviewStatus("starting");
@@ -495,6 +527,33 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
       </div>
 
       <div className={cn("flex-1 flex flex-col overflow-hidden", showConsole && "")}>
+        {autoFixStopped && (
+          <div
+            className="border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 flex items-start gap-2 text-[11px]"
+            data-testid="auto-fix-stopped-banner"
+            role="alert"
+          >
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-amber-300">
+                Auto-fix paused — same build errors after {MAX_AUTO_FIX_ATTEMPTS} attempts.
+              </p>
+              <p className="text-amber-200/80 mt-0.5 truncate">
+                {autoFixLastErrors[0] || "Persistent build errors"}
+                {autoFixLastErrors.length > 1 && ` (+${autoFixLastErrors.length - 1} more)`}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={resumeAutoFix}
+              className="h-6 text-[10px] px-2 shrink-0"
+              data-testid="button-resume-auto-fix"
+            >
+              <RotateCcw className="w-3 h-3 mr-1" /> Resume
+            </Button>
+          </div>
+        )}
         <div className={cn("flex-1 flex items-center justify-center overflow-auto bg-[var(--ide-surface)]", showConsole && "min-h-0")}>
           {previewStatus === "starting" && !showIframe && (
             <div className="text-center space-y-3 animate-in fade-in duration-300" data-testid="preview-starting">

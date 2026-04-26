@@ -260,7 +260,7 @@ router.post('/build', async (req, res) => {
     const fileOps = new AgentFileOperationsService();
     
     // Generate build actions using AI with optional model selection
-    logger.info(`Starting autonomous build for project ${projectId} using model ${modelId || 'claude-sonnet-4-20250514'}`);
+    logger.info(`Starting autonomous build for project ${projectId} using model ${modelId || 'claude-sonnet-4-6'}`);
     const { actions, rejected } = await aiService.generateBuildActions(userId, projectId, prompt, modelId);
     
     // CRITICAL: Fail early if AI generated zero actions

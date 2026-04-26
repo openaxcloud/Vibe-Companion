@@ -729,8 +729,9 @@ export const MODEL_TOKEN_PRICING: Record<string, { input: number; output: number
   "gpt-4.1-nano": { input: 0.0001, output: 0.0004, label: "GPT-4.1 Nano", creditsPerMillionInput: 10, creditsPerMillionOutput: 40 },
   "o4-mini": { input: 0.0011, output: 0.0044, label: "o4-mini", creditsPerMillionInput: 110, creditsPerMillionOutput: 440 },
   "o3": { input: 0.01, output: 0.04, label: "o3", creditsPerMillionInput: 1000, creditsPerMillionOutput: 4000 },
-  "claude-sonnet-4-20250514": { input: 0.003, output: 0.015, label: "Claude Sonnet 4", creditsPerMillionInput: 300, creditsPerMillionOutput: 1500 },
-  "claude-opus-4-20250514": { input: 0.015, output: 0.075, label: "Claude Opus 4", creditsPerMillionInput: 1500, creditsPerMillionOutput: 7500 },
+  "claude-sonnet-4-6": { input: 0.003, output: 0.015, label: "Claude Sonnet 4.6", creditsPerMillionInput: 300, creditsPerMillionOutput: 1500 },
+  "claude-opus-4-7": { input: 0.015, output: 0.075, label: "Claude Opus 4.7", creditsPerMillionInput: 1500, creditsPerMillionOutput: 7500 },
+  "claude-haiku-4-5-20251001": { input: 0.0008, output: 0.004, label: "Claude Haiku 4.5", creditsPerMillionInput: 80, creditsPerMillionOutput: 400 },
   "gemini-2.5-pro": { input: 0.00125, output: 0.01, label: "Gemini 2.5 Pro", creditsPerMillionInput: 125, creditsPerMillionOutput: 1000 },
   "gemini-2.5-flash": { input: 0.0000375, output: 0.00015, label: "Gemini 2.5 Flash", creditsPerMillionInput: 4, creditsPerMillionOutput: 15 },
 };
@@ -767,15 +768,15 @@ export function getProviderPricing(provider: string): { input: number; output: n
 // All OpenAI entries use direct provider models (gpt-4o / gpt-4o-mini) via
 // OPENAI_API_KEY, not Replit ModelFarm's gpt-4.1 family.
 export const AGENT_MODE_MODELS: Record<AgentMode, Record<string, string>> = {
-  economy: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4o-mini", gemini: "gemini-2.5-flash" },
-  power: { claude: "claude-opus-4-20250514", gpt: "gpt-4o", gemini: "gemini-2.5-pro" },
-  turbo: { claude: "claude-opus-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro" },
+  economy: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.5-flash" },
+  power: { claude: "claude-opus-4-7", gpt: "gpt-4o", gemini: "gemini-2.5-pro" },
+  turbo: { claude: "claude-opus-4-7", gpt: "o3", gemini: "gemini-2.5-pro" },
 };
 
 export const TOP_AGENT_MODE_MODELS: Record<TopAgentMode, Record<string, string>> = {
-  lite: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4o-mini", gemini: "gemini-2.5-flash" },
-  autonomous: { claude: "claude-sonnet-4-20250514", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
-  max: { claude: "claude-opus-4-20250514", gpt: "o3", gemini: "gemini-2.5-pro" },
+  lite: { claude: "claude-sonnet-4-6", gpt: "gpt-4o-mini", gemini: "gemini-2.5-flash" },
+  autonomous: { claude: "claude-sonnet-4-6", gpt: "gpt-4o", gemini: "gemini-2.5-flash" },
+  max: { claude: "claude-opus-4-7", gpt: "o3", gemini: "gemini-2.5-pro" },
 };
 
 export const customDomains = pgTable("custom_domains", {
@@ -2831,8 +2832,9 @@ export const AI_MODELS = {
   "gpt-4.1-nano": { provider: "openai", name: "GPT-4.1 Nano", maxTokens: 1047576 },
   "o4-mini": { provider: "openai", name: "o4-mini", maxTokens: 200000 },
   "o3": { provider: "openai", name: "o3", maxTokens: 200000 },
-  "claude-sonnet-4-20250514": { provider: "anthropic", name: "Claude Sonnet 4", maxTokens: 200000 },
-  "claude-opus-4-20250514": { provider: "anthropic", name: "Claude Opus 4", maxTokens: 200000 },
+  "claude-sonnet-4-6": { provider: "anthropic", name: "Claude Sonnet 4.6", maxTokens: 200000 },
+  "claude-opus-4-7": { provider: "anthropic", name: "Claude Opus 4.7", maxTokens: 1000000 },
+  "claude-haiku-4-5-20251001": { provider: "anthropic", name: "Claude Haiku 4.5", maxTokens: 200000 },
   "gemini-2.5-pro": { provider: "gemini", name: "Gemini 2.5 Pro", maxTokens: 1000000 },
   "gemini-2.5-flash": { provider: "gemini", name: "Gemini 2.5 Flash", maxTokens: 1000000 },
 } as const;

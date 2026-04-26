@@ -66,7 +66,7 @@ export const AI_MODELS: AIModel[] = [
     badge: 'Fast',
   },
   {
-    id: 'claude-opus-4-20250514',
+    id: 'claude-opus-4-7',
     name: 'Claude Opus 4',
     provider: 'anthropic',
     description: 'Most powerful Claude — best for architecture & complex reasoning',
@@ -74,7 +74,7 @@ export const AI_MODELS: AIModel[] = [
     badge: 'Most Powerful',
   },
   {
-    id: 'claude-sonnet-4-20250514',
+    id: 'claude-sonnet-4-6',
     name: 'Claude Sonnet 4',
     provider: 'anthropic',
     description: 'Balanced Claude — fast, smart, great for code',

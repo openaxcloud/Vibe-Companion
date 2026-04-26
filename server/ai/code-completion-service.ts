@@ -158,7 +158,7 @@ Only provide completions that are highly relevant and would actually help the de
       // Try Claude first (best for code completion)
       if (this.anthropic.apiKey) {
         const message = await this.anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 300,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.2, // Lower temperature for more deterministic completions

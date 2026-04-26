@@ -169,7 +169,7 @@ export class AgentV2Service {
         projectId: task.projectId,
         userId: task.userId,
         tokensUsed: progress.tokensUsed,
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         responseTime: Date.now() - parseInt(buildId.split('-')[2]),
         features: {
           checkpointCreated: progress.checkpointsCreated

@@ -137,7 +137,7 @@ Always read relevant files before editing existing ones. Prefer precise edits ov
 Keep text responses brief — focus on BUILDING, not talking.`;
 
 export class ClaudeAgentService {
-  private model = 'claude-sonnet-4-20250514';
+  private model = 'claude-sonnet-4-6';
 
   isConfigured(): boolean {
     return !!process.env.ANTHROPIC_API_KEY;

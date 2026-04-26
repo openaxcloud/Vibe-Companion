@@ -67,7 +67,7 @@ export class ConversationManagementService {
       messages: [],
       context: params.initialContext || {},
       totalTokensUsed: 0,
-      model: 'claude-sonnet-4-20250514'
+      model: 'claude-sonnet-4-6'
     }).returning();
 
     const conversation: Conversation = {

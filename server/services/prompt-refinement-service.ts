@@ -275,7 +275,7 @@ export class PromptRefinementService {
 Also list specific issues and strengths. Return as JSON.`;
 
       const response = await aiProviderManager.generateCompletion({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }
@@ -359,7 +359,7 @@ Maintain the original intent but improve clarity, specificity, and structure.
 Return a JSON object with: { refined: "improved prompt", suggestions: [{type, original, suggested, explanation, confidence}] }`;
 
       const response = await aiProviderManager.generateCompletion({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }

@@ -231,7 +231,7 @@ router.post('/agent/chat/stream', ensureAuthenticated, async (req, res) => {
   const getDefaultModel = (prov: string): string => {
     switch (prov) {
       case 'openai': return 'gpt-4.1';
-      case 'anthropic': return 'claude-sonnet-4-20250514';
+      case 'anthropic': return 'claude-sonnet-4-6';
       case 'gemini': return 'gemini-2.5-flash';
       case 'xai': return 'grok-3';
       case 'moonshot': return 'kimi-k2';
@@ -241,7 +241,7 @@ router.post('/agent/chat/stream', ensureAuthenticated, async (req, res) => {
   
   const getFastModel = (prov: string): string => {
     switch (prov) {
-      case 'anthropic': return 'claude-sonnet-4-20250514';
+      case 'anthropic': return 'claude-sonnet-4-6';
       case 'openai': return 'gpt-4.1-nano';
       case 'gemini': return 'gemini-2.5-flash';
       case 'xai': return 'grok-3-mini';
@@ -1070,7 +1070,7 @@ async function streamAnthropic(res: any, messages: any[], options: any) {
   const requestedTools = options.tools !== undefined ? options.tools : allTools;
   const tools = toAnthropicTools(requestedTools);
   
-  const modelToUse = options.model || 'claude-sonnet-4-20250514';
+  const modelToUse = options.model || 'claude-sonnet-4-6';
   logger.info(`[Anthropic Stream] Using model: ${modelToUse}`);
   
   // ✅ Use .stream() helper to get finalMessage() with usage
@@ -1220,7 +1220,7 @@ async function streamAnthropic(res: any, messages: any[], options: any) {
     content: fullContent,
     tool_calls: toolCalls,
     tool_results: toolResults,
-    model: options.model || 'claude-sonnet-4-20250514',
+    model: options.model || 'claude-sonnet-4-6',
     thinking: thinkingContent
   });
   

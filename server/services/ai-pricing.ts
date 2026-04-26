@@ -34,10 +34,10 @@ export const AI_MODEL_PRICING: Record<string, { input: number; output: number }>
   // ============================================
   // Anthropic (Dec 2025) - 4 models
   // ============================================
-  'claude-opus-4-20250514': { input: 15.00, output: 75.00 },
-  'claude-sonnet-4-20250514': { input: 3.00, output: 15.00 },
+  'claude-opus-4-7': { input: 15.00, output: 75.00 },
+  'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
   'claude-opus-4-1-20250805': { input: 15.00, output: 75.00 },
-  'claude-sonnet-4-20250514': { input: 0.80, output: 4.00 },
+  'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
 
   // ============================================
   // Google Gemini (Dec 2025) - 3 models

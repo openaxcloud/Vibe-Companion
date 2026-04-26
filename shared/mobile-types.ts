@@ -26,7 +26,7 @@ export const AI_MODELS = [
   'claude-opus-4-5-20251101',
   'claude-opus-4-1-20250805',
   'claude-sonnet-4-5-20250929',
-  'claude-sonnet-4-20250514',
+  'claude-sonnet-4-6',
   'claude-haiku-4-5',
   // Google Gemini Models (Jan 2026) - UPDATED with Gemini 3
   'gemini-3-flash',

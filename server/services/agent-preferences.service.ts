@@ -109,7 +109,7 @@ export class AgentPreferencesService {
 
       // ── Anthropic ────────────────────────────────────────────────────────────
       {
-        id: 'claude-sonnet-4-20250514',
+        id: 'claude-sonnet-4-6',
         name: 'Claude Sonnet 4',
         description: 'Best overall — top intelligence for coding, reasoning & agentic tasks',
         category: 'anthropic',
@@ -117,7 +117,7 @@ export class AgentPreferencesService {
         capabilities: { extendedThinking: true, codeGeneration: true, maxTokens: 200000, speed: 'fast', cost: 'medium' },
       },
       {
-        id: 'claude-opus-4-20250514',
+        id: 'claude-opus-4-7',
         name: 'Claude Opus 4',
         description: 'Most powerful Claude — complex analysis and deep reasoning',
         category: 'anthropic',
@@ -209,7 +209,7 @@ export class AgentPreferencesService {
     // High power mode always uses premium models
     if (highPowerMode) {
       if (requiresExtendedThinking || complexity === 'complex') {
-        return 'claude-opus-4-20250514';
+        return 'claude-opus-4-7';
       }
       return 'gpt-4o';
     }
@@ -217,25 +217,25 @@ export class AgentPreferencesService {
     // Extended thinking required
     if (requiresExtendedThinking) {
       if (speedPriority === 'fast') return 'o4-mini';
-      if (speedPriority === 'quality') return 'claude-opus-4-20250514';
-      return 'claude-sonnet-4-20250514';
+      if (speedPriority === 'quality') return 'claude-opus-4-7';
+      return 'claude-sonnet-4-6';
     }
 
     // Complex tasks
     if (complexity === 'complex') {
-      if (speedPriority === 'quality') return 'claude-opus-4-20250514';
-      return 'claude-sonnet-4-20250514';
+      if (speedPriority === 'quality') return 'claude-opus-4-7';
+      return 'claude-sonnet-4-6';
     }
 
     // Simple tasks prioritizing speed
     if (complexity === 'simple') {
-      if (speedPriority === 'fast') return 'claude-sonnet-4-20250514';
+      if (speedPriority === 'fast') return 'claude-sonnet-4-6';
       return 'gpt-4.1-mini';
     }
 
     // Medium complexity
     if (speedPriority === 'fast') return 'gpt-4.1-mini';
-    if (speedPriority === 'quality') return 'claude-sonnet-4-20250514';
+    if (speedPriority === 'quality') return 'claude-sonnet-4-6';
     return 'gpt-4.1-mini';
   }
 
@@ -246,7 +246,7 @@ export class AgentPreferencesService {
   getFastModel(): AiModel {
     // Priority order for fast models (by speed and availability)
     const fastModels: AiModel[] = [
-      'claude-sonnet-4-20250514',  // Fastest Claude model
+      'claude-sonnet-4-6',  // Fastest Claude model
       'gpt-4.1-mini',               // Fast GPT model
       'gemini-2.5-flash',           // Fast Gemini model
       'grok-3-mini',                // Fast xAI model
@@ -300,7 +300,7 @@ export class AgentPreferencesService {
         return preferredModel;
       }
       // Default high power model
-      return 'claude-opus-4-20250514';
+      return 'claude-opus-4-7';
     }
 
     // If extended thinking is on, ensure model supports it
@@ -310,7 +310,7 @@ export class AgentPreferencesService {
         return preferredModel;
       }
       // Default extended thinking model
-      return 'claude-sonnet-4-20250514';
+      return 'claude-sonnet-4-6';
     }
 
     // Use preferred model or default

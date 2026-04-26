@@ -38,7 +38,7 @@ router.post("/config", requireAuth, (req: Request, res: Response) => {
   client.updateConfig({
     serverUrl: serverUrl || process.env.OPENHANDS_SERVER_URL || "",
     apiKey: apiKey || process.env.OPENHANDS_API_KEY || "",
-    model: model || "claude-sonnet-4-20250514",
+    model: model || "claude-sonnet-4-6",
     maxIterations: maxIterations || 50,
   });
   res.json({ ok: true, configured: client.isConfigured });

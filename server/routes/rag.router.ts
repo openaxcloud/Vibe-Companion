@@ -346,8 +346,8 @@ router.get('/models', ensureAuthenticated, async (_req, res) => {
     { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', ragSupport: true, embeddingModel: 'text-embedding-3-small', contextWindow: 128000, features: ['embeddings', 'function_calling', 'structured_outputs'] },
     { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'openai', ragSupport: true, embeddingModel: 'text-embedding-3-small', contextWindow: 1000000, features: ['embeddings', 'function_calling'] },
     { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano', provider: 'openai', ragSupport: true, embeddingModel: 'text-embedding-3-small', contextWindow: 1000000, features: ['embeddings', 'function_calling'] },
-    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic', ragSupport: true, embeddingModel: null, contextWindow: 200000, features: ['long_context', 'function_calling'] },
-    { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'anthropic', ragSupport: true, embeddingModel: null, contextWindow: 200000, features: ['long_context', 'function_calling', 'extended_thinking'] },
+    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4', provider: 'anthropic', ragSupport: true, embeddingModel: null, contextWindow: 200000, features: ['long_context', 'function_calling'] },
+    { id: 'claude-opus-4-7', name: 'Claude Opus 4', provider: 'anthropic', ragSupport: true, embeddingModel: null, contextWindow: 200000, features: ['long_context', 'function_calling', 'extended_thinking'] },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini', ragSupport: true, embeddingModel: 'text-embedding-004', contextWindow: 1000000, features: ['embeddings', 'multimodal', 'function_calling'] },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'gemini', ragSupport: true, embeddingModel: 'text-embedding-004', contextWindow: 2000000, features: ['embeddings', 'multimodal', 'function_calling', 'code_execution'] },
   ];

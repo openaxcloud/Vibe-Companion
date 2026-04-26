@@ -417,7 +417,7 @@ Output valid JSON only, no markdown code blocks.`;
    */
   private selectBestAvailableModel(): string {
     const preferredModels = [
-      'claude-sonnet-4-20250514',      // Anthropic Claude Sonnet 4 (best Claude, March 2026)
+      'claude-sonnet-4-6',      // Anthropic Claude Sonnet 4 (best Claude, March 2026)
       'gpt-4.1',                       // OpenAI GPT-4.1 (best verified ModelFarm model)
       'gpt-4.1-nano',                    // OpenAI GPT-4.1 Nano (fast, free via ModelFarm)
       'gemini-2.5-flash',              // Google Gemini 2.5 Flash (production-stable)
@@ -439,7 +439,7 @@ Output valid JSON only, no markdown code blocks.`;
     }
     
     // Ultimate fallback
-    return 'claude-sonnet-4-20250514';
+    return 'claude-sonnet-4-6';
   }
 
   /**

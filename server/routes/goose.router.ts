@@ -40,7 +40,7 @@ router.post("/config", requireAuth, (req: Request, res: Response) => {
     serverUrl: serverUrl || process.env.GOOSE_SERVER_URL || "",
     apiKey: apiKey || process.env.GOOSE_API_KEY || "",
     provider: provider || "anthropic",
-    model: model || "claude-sonnet-4-20250514",
+    model: model || "claude-sonnet-4-6",
   });
   res.json({ ok: true, configured: client.isConfigured });
 });
