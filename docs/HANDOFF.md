@@ -136,6 +136,29 @@ These are intentionally deferred:
 | Real-database integration tests | None at the moment | Add Playwright + Postgres-in-CI when there's bandwidth |
 | Pino migration | Wrapper now does redaction + console-silencing, which were the real audit findings | Only if perf becomes a bottleneck |
 
+## Bloqueurs smoketest (2026-04-26)
+
+These surfaced when running the E2E smoketest harness. Each is a
+local environment / soft-dep gap, not a code defect.
+
+- **`OPENAI_API_KEY` returns `invalid header value`.** The secret in
+  `.env` has stray whitespace/newline that makes the OpenAI SDK throw
+  before the request leaves the client. Fix: `cat -A .env | grep
+  OPENAI_API_KEY` to spot the offending byte (look for `^M$` or
+  trailing `$` after a non-`\n`), then re-paste the key. The fallback
+  chain currently masks this — Opus 4.7 takes over transparently —
+  but you can't actually exercise GPT-4.1 generations until the key
+  works again.
+
+- **Test the smoketest yourself.** Once your env has at least
+  `ANTHROPIC_API_KEY` set:
+  ```
+  MODEL=claude-opus-4-7   npx tsx scripts/smoketest-generation.ts
+  MODEL=claude-sonnet-4-6 npx tsx scripts/smoketest-generation.ts
+  npx tsx scripts/smoketest-screenshot.ts    # writes docs/demo-screenshot{,-dark}.png
+  ```
+  Outputs land in `/tmp/e-code-smoketest/<model>/{response.md, files/, qa.json}`.
+
 ## 10. Final sanity check
 
 - [ ] `npm run dev` boots without errors locally

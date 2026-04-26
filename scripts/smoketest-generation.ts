@@ -104,7 +104,13 @@ async function main() {
   // Static QA over the response (objective checks, no LLM-as-judge).
   const text = response.toLowerCase();
   const checks = {
-    shadcn_imports: /from\s+['"]@\/components\/ui\//.test(response),
+    // shadcn presence: either an `@/components/ui/...` import OR a generated
+    // primitive file under src/components/ui/* (button.tsx, card.tsx, etc.).
+    // Relative imports (./components/ui/button) also count.
+    shadcn_imports:
+      /from\s+['"]@\/components\/ui\//.test(response) ||
+      /from\s+['"][./]+\/components\/ui\//.test(response) ||
+      files.some(f => /\/components\/ui\/(button|card|input|checkbox|badge|sheet|separator|skeleton)\.tsx$/.test(f.path)),
     framer_motion_import: /from\s+['"]framer-motion['"]/.test(response),
     framer_motion_usage: /<motion\.(div|button|li|ul|span|section)/.test(response),
     hsl_palette: /hsl\(var\(--/.test(response) || /--background:|--foreground:/.test(response),

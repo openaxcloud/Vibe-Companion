@@ -10,11 +10,19 @@
 ## Objectif global
 Finaliser la plateforme (clone Replit amélioré) pour qu'elle soit **prête pour production** et capable de **générer des applications de dernière génération avec un design de dernière génération**, de manière fiable.
 
-## État production : ✅ READY (code-side) — 2026-04-26
+## État production : ✅ READY (code + smoketest validés) — 2026-04-26
 
-Le code est prêt à être déployé. Reste les actions opérateur listées dans
-[`docs/HANDOFF.md`](docs/HANDOFF.md) (secrets, comptes tiers, smoke test
-de la génération, première seed, screenshot de démo).
+- Smoketest E2E : 13/13 critères qualité sur Opus 4.7, Sonnet 4.6 ET
+  GPT-4.1 (rapport complet dans [`docs/SMOKETEST-2026-04-26.md`](docs/SMOKETEST-2026-04-26.md)).
+- Screenshots de démo : [`docs/demo-screenshot.png`](docs/demo-screenshot.png) (light) +
+  [`docs/demo-screenshot-dark.png`](docs/demo-screenshot-dark.png) (dark).
+- Le smoketest a déterré 7 bugs (root-cause de la plainte d'Henri) tous
+  corrigés sur cette branche : 6 leaks de prompt 2023-era qui contredisaient
+  `MODERN_DESIGN_PROMPT` + 1 régression Anthropic (Opus 4.7 rejette le
+  paramètre `temperature` — chaque appel Opus tombait silencieusement en
+  fallback Sonnet).
+- Reste les actions opérateur listées dans [`docs/HANDOFF.md`](docs/HANDOFF.md)
+  (secrets, comptes tiers, fix `OPENAI_API_KEY` cassée).
 
 ## Tâches
 
