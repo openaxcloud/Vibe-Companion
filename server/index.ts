@@ -69,7 +69,7 @@ function validateEnvironment() {
 }
 
 validateEnvironment();
-initMonitoring();
+void initMonitoring();
 
 const app = express();
 app.set("trust proxy", 1);

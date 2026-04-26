@@ -2,6 +2,9 @@ import './lib/patchSyncExternalStore';
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { initClientSentry } from "./lib/sentry";
+
+void initClientSentry();
 
 // Global error diagnostics — helps debug blank/stuck pages on Replit
 window.addEventListener("error", (e) => {
