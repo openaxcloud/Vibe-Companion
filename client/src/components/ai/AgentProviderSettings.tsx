@@ -249,7 +249,7 @@ export default function AgentProviderSettings({
                     />
                     <input
                       type="text"
-                      placeholder="Model (default: claude-sonnet-4-20250514)"
+                      placeholder="Model (default: claude-sonnet-4-6)"
                       value={configForm.model}
                       onChange={(e) => setConfigForm({ ...configForm, model: e.target.value })}
                       className="w-full bg-[var(--ide-bg-primary)] border border-[var(--ide-border)] rounded px-2 py-1 text-xs text-[var(--ide-text-primary)]"

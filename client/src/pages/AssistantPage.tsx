@@ -61,8 +61,8 @@ const AI_MODELS: AIModel[] = [
   { id: 'o4-mini', name: 'o4-mini', provider: 'OpenAI', description: 'Best thinking model — fast reasoning for STEM and coding', speed: 'fast', capability: 'advanced' },
   { id: 'o3', name: 'o3', provider: 'OpenAI', description: 'Most powerful reasoning — frontier performance on hard benchmarks', speed: 'medium', capability: 'expert' },
   // Anthropic
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'Anthropic', description: 'Best overall — top intelligence for coding, reasoning & agentic tasks', speed: 'fast', capability: 'advanced' },
-  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'Anthropic', description: 'Most powerful Claude — complex analysis and deep reasoning', speed: 'medium', capability: 'expert' },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4', provider: 'Anthropic', description: 'Best overall — top intelligence for coding, reasoning & agentic tasks', speed: 'fast', capability: 'advanced' },
+  { id: 'claude-opus-4-7', name: 'Claude Opus 4', provider: 'Anthropic', description: 'Most powerful Claude — complex analysis and deep reasoning', speed: 'medium', capability: 'expert' },
   // Google Gemini
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', description: 'Most powerful Gemini — state-of-the-art reasoning and 1M context', speed: 'medium', capability: 'expert' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', description: 'Fast multimodal AI — thinking capabilities with 1M context', speed: 'fast', capability: 'advanced' },

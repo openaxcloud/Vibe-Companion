@@ -46,7 +46,7 @@ export class GooseClient extends EventEmitter {
     super();
     this.config = {
       provider: "anthropic",
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-7",
       timeout: 300000,
       ...config,
     };
@@ -233,7 +233,7 @@ export function getGooseClient(userId?: string): GooseClient {
       serverUrl: process.env.GOOSE_SERVER_URL || "",
       apiKey: process.env.GOOSE_API_KEY || "",
       provider: process.env.GOOSE_PROVIDER || "anthropic",
-      model: process.env.GOOSE_MODEL || "claude-sonnet-4-20250514",
+      model: process.env.GOOSE_MODEL || "claude-opus-4-7",
     });
     _instances.set(key, client);
   }

@@ -29,7 +29,9 @@ const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   'o3': 32768,
   'o3-mini': 32768,
   'o4-mini': 32768,
-  'claude-sonnet-4-20250514': 8192,
+  'claude-opus-4-7': 32000,
+  'claude-sonnet-4-6': 16000,
+  'claude-haiku-4-5-20251001': 8192,
   'claude-3-5-sonnet-20241022': 8192,
   'claude-3-5-haiku-20241022': 8192,
   'claude-3-opus-20240229': 4096,
@@ -53,18 +55,23 @@ function clampMaxTokens(modelId: string, requested: number): number {
 }
 
 /**
- * ✅ 40-YEAR ENGINEERING FIX: Provider fallback chain for 99.9% uptime (Fortune 500 requirement)
- * Ordered by reliability, cost, and speed
- * UPDATED January 2025: kimi-k2-0711-preview → kimi-k2-0905-preview (September 2025 upgrade)
+ * Provider fallback chain — 2026-grade modern stack
+ * Order: Anthropic Claude (best for code+design) → OpenAI → Google → xAI → Moonshot
+ * Updated April 2026: Claude Opus 4.7 (1M context) primary, Sonnet 4.6 fallback, Haiku 4.5 for cheap ops
  */
 const PROVIDER_FALLBACK_CHAIN = [
-  'claude-sonnet-4-20250514',  // Primary: Anthropic direct (ANTHROPIC_API_KEY)
-  'gpt-4o',                    // OpenAI direct (OPENAI_API_KEY) — replaces Replit ModelFarm gpt-4.1
-  'gemini-2.5-flash',          // Google direct (GEMINI_API_KEY)
-  'grok-3',                    // xAI direct (XAI_API_KEY)
-  'kimi-k2',                   // Moonshot direct (MOONSHOT_API_KEY)
-  'moonshot-v1-32k'            // Moonshot legacy
+  'claude-opus-4-7',           // Primary: Anthropic Opus 4.7 (1M context) — best agentic coding & design
+  'claude-sonnet-4-6',         // Fallback 1: Anthropic Sonnet 4.6 — top price-performance
+  'gpt-4.1',                   // Fallback 2: OpenAI flagship
+  'gemini-2.5-pro',            // Fallback 3: Google flagship
+  'grok-3',                    // Fallback 4: xAI
+  'kimi-k2',                   // Fallback 5: Moonshot
 ];
+
+/**
+ * Cheap/fast tier — for autocomplete, short ops, high-volume tasks
+ */
+export const FAST_CHEAP_MODEL = 'claude-haiku-4-5-20251001';
 
 export class AIProviderManager {
   private providers: Map<string, AIProvider> = new Map();
@@ -299,7 +306,7 @@ export class AIProviderManager {
    * Stream chat completion with the selected model
    * Routes to appropriate provider based on model ID
    * 
-   * @param modelId The model ID to use (e.g., "gpt-4.1", "claude-sonnet-4-20250514")
+   * @param modelId The model ID to use (e.g., "gpt-4.1", "claude-sonnet-4-6")
    * @param messages Array of chat messages with role and content
    * @param options Additional options like system prompt, max_tokens, temperature
    */
@@ -973,7 +980,7 @@ export class AIProviderManager {
   getAvailableProviders(): Array<{ name: string; isAvailable: boolean }> {
     const providerMap: Record<string, string[]> = {
       'OpenAI': ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o4-mini', 'o3'],
-      'Anthropic': ['claude-sonnet-4-20250514', 'claude-opus-4-20250514'],
+      'Anthropic': ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
       'Gemini': ['gemini-2.5-pro', 'gemini-2.5-flash']
     };
     
@@ -992,10 +999,13 @@ export class AIProviderManager {
   getProvider(providerName: string): LegacyProviderAdapter | null {
     const providerToModelMap: Record<string, string> = {
       'OpenAI': 'gpt-4.1',
-      'Claude': 'claude-sonnet-4-20250514',
-      'Claude Sonnet 4': 'claude-sonnet-4-20250514',
-      'Claude 3.5 Sonnet': 'claude-sonnet-4-20250514',
-      'Anthropic': 'claude-sonnet-4-20250514',
+      'Claude': 'claude-opus-4-7',
+      'Claude Opus 4.7': 'claude-opus-4-7',
+      'Claude Sonnet 4.6': 'claude-sonnet-4-6',
+      'Claude Haiku 4.5': 'claude-haiku-4-5-20251001',
+      'Claude Sonnet 4': 'claude-sonnet-4-6',
+      'Claude 3.5 Sonnet': 'claude-sonnet-4-6',
+      'Anthropic': 'claude-opus-4-7',
       'Gemini': 'gemini-2.5-flash',
       'Moonshot': 'kimi-k2',
       'xAI': 'grok-3'
@@ -1014,11 +1024,12 @@ export class AIProviderManager {
    * Legacy API: Get default provider
    */
   getDefaultProvider(): LegacyProviderAdapter {
-    // Try providers in order of preference - UPDATED January 2026
+    // Try providers in order of preference - UPDATED April 2026
     const preferredModels = [
+      'claude-opus-4-7',
+      'claude-sonnet-4-6',
       'gpt-4.1',
-      'claude-sonnet-4-20250514',
-      'gemini-2.5-flash',
+      'gemini-2.5-pro',
       'grok-3',
       'moonshot-v1-32k'
     ];

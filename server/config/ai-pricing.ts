@@ -29,8 +29,9 @@ export const MODEL_PRICING: Record<string, ModelPricingEntry> = {
   'o3':              { input: 10.0,  output: 40.0,  provider: 'openai', name: 'o3' },
 
   // ── Anthropic ────────────────────────────────────────────────────────────────
-  'claude-sonnet-4-20250514': { input: 3.0,   output: 15.0,  provider: 'anthropic', name: 'Claude Sonnet 4' },
-  'claude-opus-4-20250514':   { input: 15.0,  output: 75.0,  provider: 'anthropic', name: 'Claude Opus 4' },
+  'claude-opus-4-7':           { input: 15.0,  output: 75.0,  provider: 'anthropic', name: 'Claude Opus 4.7' },
+  'claude-sonnet-4-6':         { input: 3.0,   output: 15.0,  provider: 'anthropic', name: 'Claude Sonnet 4.6' },
+  'claude-haiku-4-5-20251001': { input: 1.0,   output: 5.0,   provider: 'anthropic', name: 'Claude Haiku 4.5' },
 
   // ── Google Gemini ─────────────────────────────────────────────────────────────
   'gemini-2.5-pro':   { input: 1.25,  output: 10.0,  provider: 'gemini', name: 'Gemini 2.5 Pro' },

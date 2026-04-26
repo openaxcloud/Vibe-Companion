@@ -136,8 +136,8 @@ export function useAIPreferences() {
   // Get available AI models
   const getAvailableModels = useCallback(() => {
     return [
-      { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', description: 'Best overall — top intelligence for coding and reasoning' },
-      { value: 'claude-opus-4-20250514', label: 'Claude Opus 4', description: 'Most powerful Claude — complex analysis and deep reasoning' },
+      { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4', description: 'Best overall — top intelligence for coding and reasoning' },
+      { value: 'claude-opus-4-7', label: 'Claude Opus 4', description: 'Most powerful Claude — complex analysis and deep reasoning' },
       { value: 'gpt-4.1', label: 'GPT-4.1', description: 'OpenAI flagship — best coding and instruction following' },
       { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', description: 'Fast and efficient — best price-to-performance ratio' },
       { value: 'o3', label: 'o3', description: 'Most powerful reasoning — frontier performance' },

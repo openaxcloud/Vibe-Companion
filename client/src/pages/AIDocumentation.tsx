@@ -117,8 +117,8 @@ function PromptTester() {
               <SelectItem value="gpt-4.1-mini">GPT-4.1 Mini</SelectItem>
               <SelectItem value="o4-mini">o4-mini</SelectItem>
               <SelectItem value="o3">o3</SelectItem>
-              <SelectItem value="claude-sonnet-4-20250514">Claude Sonnet 4</SelectItem>
-              <SelectItem value="claude-opus-4-20250514">Claude Opus 4</SelectItem>
+              <SelectItem value="claude-sonnet-4-6">Claude Sonnet 4</SelectItem>
+              <SelectItem value="claude-opus-4-7">Claude Opus 4</SelectItem>
               <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
               <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
             </SelectContent>
@@ -194,8 +194,8 @@ function ModelComparison() {
 
   const models = [
     { id: 'gpt-4.1', name: 'GPT-4.1', speed: 95, accuracy: 98, cost: 3 },
-    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', speed: 90, accuracy: 97, cost: 2.5 },
-    { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', speed: 88, accuracy: 99, cost: 5 },
+    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4', speed: 90, accuracy: 97, cost: 2.5 },
+    { id: 'claude-opus-4-7', name: 'Claude Opus 4', speed: 88, accuracy: 99, cost: 5 },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', speed: 92, accuracy: 95, cost: 2 },
     { id: 'o3', name: 'o3', speed: 80, accuracy: 99, cost: 4 }
   ];

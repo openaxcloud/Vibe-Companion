@@ -48,32 +48,39 @@ const MODEL_NORMALIZATION_MAP: Record<string, string> = {
   'gpt-5.4-pro-2026-03-05': 'gpt-4.1',
 
   // ── Anthropic ────────────────────────────────────────────────────────────────
-  'claude-sonnet-4-20250514':     'claude-sonnet-4-20250514',
-  'claude-opus-4-20250514':       'claude-opus-4-20250514',
-  // Aliases → latest
-  'claude-sonnet':                'claude-sonnet-4-20250514',
-  'claude-sonnet-4':              'claude-sonnet-4-20250514',
-  'claude-sonnet-4-5':            'claude-sonnet-4-20250514',
-  'claude-opus':                  'claude-opus-4-20250514',
-  'claude-opus-4':                'claude-opus-4-20250514',
-  'claude-opus-4-5':              'claude-opus-4-20250514',
-  'claude-opus-4.5':              'claude-opus-4-20250514',
-  // Deprecated → redirect to latest
-  'claude-haiku':                 'claude-sonnet-4-20250514',
-  'claude-3-haiku':               'claude-sonnet-4-20250514',
-  'claude-3-haiku-20240307':      'claude-sonnet-4-20250514',
-  'claude-3-5-haiku':             'claude-sonnet-4-20250514',
-  'claude-3-5-sonnet':            'claude-sonnet-4-20250514',
-  'claude-3-5-sonnet-20241022':   'claude-sonnet-4-20250514',
-  'claude-3-7-sonnet':            'claude-sonnet-4-20250514',
-  'claude-3-7-sonnet-20250219':   'claude-sonnet-4-20250514',
-  'claude-3-opus':                'claude-opus-4-20250514',
-  'claude-3-opus-20240229':       'claude-opus-4-20250514',
-  'claude-haiku-4-5-20251015':    'claude-sonnet-4-20250514',
-  'claude-sonnet-4-5-20250929':   'claude-sonnet-4-20250514',
-  'claude-opus-4-5-20251101':     'claude-opus-4-20250514',
-  'claude-opus-4-5-20251124':     'claude-opus-4-20250514',
-  'claude-opus-4-1-20250805':     'claude-opus-4-20250514',
+  // Current generation (April 2026) — Opus 4.7 (1M ctx) / Sonnet 4.6 / Haiku 4.5
+  'claude-opus-4-7':              'claude-opus-4-7',
+  'claude-sonnet-4-6':            'claude-sonnet-4-6',
+  'claude-haiku-4-5-20251001':    'claude-haiku-4-5-20251001',
+  // Friendly aliases → latest
+  'claude':                       'claude-opus-4-7',
+  'claude-opus':                  'claude-opus-4-7',
+  'claude-opus-4':                'claude-opus-4-7',
+  'claude-opus-4-5':              'claude-opus-4-7',
+  'claude-opus-4.5':              'claude-opus-4-7',
+  'claude-opus-4-7-1m':           'claude-opus-4-7',
+  'claude-sonnet':                'claude-sonnet-4-6',
+  'claude-sonnet-4':              'claude-sonnet-4-6',
+  'claude-sonnet-4-5':            'claude-sonnet-4-6',
+  'claude-haiku':                 'claude-haiku-4-5-20251001',
+  'claude-haiku-4':               'claude-haiku-4-5-20251001',
+  'claude-haiku-4-5':             'claude-haiku-4-5-20251001',
+  // Legacy snapshots → redirect to current generation
+  'claude-3-haiku':               'claude-haiku-4-5-20251001',
+  'claude-3-haiku-20240307':      'claude-haiku-4-5-20251001',
+  'claude-3-5-haiku':             'claude-haiku-4-5-20251001',
+  'claude-3-5-haiku-20241022':    'claude-haiku-4-5-20251001',
+  'claude-3-5-sonnet':            'claude-sonnet-4-6',
+  'claude-3-5-sonnet-20241022':   'claude-sonnet-4-6',
+  'claude-3-7-sonnet':            'claude-sonnet-4-6',
+  'claude-3-7-sonnet-20250219':   'claude-sonnet-4-6',
+  'claude-3-opus':                'claude-opus-4-7',
+  'claude-3-opus-20240229':       'claude-opus-4-7',
+  'claude-haiku-4-5-20251015':    'claude-haiku-4-5-20251001',
+  'claude-sonnet-4-5-20250929':   'claude-sonnet-4-6',
+  'claude-opus-4-5-20251101':     'claude-opus-4-7',
+  'claude-opus-4-5-20251124':     'claude-opus-4-7',
+  'claude-opus-4-1-20250805':     'claude-opus-4-7',
 
   // ── Google Gemini ─────────────────────────────────────────────────────────────
   'gemini-2.5-flash':             'gemini-2.5-flash',
@@ -116,7 +123,7 @@ const MODEL_NORMALIZATION_MAP: Record<string, string> = {
 
 const PROVIDER_DEFAULTS: Record<string, string> = {
   'openai':     'gpt-4o',                     // Direct OpenAI (OPENAI_API_KEY)
-  'anthropic':  'claude-sonnet-4-20250514',   // Direct Anthropic (ANTHROPIC_API_KEY)
+  'anthropic':  'claude-opus-4-7',             // Direct Anthropic (ANTHROPIC_API_KEY) — Opus 4.7 1M context
   'gemini':     'gemini-2.5-flash',
   'google':     'gemini-2.5-flash',
   'xai':        'grok-3',

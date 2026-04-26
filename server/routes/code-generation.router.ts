@@ -79,8 +79,8 @@ Generate the code now:`;
       { role: 'user' as const, content: prompt }
     ];
     
-    // Get model or use default
-    const model = modelId || 'gpt-4.1';
+    // Get model or use default — Claude Opus 4.7 best for code+design quality
+    const model = modelId || 'claude-opus-4-7';
     logger.info('[Code Generation] Using model:', model);
     
     const usesMaxCompletionTokens = /^o[1-9]/.test(model) || /^gpt-4.1/.test(model);
@@ -172,7 +172,7 @@ router.get('/models', tierRateLimiters.api, async (req, res) => {
     
     res.json({
       models: codeGenModels,
-      defaultModel: 'gpt-4.1'
+      defaultModel: 'claude-opus-4-7'
     });
   } catch (error: any) {
     logger.error('[Code Generation] Error getting models:', error);

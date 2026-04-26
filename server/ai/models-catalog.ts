@@ -16,6 +16,33 @@ export const MODELFARM_MODELS = new Set([
 
 export const AI_MODELS: AIModel[] = [
   {
+    id: 'claude-opus-4-7',
+    name: 'Claude Opus 4.7',
+    provider: 'anthropic',
+    description: 'Anthropic flagship (1M context) — best for complex agentic coding, design & multi-step reasoning',
+    maxTokens: 1000000,
+    supportsStreaming: true,
+    costPer1kTokens: 0.015
+  },
+  {
+    id: 'claude-sonnet-4-6',
+    name: 'Claude Sonnet 4.6',
+    provider: 'anthropic',
+    description: 'Best price-performance Claude — top-tier coding & reasoning at lower cost than Opus',
+    maxTokens: 200000,
+    supportsStreaming: true,
+    costPer1kTokens: 0.003
+  },
+  {
+    id: 'claude-haiku-4-5-20251001',
+    name: 'Claude Haiku 4.5',
+    provider: 'anthropic',
+    description: 'Fast & cheap Claude — ideal for short tasks, autocompletion, and high-volume operations',
+    maxTokens: 200000,
+    supportsStreaming: true,
+    costPer1kTokens: 0.001
+  },
+  {
     id: 'gpt-4.1',
     name: 'GPT-4.1',
     provider: 'openai',
@@ -59,24 +86,6 @@ export const AI_MODELS: AIModel[] = [
     maxTokens: 200000,
     supportsStreaming: true,
     costPer1kTokens: 0.01
-  },
-  {
-    id: 'claude-sonnet-4-20250514',
-    name: 'Claude Sonnet 4',
-    provider: 'anthropic',
-    description: 'Best overall Claude — top intelligence for coding, reasoning & agentic tasks',
-    maxTokens: 200000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.003
-  },
-  {
-    id: 'claude-opus-4-20250514',
-    name: 'Claude Opus 4',
-    provider: 'anthropic',
-    description: 'Most powerful Claude — best for complex reasoning and analysis',
-    maxTokens: 200000,
-    supportsStreaming: true,
-    costPer1kTokens: 0.015
   },
   {
     id: 'gemini-2.5-pro',

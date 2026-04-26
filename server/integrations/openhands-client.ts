@@ -35,7 +35,7 @@ export class OpenHandsClient extends EventEmitter {
     this.config = {
       maxIterations: 50,
       timeout: 300000,
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-7",
       ...config,
     };
   }
@@ -328,7 +328,7 @@ export function getOpenHandsClient(userId?: string): OpenHandsClient {
     client = new OpenHandsClient({
       serverUrl,
       apiKey,
-      model: process.env.OPENHANDS_MODEL || "claude-sonnet-4-20250514",
+      model: process.env.OPENHANDS_MODEL || "claude-opus-4-7",
     });
     _instances.set(key, client);
   }
