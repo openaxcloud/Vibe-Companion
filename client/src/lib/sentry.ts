@@ -18,8 +18,8 @@ export async function initClientSentry(): Promise<void> {
   if (!dsn) return;
 
   try {
-    // @ts-ignore — soft dep
-    const Sentry = await import('@sentry/react');
+    // @ts-ignore — soft dep, intentionally unresolved at build time
+    const Sentry = await import(/* @vite-ignore */ '@sentry/react');
     const sampleRate = parseFloat(
       (import.meta as any).env?.VITE_SENTRY_TRACES_SAMPLE_RATE ?? '0.1'
     );

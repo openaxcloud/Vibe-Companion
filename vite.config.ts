@@ -59,6 +59,7 @@ export default defineConfig({
     manifest: true,
     minify: 'esbuild',
     rollupOptions: {
+      external: ['@sentry/react', '@sentry/browser'],
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
