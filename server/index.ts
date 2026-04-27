@@ -89,9 +89,18 @@ const cspDirectives: Record<string, string[]> = {
   imgSrc: ["'self'", "data:", "blob:", "https:"],
   fontSrc: ["'self'", "data:", "https:"],
   styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+  // jsdelivr is whitelisted because the Monaco editor (code editor that
+  // powers the IDE) loads its workers via @monaco-editor/react which
+  // resolves the loader script through `cdn.jsdelivr.net`. Without
+  // this entry the editor throws on init and ErrorBoundary swallows the
+  // whole IDE — the symptom that made `/project/:id` look stuck on a
+  // blank spinner during the panel audit.
   scriptSrc: isDev
-    ? ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:"]
-    : ["'self'", "'unsafe-inline'", "blob:"],
+    ? ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:", "https://cdn.jsdelivr.net"]
+    : ["'self'", "'unsafe-inline'", "blob:", "https://cdn.jsdelivr.net"],
+  scriptSrcElem: isDev
+    ? ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:", "https://cdn.jsdelivr.net"]
+    : ["'self'", "'unsafe-inline'", "blob:", "https://cdn.jsdelivr.net"],
   connectSrc: [
     "'self'",
     "https://api.anthropic.com",

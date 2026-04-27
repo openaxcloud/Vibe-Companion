@@ -474,6 +474,6 @@ export function hasRunnableFiles(workspaceDir: string): boolean {
 
 /** Return the workspace directory path for a project */
 export function getWorkspaceDir(projectId: string): string {
-  const safeId = projectId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const safeId = String(projectId).replace(/[^a-zA-Z0-9_-]/g, "_");
   return path.join(WORKSPACES_ROOT, safeId);
 }
