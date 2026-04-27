@@ -9,6 +9,7 @@ import { createHash } from 'crypto';
 import validator from 'validator';
 import { Request, Response, NextFunction } from 'express';
 import { createLogger } from './logger';
+import bcrypt from './bcrypt-compat';
 
 const logger = createLogger('security-utils');
 
@@ -489,16 +490,16 @@ export const passwordSecurity = {
     };
   },
 
-  // Hash password
+  // Hash password — uses native bcrypt via the compat layer (10× faster
+  // than the previous `require('bcryptjs')` which was both wrong-package
+  // AND broken in ESM, so this code path silently failed).
   hash: async (password: string): Promise<string> => {
-    const bcrypt = require('bcryptjs');
     const saltRounds = 12;
     return bcrypt.hash(password, saltRounds);
   },
 
   // Verify password
   verify: async (password: string, hash: string): Promise<boolean> => {
-    const bcrypt = require('bcryptjs');
     return bcrypt.compare(password, hash);
   },
 

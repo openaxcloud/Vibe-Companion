@@ -12,7 +12,7 @@ function qstr(val: unknown): string {
   return '';
 }
 
-import bcrypt from "bcryptjs";
+import bcrypt from "./utils/bcrypt-compat";
 import crypto from "crypto";
 import session from "express-session";
 import { rateLimit } from "express-rate-limit";
