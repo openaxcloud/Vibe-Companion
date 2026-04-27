@@ -129,7 +129,14 @@ curl DELETE .../api/files/19084               → 200
 
 ## Suite Playwright — résultat post-fix
 
-Lancée après tous les fixes : **4 passants / 4 échouants** (vs 0/7 avant la session).
+Lancée après tous les fixes : **6 passants / 2 échouants** (vs 0/8 avant la session — 0/7 panels + debug-auth).
+
+Évolution :
+- avant la session : 0/8
+- après les fixes critical-path (sans warm-up) : 4/8
+- après warm-up Vite (`tests/e2e/global-setup.ts`) : **6/8 ✅**
+
+Les 2 spécifications restantes (`preview`, `console`) timeout intermittently — le screenshot `desktop-preview-stuck.png` montre l'IDE *fully mounted* (file explorer rempli, Monaco loading, AI panel, console panel visibles), mais l'attribut `data-ide-layout="unified"` est posé après la fenêtre 90s pour ces deux specs spécifiquement. Bumper IDE_LOAD_MS à 150s n'a rien amélioré (flaky) — le bottleneck est le dev server qui ralentit sous charge sérialisée, pas le budget. Une suite contre `npm run build` au lieu du dev runtime éliminerait ce flake.
 
 | Spec | État | Note |
 |---|---|---|

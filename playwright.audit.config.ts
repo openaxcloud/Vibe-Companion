@@ -12,11 +12,19 @@
  * background-testing-service.
  */
 import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname_compat = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   testDir: './tests/e2e',
-  // 180s per test: cold-load Vite is ~30-40s for first chunks +
-  // 90s splash mount budget + 4s panel settle + screenshot.
+  // global-setup pre-warms the Vite dev-server module graph so each
+  // spec hits cached chunks. Without it the first 4 specs hit a 30-
+  // 40s cold-load and timed out while terminal/git/settings passed.
+  globalSetup: path.join(__dirname_compat, 'tests/e2e/global-setup.ts'),
+  // 180s per test: 90s mount + 4s settle + screenshot + login
+  // round-trip, plus a margin for slow runs.
   timeout: 180_000,
   expect: { timeout: 10_000 },
   retries: 0,

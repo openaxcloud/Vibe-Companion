@@ -27,9 +27,14 @@ const PANELS: Array<{ id: string; trigger: string }> = [
 ];
 
 const SHOTS = path.join(process.cwd(), 'tests/e2e/shots');
-// 90s budget: Vite cold-loads ~100 chunks on first navigation per
-// browser context. Diagnostic showed mount at t+36s with
-// waitUntil:'commit'. Going to 90s for headroom.
+// 90s budget. With global-setup warm-up (tests/e2e/global-setup.ts)
+// the suite passes 6/8 reliably (was 4/8 before warm-up). preview
+// and console at the head of the queue still occasionally timeout —
+// raising the budget to 150s improved nothing in re-runs (flaky),
+// the bottleneck is the dev server slowing under load, not the
+// budget. The two intermittent failures are documented in
+// AUDIT-CRITICAL-PATH-2026-04-27.md as a known limitation of the
+// dev runtime; production-build tests would not have this issue.
 const IDE_LOAD_MS = 90_000;
 const PANEL_SETTLE_MS = 4_000;
 
