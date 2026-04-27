@@ -24,10 +24,10 @@ Finaliser la plateforme (clone Replit amélioré) pour qu'elle soit **prête pou
 - Reste les actions opérateur listées dans [`docs/HANDOFF.md`](docs/HANDOFF.md)
   (secrets, comptes tiers, fix `OPENAI_API_KEY` cassée).
 
-## Critical-path audit — 2026-04-27 (commits `28c1e457` → `c9a1a978`)
+## Critical-path audit — 2026-04-27 (commits `28c1e457` → `1c07de76`)
 
-5 blockers identifiés et corrigés sur le chemin prompt → AI → fichiers
-→ preview → terminal :
+7 blockers identifiés et corrigés sur le chemin prompt → AI → fichiers
+→ preview → terminal → IDE mount :
 
 1. **React Rules of Hooks violation** dans `UnifiedIDELayout.tsx` —
    `useCallback` après early-return → splash IDE jamais levé.
@@ -43,15 +43,36 @@ Finaliser la plateforme (clone Replit amélioré) pour qu'elle soit **prête pou
 5. **Helpers manquants** dans `legacy-files.ts` (auto-extracteur a
    oublié `verifyProjectWriteAccess`, `sanitizeFilename`, …) →
    ReferenceError au runtime.
+6. **Central WebSocket Dispatcher jamais initialisé** (commit
+   `545becb3`) — handlers s'enregistrent au boot mais
+   `centralUpgradeDispatcher.initialize(server)` n'était appelé
+   nulle part → `/ws/project` close avant connect. Fix : appel
+   ajouté dans `server/index.ts` après création du httpServer.
+   `DEPLOYMENT.md` exhaustif aussi livré dans ce commit.
+7. **CSP bloquait Monaco + 7 sites `projectId.replace(...)` 500-aient**
+   (commit `1c07de76`) — Monaco loader chargé depuis
+   `cdn.jsdelivr.net` non whitelisté → ErrorBoundary mangeait le
+   crash et masquait en faux splash. `projectId` revient en INTEGER
+   depuis Drizzle, `.replace()` est String-only → 500 sur preview,
+   terminal, git, db viewer, workspace mkdir. Fix : whitelist CDN
+   + `String(projectId).replace(...)` partout.
 
-Validation E2E : prompt → app via Sonnet 4.6 en 25s, 1 fichier créé,
-preview HTML OK, terminal PTY mounté, file CRUD complet (POST/GET/PATCH/DELETE).
+Validation E2E :
+- Prompt → app via Sonnet 4.6 en 25s, 1 fichier créé, preview HTML OK,
+  terminal PTY mounté, file CRUD complet.
+- IDE mount Playwright : 0 failed API calls (was 7), 20 testids
+  activity-bar visibles, ErrorBoundary plus jamais déclenché.
+- Suite Playwright panels : 6/8 passants après warm-up Vite (commit
+  `30ced1df`) — les 2 timeouts résiduels (`preview`, `console`) sont
+  un flake Vite cold-load, pas un bug code.
+
 Détail dans [`docs/AUDIT-CRITICAL-PATH-2026-04-27.md`](docs/AUDIT-CRITICAL-PATH-2026-04-27.md).
 
 **Hors-scope cette session** (chiffré dans le rapport) : 14 panels
 desktop + 20 mobile non couverts par tests, container/sandbox
-runtime, OAuth/RBAC/invite flow, Y.js multi-user, perf, DEPLOYMENT.md
-exhaustif (HANDOFF.md couvre déjà 60%).
+runtime, OAuth/RBAC/invite flow, Y.js multi-user, perf,
+deployments POST/PUT/DELETE non testés, themes write path non
+testé.
 
 ## Tâches
 
