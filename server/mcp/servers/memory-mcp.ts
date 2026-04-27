@@ -100,8 +100,8 @@ export class MemoryMCPServer {
       }
 
       logger.info('Memory schema initialized');
-    } catch (error) {
-      logger.error('Failed to initialize memory schema:', error);
+    } catch (error: any) {
+      logger.error('Failed to initialize memory schema:', error?.message || String(error));
       // Non-blocking - continue even if schema init fails partially
     }
   }

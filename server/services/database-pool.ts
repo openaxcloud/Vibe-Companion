@@ -28,11 +28,12 @@ export class DatabasePoolManager {
     
     // Connection string from environment
     connectionString: process.env.DATABASE_URL,
-    
-    // SSL configuration for production
-    ssl: process.env.NODE_ENV === 'production' ? {
-      rejectUnauthorized: false
-    } : false
+
+    // SSL: Neon requires TLS even in development, so don't force ssl:false.
+    // We honor sslmode=… from the connection string and only set
+    // rejectUnauthorized:false (Neon's cert chain isn't always recognized
+    // by node's bundled CA list).
+    ssl: { rejectUnauthorized: false }
   };
 
   constructor() {
@@ -69,8 +70,8 @@ export class DatabasePoolManager {
         max: this.config.max,
         min: this.config.min
       });
-    } catch (error) {
-      logger.error('Failed to initialize database pool:', error);
+    } catch (error: any) {
+      logger.error('Failed to initialize database pool:', error?.message || String(error));
       throw error;
     }
   }

@@ -108,8 +108,8 @@ export class DatabasePool {
 
       // Start monitoring
       this.startMonitoring();
-    } catch (error) {
-      logger.error('Failed to initialize database pool:', error);
+    } catch (error: any) {
+      logger.error('Failed to initialize database pool:', error?.message || String(error), error?.stack);
       this.scheduleReconnection();
     }
   }
