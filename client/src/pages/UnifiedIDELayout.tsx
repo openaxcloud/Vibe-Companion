@@ -727,6 +727,13 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     : publishState?.status === 'failed' ? 'failed'
     : 'idle';
 
+  const mobileHandleFileSelect = useCallback((file: { id: string | number; name?: string; filename?: string }) => {
+    handleFileSelect(file);
+    if (deviceType !== 'desktop') {
+      setMobileActiveTab('code' as MobileTab);
+    }
+  }, [handleFileSelect, deviceType, setMobileActiveTab]);
+
   // Loading state
   if (isLoadingProject && deviceType === 'desktop') {
     return <ECodeLoading fullScreen size="lg" text="Loading workspace..." />;
@@ -742,13 +749,6 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       </div>
     );
   }
-
-  const mobileHandleFileSelect = useCallback((file: { id: string | number; name?: string; filename?: string }) => {
-    handleFileSelect(file);
-    if (deviceType !== 'desktop') {
-      setMobileActiveTab('code' as MobileTab);
-    }
-  }, [handleFileSelect, deviceType, setMobileActiveTab]);
 
   // Mobile content renderer
   const renderMobileContent = () => {

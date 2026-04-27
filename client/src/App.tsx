@@ -119,6 +119,9 @@ class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // ALWAYS log first so debugging never loses the error to the auto-retry path.
+    console.error("[ErrorBoundary] caught:", error.message, error.stack);
+
     // React 19 Error #310: "A component suspended while responding to synchronous input"
     // This is a TRANSIENT error — it only happens when lazy chunks haven't loaded yet.
     // By the time we retry, the chunks are cached and the render succeeds.
@@ -138,8 +141,6 @@ class ErrorBoundary extends Component<
       }, 100);
       return;
     }
-
-    console.error("[ErrorBoundary]", error, errorInfo);
     try {
       fetch("/api/analytics/track", {
         method: "POST",
