@@ -62,9 +62,12 @@ Validation E2E :
   terminal PTY mounté, file CRUD complet.
 - IDE mount Playwright : 0 failed API calls (was 7), 20 testids
   activity-bar visibles, ErrorBoundary plus jamais déclenché.
-- Suite Playwright panels : 6/8 passants après warm-up Vite (commit
-  `30ced1df`) — les 2 timeouts résiduels (`preview`, `console`) sont
-  un flake Vite cold-load, pas un bug code.
+- Suite Playwright panels : 14/14 desktop+tablet (7 specs × 2 viewports)
+  après le fix CSP+projectId.replace du commit `1c07de76`. Les 2 specs
+  `preview`/`console` qui flakaient à 6/8 passent maintenant proprement
+  — c'était bien le CSP qui bloquait Monaco, pas un budget de timeout.
+  Mobile webkit non vérifiable localement (Bus error sur le binaire
+  arm64 Playwright sur macOS Sonoma — pas un bug code).
 
 Détail dans [`docs/AUDIT-CRITICAL-PATH-2026-04-27.md`](docs/AUDIT-CRITICAL-PATH-2026-04-27.md).
 

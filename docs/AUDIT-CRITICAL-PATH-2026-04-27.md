@@ -132,29 +132,23 @@ curl DELETE .../api/files/19084               → 200
 
 ## Suite Playwright — résultat post-fix
 
-Lancée après tous les fixes : **6 passants / 2 échouants** (vs 0/8 avant la session — 0/7 panels + debug-auth).
-
 Évolution :
 - avant la session : 0/8
 - après les fixes critical-path (sans warm-up) : 4/8
-- après warm-up Vite (`tests/e2e/global-setup.ts`, commit `30ced1df`) : **6/8 ✅** (added: `files`, `agent`)
+- après warm-up Vite (`tests/e2e/global-setup.ts`, commit `30ced1df`) : 6/8
+- après CSP whitelist Monaco + `String(projectId).replace()` (commit `1c07de76`) sur les 21 specs (7 panels × 3 viewports) : **14/14 desktop+tablet ✅** — mobile non vérifiable localement (Bus error sur le binaire `webkit_mac14_arm64_special-2251` sur macOS 14.x, pas un bug code)
 
-| Spec | État | Note |
+Détail desktop + tablet (commit `1c07de76`, 21 specs run):
+
+| Viewport | Spec | État |
 |---|---|---|
-| `files` | ✅ | passe après warm-up Vite |
-| `agent` | ✅ | passe après warm-up Vite |
-| `preview` | ❌ | timeout 90s intermittent — IDE *fully mounted* mais `data-ide-layout="unified"` posé hors fenêtre |
-| `console` | ❌ | idem |
-| `terminal` | ✅ | chunks cachés — passe à 30-40s |
-| `git` | ✅ | idem |
-| `settings` | ✅ | idem |
-| `debug-auth` | ✅ | spec séparée |
+| desktop | files / agent / preview / console / terminal / git / settings | ✅ 7/7 |
+| tablet | files / agent / preview / console / terminal / git / settings | ✅ 7/7 |
+| mobile | tous les 7 specs | ⚠️ webkit Bus error (macOS-side, binary crash) |
 
-Les 2 spécifications restantes (`preview`, `console`) sont 3ème/4ème dans l'ordre des specs et timeout intermittently. Bumper IDE_LOAD_MS à 150s n'a rien amélioré (flaky) — le bottleneck est le dev server qui ralentit sous charge sérialisée, pas le budget. Options pour passer à 8/8 (non poursuivies cette session) :
-- Build vite production pour les tests (plus rapide mais ne reflète plus le dev runtime)
-- Reorder specs ou les sharder (chaque worker paie son cold-load une fois)
+Les 2 specs `preview` et `console` qui flakaient avant (avant CSP) passent maintenant proprement parce que la cause racine était le CSP qui bloquait Monaco — ce qui faisait que `data-ide-layout="unified"` était posé après la timeout fenêtre. Le CSP fix corrige ça à la source, pas un workaround d'augmentation de budget.
 
-Hors scope cette session — les 2 panels qui timeout sont les MÊMES qui ont été validés manuellement par curl/diagnostic dans la section précédente, donc le code marche, c'est l'enveloppe de test qui est fragile.
+Mobile webkit n'est pas testable localement — `pw_run.sh: Bus error: 10` au launch sur le binaire arm64-special. C'est un problème de packaging Playwright sur macOS Sonoma, pas du code. Sur CI Linux ou un autre Mac le binaire devrait charger normalement.
 
 ## Bug #6 — Central WebSocket Dispatcher jamais initialisé ✅ FIXÉ (commit `545becb3`)
 
