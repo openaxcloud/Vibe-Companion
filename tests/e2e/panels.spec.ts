@@ -17,13 +17,35 @@ import path from 'path';
 import { test, expect } from './fixtures';
 
 const PANELS: Array<{ id: string; trigger: string }> = [
+  // ── Original 7 critical panels ───────────────────────────────────────────
   { id: 'files',    trigger: '[data-testid="activity-files"], button[title="Files"]' },
   { id: 'agent',    trigger: '[data-testid="activity-agent"], button[title="AI Agent"]' },
   { id: 'preview',  trigger: '[data-testid="activity-preview"], button[title="Preview"]' },
+  // NOTE: console is mobile-only (not in desktop ReplitActivityBar); trigger
+  // won't match on desktop — test still runs and screenshots the current state.
   { id: 'console',  trigger: '[data-testid="activity-console"], button[title="Console"]' },
   { id: 'terminal', trigger: '[data-testid="activity-terminal"], button[title="Terminal"]' },
   { id: 'git',      trigger: '[data-testid="activity-git"], button[title="Git"]' },
   { id: 'settings', trigger: '[data-testid="activity-settings"], button[title="Settings"]' },
+
+  // ── 15 additional desktop panels (ReplitActivityBar defaultItems + bottomItems) ──
+  { id: 'search',           trigger: '[data-testid="activity-search"], button[title="Search"]' },
+  { id: 'packages',         trigger: '[data-testid="activity-packages"], button[title="Packages"]' },
+  { id: 'debug',            trigger: '[data-testid="activity-debug"], button[title="Debug"]' },
+  { id: 'deploy',           trigger: '[data-testid="activity-deploy"], button[title="Deploy"]' },
+  { id: 'secrets',          trigger: '[data-testid="activity-secrets"], button[title="Secrets"]' },
+  { id: 'database',         trigger: '[data-testid="activity-database"], button[title="Database"]' },
+  { id: 'workflows',        trigger: '[data-testid="activity-workflows"], button[title="Workflows"]' },
+  { id: 'monitoring',       trigger: '[data-testid="activity-monitoring"], button[title="Monitoring"]' },
+  { id: 'integrations',     trigger: '[data-testid="activity-integrations"], button[title="Integrations"]' },
+  { id: 'checkpoints',      trigger: '[data-testid="activity-checkpoints"], button[title="Checkpoints"]' },
+  { id: 'mcp',              trigger: '[data-testid="activity-mcp"], button[title="MCP"]' },
+  { id: 'collaboration',    trigger: '[data-testid="activity-collaboration"], button[title="Collaboration"]' },
+  // data-testid uses the id ("security-scanner"); tooltip label is "Security"
+  { id: 'security-scanner', trigger: '[data-testid="activity-security-scanner"], button[title="Security"]' },
+  { id: 'ssh',              trigger: '[data-testid="activity-ssh"], button[title="SSH"]' },
+  // extensions lives in bottomItems (below the separator), not defaultItems
+  { id: 'extensions',       trigger: '[data-testid="activity-extensions"], button[title="Extensions"]' },
 ];
 
 const SHOTS = path.join(process.cwd(), 'tests/e2e/shots');
