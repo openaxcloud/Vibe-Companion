@@ -945,7 +945,8 @@ ${formatInstruction}`;
 
   app.post("/api/ai/plan", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
-      const { messages, projectId, model: requestedModel } = req.body;
+      const { messages, projectId: rawProjectId, model: requestedModel } = req.body;
+      const projectId = rawProjectId !== undefined && rawProjectId !== null ? String(rawProjectId) : "";
       if (!messages || !Array.isArray(messages) || !projectId) {
         return res.status(400).json({ message: "messages array and projectId required" });
       }
@@ -959,7 +960,7 @@ ${formatInstruction}`;
         return res.status(400).json({ message: planKeyError });
       }
 
-      if (typeof projectId !== "string" || projectId.length > 100) {
+      if (projectId.length > 100) {
         return res.status(400).json({ message: "Invalid projectId" });
       }
 
@@ -2408,7 +2409,8 @@ Rules:
   app.post("/api/ai/agent", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     log(`[Agent] POST /api/ai/agent - model=${req.body?.model}, projectId=${req.body?.projectId}, messages=${req.body?.messages?.length || 0}`, "agent");
     try {
-      const { messages, projectId, model: requestedModel, optimize, agentMode: agentReqMode, webSearchEnabled } = req.body;
+      const { messages, projectId: rawProjectId, model: requestedModel, optimize, agentMode: agentReqMode, webSearchEnabled } = req.body;
+      const projectId = rawProjectId !== undefined && rawProjectId !== null ? String(rawProjectId) : "";
       if (!messages || !Array.isArray(messages) || !projectId) {
         return res.status(400).json({ message: "messages array and projectId required" });
       }
@@ -2418,7 +2420,7 @@ Rules:
         return res.status(400).json({ message: msgError });
       }
 
-      if (typeof projectId !== "string" || projectId.length > 100) {
+      if (projectId.length > 100) {
         return res.status(400).json({ message: "Invalid projectId" });
       }
 
@@ -4347,7 +4349,8 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
 
   app.post("/api/ai/lite", requireAuth, aiLimiter, async (req: Request, res: Response) => {
     try {
-      const { messages, projectId, model: requestedModel } = req.body;
+      const { messages, projectId: rawProjectId, model: requestedModel } = req.body;
+      const projectId = rawProjectId !== undefined && rawProjectId !== null ? String(rawProjectId) : "";
       if (!messages || !Array.isArray(messages) || !projectId) {
         return res.status(400).json({ message: "messages array and projectId required" });
       }
@@ -4361,7 +4364,7 @@ Be concise and actionable. Only mention real issues, not style preferences.`;
         return res.status(400).json({ message: liteKeyError });
       }
 
-      if (typeof projectId !== "string" || projectId.length > 100) {
+      if (projectId.length > 100) {
         return res.status(400).json({ message: "Invalid projectId" });
       }
 

@@ -220,7 +220,7 @@ export class AuthRouter {
                 return res.json(this.sanitizeUser(user));
               }
               
-              req.session.userId = user.id;
+              req.session.userId = String(user.id);
               req.session.save((saveErr: any) => {
                 if (saveErr) {
                   logger.warn('Session save warning after registration', { message: saveErr.message });
@@ -309,7 +309,7 @@ export class AuthRouter {
               });
             }
             
-            req.session.userId = user.id;
+            req.session.userId = String(user.id);
             if (!req.session.csrfToken) {
               req.session.csrfToken = require('crypto').randomBytes(32).toString('hex');
             }
@@ -408,7 +408,7 @@ export class AuthRouter {
               });
             }
             
-            req.session.userId = user.id;
+            req.session.userId = String(user.id);
             req.session.save((saveErr: any) => {
               if (saveErr) {
                 logger.warn('Session save warning:', saveErr.message);
@@ -552,7 +552,7 @@ export class AuthRouter {
                 return res.json(this.sanitizeUser(user));
               }
               
-              req.session.userId = user.id;
+              req.session.userId = String(user.id);
               req.session.save((saveErr: any) => {
                 if (saveErr) {
                   logger.warn('Session save warning after registration', { message: saveErr.message });

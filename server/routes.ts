@@ -929,11 +929,14 @@ function generateCsrfToken(): string {
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (req.session.userId) {
+  if (req.session.userId !== undefined && req.session.userId !== null) {
+    if (typeof req.session.userId !== "string") {
+      req.session.userId = String(req.session.userId);
+    }
     return next();
   }
   if (typeof req.isAuthenticated === 'function' && req.isAuthenticated() && (req.user as any)?.id) {
-    req.session.userId = (req.user as any).id;
+    req.session.userId = String((req.user as any).id);
     return next();
   }
   return res.status(401).json({ message: "Authentication required" });
@@ -1127,8 +1130,14 @@ export async function registerRoutes(
   app.use(sessionMiddleware);
 
   app.use((req, _res, next) => {
-    if (req.session && !(req.session as any).csrfToken) {
-      (req.session as any).csrfToken = crypto.randomBytes(32).toString("hex");
+    if (req.session) {
+      if (!(req.session as any).csrfToken) {
+        (req.session as any).csrfToken = crypto.randomBytes(32).toString("hex");
+      }
+      const sid = (req.session as any).userId;
+      if (sid !== undefined && sid !== null && typeof sid !== "string") {
+        (req.session as any).userId = String(sid);
+      }
     }
     next();
   });

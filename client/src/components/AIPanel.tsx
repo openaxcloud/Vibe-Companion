@@ -4956,11 +4956,9 @@ function AIPanelInner({ context, onClose, projectId, files, onFileCreated, onFil
                             const MdlIcon = meta.icon;
                             const isSelected = specificModelId
                               ? lm.id === specificModelId
-                              : meta.isExternal ? (agentProvider === lm.provider) : (agentProvider === "builtin" && model === meta.groupKey && (
-                                meta.groupKey === "gpt" ? lm.id.startsWith("gpt") || lm.id.startsWith("o3") || lm.id.startsWith("o4") :
-                                meta.groupKey === "claude" ? lm.id.startsWith("claude") :
-                                meta.groupKey === "gemini" ? lm.id.startsWith("gemini") : false
-                              ));
+                              : meta.isExternal
+                                ? (agentProvider === lm.provider)
+                                : false;
                             return (
                               <DropdownMenuItem key={lm.id} className={`gap-2.5 text-xs cursor-pointer rounded-md px-2 py-1.5 ${isSelected ? "bg-[var(--ide-surface)] text-[var(--ide-text)]" : "text-[var(--ide-text)] focus:bg-[var(--ide-surface)]"}`} onClick={() => {
                                 if (meta.isExternal) {

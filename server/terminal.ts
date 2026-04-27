@@ -167,8 +167,8 @@ const WORKSPACES_ROOT = path.join(process.cwd(), "project-workspaces");
 
 const materializedProjects = new Set<string>();
 
-export function getProjectWorkspaceDir(projectId: string): string {
-  const safeId = projectId.replace(/[^a-zA-Z0-9_-]/g, "_");
+export function getProjectWorkspaceDir(projectId: string | number): string {
+  const safeId = String(projectId ?? "").replace(/[^a-zA-Z0-9_-]/g, "_");
   return path.join(WORKSPACES_ROOT, safeId);
 }
 

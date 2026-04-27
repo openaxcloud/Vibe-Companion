@@ -92,7 +92,7 @@ export async function registerGithubOauthRoutes(app: Express, ctx: any): Promise
       if (user.isBanned) {
         return res.status(403).json({ message: "Your account has been suspended" + (user.banReason ? `: ${user.banReason}` : "") });
       }
-      req.session.userId = user.id;
+      req.session.userId = String(user.id);
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "github", req.headers["user-agent"] || null);
@@ -151,7 +151,7 @@ export async function registerGithubOauthRoutes(app: Express, ctx: any): Promise
         }
       }
       if (user.isBanned) return res.redirect("/auth?error=banned");
-      req.session.userId = user.id;
+      req.session.userId = String(user.id);
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "github", req.headers["user-agent"] || null);
@@ -215,7 +215,7 @@ export async function registerGithubOauthRoutes(app: Express, ctx: any): Promise
         }
       }
       if (user.isBanned) return res.redirect("/auth?error=banned");
-      req.session.userId = user.id;
+      req.session.userId = String(user.id);
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "google", req.headers["user-agent"] || null);
@@ -311,7 +311,7 @@ export async function registerGithubOauthRoutes(app: Express, ctx: any): Promise
         }
       }
       if (user.isBanned) return res.redirect("/auth?error=banned");
-      req.session.userId = user.id;
+      req.session.userId = String(user.id);
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "apple", req.headers["user-agent"] || null);
@@ -386,7 +386,7 @@ export async function registerGithubOauthRoutes(app: Express, ctx: any): Promise
         }
       }
       if (user.isBanned) return res.redirect("/auth?error=banned");
-      req.session.userId = user.id;
+      req.session.userId = String(user.id);
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "twitter", req.headers["user-agent"] || null);

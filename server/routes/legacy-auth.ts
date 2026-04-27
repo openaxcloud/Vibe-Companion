@@ -99,7 +99,7 @@ export async function registerAuthRoutes(app: Express, ctx: any): Promise<void> 
           else resolve();
         });
       });
-      req.session.userId = user.id;
+      req.session.userId = String(user.id);
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "email", req.headers["user-agent"] || null);
@@ -152,7 +152,7 @@ export async function registerAuthRoutes(app: Express, ctx: any): Promise<void> 
           else resolve();
         });
       });
-      req.session.userId = user.id;
+      req.session.userId = String(user.id);
       req.session.csrfToken = generateCsrfToken();
       const ip = req.headers["x-forwarded-for"] as string || req.ip || null;
       await storage.recordLogin(user.id, ip, "email", req.headers["user-agent"] || null);

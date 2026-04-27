@@ -401,7 +401,7 @@ export const handleLogin = async (req: Request, res: Response) => {
         return res.status(500).json({ error: 'Session creation failed' });
       }
 
-      req.session.userId = user.id;
+      req.session.userId = String(user.id);
       req.session.id = sessionId;
 
       res.json({
@@ -496,7 +496,7 @@ export const handleRegister = async (req: Request, res: Response) => {
     const sessionId = sessionManager.createSession(userId, req);
     const csrfToken = sessionManager.getCsrfToken(sessionId);
 
-    req.session.userId = userId;
+    req.session.userId = String(userId);
     req.session.id = sessionId;
 
     res.status(201).json({
