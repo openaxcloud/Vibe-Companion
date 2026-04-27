@@ -68,7 +68,7 @@ export async function registerTestRunnerRoutes(app: Express, ctx: any): Promise<
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== userId && !await verifyProjectAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
+      if (!project || (String(project.userId) !== String(userId) && !await verifyProjectAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
       const files = await storage.getFiles(req.params.id);
       const testPatterns = [
@@ -120,7 +120,7 @@ export async function registerTestRunnerRoutes(app: Express, ctx: any): Promise<
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
+      if (!project || (String(project.userId) !== String(userId) && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
       const files = await storage.getFiles(req.params.id);
       const { file } = req.body;

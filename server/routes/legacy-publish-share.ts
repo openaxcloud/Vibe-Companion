@@ -70,7 +70,7 @@ export async function registerPublishShareRoutes(app: Express, ctx: any): Promis
       const userId = req.session.userId!;
 
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== userId) {
+      if (!project || String(project.userId) !== String(userId)) {
         return res.status(404).json({ message: "Project not found or not owned" });
       }
 
@@ -150,7 +150,7 @@ export async function registerPublishShareRoutes(app: Express, ctx: any): Promis
     if (project.visibility === "private") {
       const userId = req.session?.userId;
       if (!userId) return res.status(403).json({ message: "This project is private" });
-      if (project.userId !== userId) {
+      if (String(project.userId) !== String(userId)) {
         const isGuest = await storage.isProjectGuest(project.id, userId);
         if (!isGuest) {
           if (project.teamId) {
@@ -166,12 +166,12 @@ export async function registerPublishShareRoutes(app: Express, ctx: any): Promis
     } else if (project.visibility === "team") {
       const userId = req.session?.userId;
       if (!userId) return res.status(403).json({ message: "This project is only visible to team members" });
-      if (project.userId !== userId && project.teamId) {
+      if (String(project.userId) !== String(userId) && project.teamId) {
         const teams = await storage.getUserTeams(userId);
         if (!teams.some(t => t.id === project.teamId)) {
           return res.status(403).json({ message: "This project is only visible to team members" });
         }
-      } else if (project.userId !== userId) {
+      } else if (String(project.userId) !== String(userId)) {
         return res.status(403).json({ message: "This project is only visible to team members" });
       }
     } else if (project.visibility !== "public") {
@@ -188,7 +188,7 @@ export async function registerPublishShareRoutes(app: Express, ctx: any): Promis
     if (project.visibility === "private") {
       const userId = req.session?.userId;
       if (!userId) return res.status(403).send("Private project");
-      if (project.userId !== userId) {
+      if (String(project.userId) !== String(userId)) {
         const isGuest = await storage.isProjectGuest(project.id, userId);
         if (!isGuest) {
           if (project.teamId) {

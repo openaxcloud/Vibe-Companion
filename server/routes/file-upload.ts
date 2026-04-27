@@ -28,12 +28,12 @@ const ensureProjectAccess = async (req: any, res: any, next: any) => {
     return res.status(404).json({ message: "Project not found" });
   }
   
-  if (project.ownerId === userId) {
+  if (String(project.ownerId) === String(userId)) {
     return next();
   }
   
   const collaborators = await storage.getProjectCollaborators(String(projectId));
-  const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+  const isCollaborator = collaborators.some((c: any) => String(c.userId) === String(userId));
   
   if (isCollaborator) {
     return next();
@@ -133,9 +133,9 @@ router.get('/files/:id/download', ensureAuthenticated, async (req, res) => {
     
     // Check user access
     const project = await storage.getProject(String(file.projectId));
-    if (!project || project.ownerId !== req.user!.id) {
+    if (!project || String(project.ownerId) !== String(req.user!.id)) {
       const collaborators = await storage.getProjectCollaborators(String(file.projectId));
-      const isCollaborator = collaborators.some((c: any) => c.userId === req.user!.id);
+      const isCollaborator = collaborators.some((c: any) => String(c.userId) === String(req.user!.id));
       if (!isCollaborator) {
         return res.status(403).json({ error: 'Access denied' });
       }

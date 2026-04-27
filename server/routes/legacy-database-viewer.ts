@@ -32,7 +32,7 @@ import OpenAI from "openai";
 async function verifyProjectWriteAccess(projectId: string, userId: string): Promise<boolean> {
   try {
     const collaborators = await storage.getProjectCollaborators(projectId);
-    return collaborators.some((c: any) => c.userId === userId && (c.role === 'editor' || c.role === 'admin' || c.role === 'owner'));
+    return collaborators.some((c: any) => String(c.userId) === String(userId) && (c.role === 'editor' || c.role === 'admin' || c.role === 'owner'));
   } catch {
     return false;
   }
@@ -108,7 +108,7 @@ export async function registerDatabaseViewerRoutes(app: Express, ctx: any): Prom
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
+      if (!project || (String(project.userId) !== String(userId) && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
       const { sql: sqlQuery, confirm, env } = req.body;
       if (!sqlQuery || typeof sqlQuery !== "string") return res.status(400).json({ error: "SQL query required" });
@@ -174,7 +174,7 @@ export async function registerDatabaseViewerRoutes(app: Express, ctx: any): Prom
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
+      if (!project || (String(project.userId) !== String(userId) && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
       const env = qstr(req.query.env);
       const { pool } = await import("./db");
@@ -193,7 +193,7 @@ export async function registerDatabaseViewerRoutes(app: Express, ctx: any): Prom
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
+      if (!project || (String(project.userId) !== String(userId) && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
       const tableName = req.params.tableName;
       if (!isValidIdentifier(tableName)) return res.status(400).json({ error: "Invalid table name" });
@@ -268,7 +268,7 @@ export async function registerDatabaseViewerRoutes(app: Express, ctx: any): Prom
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== userId) return res.status(403).json({ error: "Access denied" });
+      if (!project || String(project.userId) !== String(userId)) return res.status(403).json({ error: "Access denied" });
 
       const dbUrl = process.env.DATABASE_URL;
       if (!dbUrl) return res.json({ credentials: {} });
@@ -302,7 +302,7 @@ export async function registerDatabaseViewerRoutes(app: Express, ctx: any): Prom
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== userId && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
+      if (!project || (String(project.userId) !== String(userId) && !await verifyProjectWriteAccess(project.id, userId))) return res.status(404).json({ error: "Project not found" });
 
       const env = qstr(req.query.env);
       const { pool } = await import("./db");
@@ -348,7 +348,7 @@ export async function registerDatabaseViewerRoutes(app: Express, ctx: any): Prom
     try {
       const userId = (req as any).session?.userId;
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== userId) return res.status(403).json({ error: "Access denied" });
+      if (!project || String(project.userId) !== String(userId)) return res.status(403).json({ error: "Access denied" });
 
       const { confirmToken, env } = req.body;
       if (env === "production") {

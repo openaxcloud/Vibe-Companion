@@ -101,7 +101,7 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
-    if (project.userId !== userId && !project.isDemo) {
+    if (String(project.userId) !== String(userId) && !project.isDemo) {
       return res.status(403).json({ message: "Access denied" });
     }
 

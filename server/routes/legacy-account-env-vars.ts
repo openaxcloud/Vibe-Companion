@@ -101,7 +101,7 @@ export async function registerAccountEnvVarsRoutes(app: Express, ctx: any): Prom
   app.patch("/api/account/env-vars/:id", requireAuth, async (req: Request, res: Response) => {
     const userId = req.session.userId!;
     const envVar = await storage.getAccountEnvVar(req.params.id);
-    if (!envVar || envVar.userId !== userId) {
+    if (!envVar || String(envVar.userId) !== String(userId)) {
       return res.status(404).json({ message: "Account env var not found" });
     }
     const { value } = req.body;
@@ -118,7 +118,7 @@ export async function registerAccountEnvVarsRoutes(app: Express, ctx: any): Prom
   app.delete("/api/account/env-vars/:id", requireAuth, async (req: Request, res: Response) => {
     const userId = req.session.userId!;
     const envVar = await storage.getAccountEnvVar(req.params.id);
-    if (!envVar || envVar.userId !== userId) {
+    if (!envVar || String(envVar.userId) !== String(userId)) {
       return res.status(404).json({ message: "Account env var not found" });
     }
     await storage.deleteAccountEnvVar(req.params.id);
@@ -128,7 +128,7 @@ export async function registerAccountEnvVarsRoutes(app: Express, ctx: any): Prom
   app.get("/api/account/env-vars/:id/links", requireAuth, async (req: Request, res: Response) => {
     const userId = req.session.userId!;
     const envVar = await storage.getAccountEnvVar(req.params.id);
-    if (!envVar || envVar.userId !== userId) {
+    if (!envVar || String(envVar.userId) !== String(userId)) {
       return res.status(404).json({ message: "Account env var not found" });
     }
     const projectIds = await storage.getLinkedProjectIds(req.params.id);
@@ -138,7 +138,7 @@ export async function registerAccountEnvVarsRoutes(app: Express, ctx: any): Prom
   app.post("/api/account/env-vars/:id/link", requireAuth, async (req: Request, res: Response) => {
     const userId = req.session.userId!;
     const envVar = await storage.getAccountEnvVar(req.params.id);
-    if (!envVar || envVar.userId !== userId) {
+    if (!envVar || String(envVar.userId) !== String(userId)) {
       return res.status(404).json({ message: "Account env var not found" });
     }
     const { projectId } = req.body;
@@ -146,7 +146,7 @@ export async function registerAccountEnvVarsRoutes(app: Express, ctx: any): Prom
       return res.status(400).json({ message: "projectId is required" });
     }
     const project = await storage.getProject(projectId);
-    if (!project || project.userId !== userId) {
+    if (!project || String(project.userId) !== String(userId)) {
       return res.status(403).json({ message: "Access denied to project" });
     }
     try {
@@ -163,7 +163,7 @@ export async function registerAccountEnvVarsRoutes(app: Express, ctx: any): Prom
   app.delete("/api/account/env-vars/:id/link/:projectId", requireAuth, async (req: Request, res: Response) => {
     const userId = req.session.userId!;
     const envVar = await storage.getAccountEnvVar(req.params.id);
-    if (!envVar || envVar.userId !== userId) {
+    if (!envVar || String(envVar.userId) !== String(userId)) {
       return res.status(404).json({ message: "Account env var not found" });
     }
     await storage.unlinkAccountEnvVar(req.params.id, req.params.projectId);

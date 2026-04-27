@@ -34,7 +34,7 @@ async function verifyProjectOwnership(projectId: number, userId: number): Promis
   if (!project) {
     return { valid: false, error: 'Project not found' };
   }
-  if (project.ownerId !== userId) {
+  if (String(project.ownerId) !== String(userId)) {
     return { valid: false, error: 'Access denied: You do not own this project' };
   }
   return { valid: true };

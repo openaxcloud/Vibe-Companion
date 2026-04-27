@@ -461,7 +461,7 @@ async function checkProjectOwnership(req: Request, res: Response, projectId: num
   }
   
   const userId = typeof req.user.id === 'string' ? parseInt(req.user.id) : req.user.id;
-  if (project.ownerId !== userId && !(req.user as any).isAdmin) {
+  if (String(project.ownerId) !== String(userId) && !(req.user as any).isAdmin) {
     res.status(403).json({ error: 'Not authorized to access this project' });
     return false;
   }

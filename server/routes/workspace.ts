@@ -120,7 +120,7 @@ export function createWorkspaceRoutes(storage: IStorage) {
       if (!project) return false;
 
       // Check if user owns the project
-      if (project.ownerId === userId) return true;
+      if (String(project.ownerId) === String(userId)) return true;
 
       // Check team membership
       try {

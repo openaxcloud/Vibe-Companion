@@ -49,13 +49,13 @@ const ensureProjectAccess = async (req: Request, res: Response, next: NextFuncti
     }
 
     // Check if user is owner
-    if (project.ownerId === userId) {
+    if (String(project.ownerId) === String(userId)) {
       return next();
     }
 
     // Check if user is collaborator
     const collaborators = await storage.getProjectCollaborators(projectId);
-    const isCollaborator = collaborators.some(c => c.userId === userId);
+    const isCollaborator = collaborators.some(c => String(c.userId) === String(userId));
     
     if (isCollaborator) {
       return next();

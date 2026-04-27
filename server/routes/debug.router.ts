@@ -22,10 +22,10 @@ const debugProcesses = new Map<string, ChildProcess>();
 async function verifyProjectOwnerOrCollaborator(projectId: string, userId: string): Promise<boolean> {
   const project = await storage.getProject(projectId);
   if (!project) return false;
-  if (project.userId === userId) return true;
+  if (String(project.userId) === String(userId)) return true;
   try {
     const guests = await storage.getProjectGuests(projectId);
-    return guests.some((g: any) => g.userId === userId);
+    return guests.some((g: any) => String(g.userId) === String(userId));
   } catch {
     return false;
   }

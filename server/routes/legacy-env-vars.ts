@@ -68,7 +68,7 @@ export async function registerEnvVarsRoutes(app: Express, ctx: any): Promise<voi
     const project = await storage.getProject(projectId);
     if (!project) return "none";
     if (!userId) return "none";
-    if (project.userId === userId) return "owner";
+    if (String(project.userId) === String(userId)) return "owner";
     if (project.teamId) {
       const teams = await storage.getUserTeams(userId);
       const teamMatch = teams.find(t => t.id === project.teamId);

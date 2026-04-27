@@ -22,7 +22,7 @@ async function verifyProjectAccess(projectId: number, userId: number): Promise<{
   if (!project) {
     return { valid: false, error: 'Project not found' };
   }
-  if (project.ownerId !== userId) {
+  if (String(project.ownerId) !== String(userId)) {
     return { valid: false, error: 'Access denied: You do not have access to this project' };
   }
   return { valid: true };

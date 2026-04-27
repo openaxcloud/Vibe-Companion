@@ -23,10 +23,10 @@ async function verifyProjectAccess(userId: number, projectId: string | number): 
     const project = await storage.getProject(projectId);
     if (!project) return false;
     
-    if (project.ownerId === userId) return true;
+    if (String(project.ownerId) === String(userId)) return true;
     
     const collaborators = await storage.getProjectCollaborators(projectId);
-    return collaborators.some((c: any) => c.userId === userId);
+    return collaborators.some((c: any) => String(c.userId) === String(userId));
   } catch (error) {
     logger.error('Failed to verify project access:', error);
     return false;
@@ -88,7 +88,7 @@ router.get('/:projectId/shell/sessions', ensureAuthenticated, async (req, res) =
     }
 
     const sessions = Array.from(projectShellSessions.values())
-      .filter(s => String(s.projectId) === String(projectId) && s.userId === userId && s.status === 'active')
+      .filter(s => String(s.projectId) === String(projectId) && String(s.userId) === String(userId) && s.status === 'active')
       .map(s => ({
         id: s.id,
         sessionId: s.sessionId,
@@ -127,7 +127,7 @@ router.delete('/:projectId/shell/:sessionId', ensureAuthenticated, async (req, r
       return res.status(403).json({ error: 'Session does not belong to this project' });
     }
 
-    if (session.userId !== userId) {
+    if (String(session.userId) !== String(userId)) {
       return res.status(403).json({ error: 'Not authorized to close this session' });
     }
 

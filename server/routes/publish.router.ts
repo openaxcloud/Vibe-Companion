@@ -10,7 +10,7 @@ router.post('/projects/:id/publish', ensureAuthenticated, async (req: Request, r
     const userId = req.session.userId!;
 
     const project = await storage.getProject(projectId);
-    if (!project || project.userId !== userId) {
+    if (!project || String(project.userId) !== String(userId)) {
       return res.status(404).json({ message: 'Project not found or not owned' });
     }
 
@@ -90,7 +90,7 @@ router.get('/shared/:id', async (req: Request, res: Response) => {
   if (project.visibility === 'private') {
     const userId = req.session?.userId;
     if (!userId) return res.status(403).json({ message: 'This project is private' });
-    if (project.userId !== userId) {
+    if (String(project.userId) !== String(userId)) {
       const isGuest = await storage.isProjectGuest(project.id, userId);
       if (!isGuest) {
         if (project.teamId) {
@@ -106,12 +106,12 @@ router.get('/shared/:id', async (req: Request, res: Response) => {
   } else if (project.visibility === 'team') {
     const userId = req.session?.userId;
     if (!userId) return res.status(403).json({ message: 'This project is only visible to team members' });
-    if (project.userId !== userId && project.teamId) {
+    if (String(project.userId) !== String(userId) && project.teamId) {
       const teams = await storage.getUserTeams(userId);
       if (!teams.some(t => t.id === project.teamId)) {
         return res.status(403).json({ message: 'This project is only visible to team members' });
       }
-    } else if (project.userId !== userId) {
+    } else if (String(project.userId) !== String(userId)) {
       return res.status(403).json({ message: 'This project is only visible to team members' });
     }
   } else if (project.visibility !== 'public') {
@@ -128,7 +128,7 @@ router.get('/shared/:id/preview', async (req: Request, res: Response) => {
   if (project.visibility === 'private') {
     const userId = req.session?.userId;
     if (!userId) return res.status(403).send('Private project');
-    if (project.userId !== userId) {
+    if (String(project.userId) !== String(userId)) {
       const isGuest = await storage.isProjectGuest(project.id, userId);
       if (!isGuest) {
         if (project.teamId) {

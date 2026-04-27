@@ -153,7 +153,7 @@ const ensureProjectAccess = async (req: any, res: any, next: any) => {
       return res.status(404).json({ error: 'Project not found' });
     }
     
-    if (project.userId === userId) {
+    if (String(project.userId) === String(userId)) {
       req.validatedProjectId = projectIdParam;
       req.project = project;
       return next();
@@ -161,7 +161,7 @@ const ensureProjectAccess = async (req: any, res: any, next: any) => {
     
     try {
       const collaborators = await storage.getProjectCollaborators(projectIdParam);
-      const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+      const isCollaborator = collaborators.some((c: any) => String(c.userId) === String(userId));
       if (isCollaborator) {
         req.validatedProjectId = projectIdParam;
         req.project = project;

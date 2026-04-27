@@ -32,9 +32,9 @@ router.get('/logs', ensureAuthenticated, async (req, res) => {
     }
     
     // Check access permissions
-    if (project.ownerId !== userId) {
+    if (String(project.ownerId) !== String(userId)) {
       const collaborators = await storage.getProjectCollaborators(projectId);
-      const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+      const isCollaborator = collaborators.some((c: any) => String(c.userId) === String(userId));
       
       if (!isCollaborator) {
         return res.status(403).json({ error: "You don't have access to this project" });
@@ -75,9 +75,9 @@ router.post('/logs', ensureAuthenticated, async (req, res) => {
     }
     
     // Check access permissions
-    if (project.ownerId !== userId) {
+    if (String(project.ownerId) !== String(userId)) {
       const collaborators = await storage.getProjectCollaborators(projectId);
-      const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+      const isCollaborator = collaborators.some((c: any) => String(c.userId) === String(userId));
       
       if (!isCollaborator) {
         return res.status(403).json({ error: "You don't have access to this project" });
@@ -129,9 +129,9 @@ router.delete('/logs', ensureAuthenticated, async (req, res) => {
     }
     
     // Check access permissions
-    if (project.ownerId !== userId) {
+    if (String(project.ownerId) !== String(userId)) {
       const collaborators = await storage.getProjectCollaborators(projectId);
-      const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+      const isCollaborator = collaborators.some((c: any) => String(c.userId) === String(userId));
       
       if (!isCollaborator) {
         return res.status(403).json({ error: "You don't have access to this project" });
@@ -166,7 +166,7 @@ router.post('/sync', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
     
-    if (project.ownerId !== userId) {
+    if (String(project.ownerId) !== String(userId)) {
       return res.status(403).json({ error: "You don't have access to this project" });
     }
     
@@ -202,7 +202,7 @@ router.get('/workspace-path', ensureAuthenticated, async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
     
-    if (project.ownerId !== userId) {
+    if (String(project.ownerId) !== String(userId)) {
       return res.status(403).json({ error: "You don't have access to this project" });
     }
     

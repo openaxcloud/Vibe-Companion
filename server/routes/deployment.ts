@@ -704,7 +704,7 @@ router.post('/projects/:projectId/publish', ensureAuthenticated, async (req: Req
       });
     }
 
-    if (project.userId !== userId && (project as any).ownerId !== userId) {
+    if (String(project.userId) !== String(userId) && (project as any).ownerId !== userId) {
       return res.status(403).json({
         success: false,
         error: 'FORBIDDEN',
@@ -812,7 +812,7 @@ router.post('/projects/:projectId/republish', ensureAuthenticated, async (req: R
       });
     }
 
-    if (project.userId !== userId && (project as any).ownerId !== userId) {
+    if (String(project.userId) !== String(userId) && (project as any).ownerId !== userId) {
       return res.status(403).json({
         success: false,
         error: 'FORBIDDEN',
@@ -1361,7 +1361,7 @@ router.post('/projects/:projectId/domains', ensureAuthenticated, async (req: Req
       });
     }
 
-    if (project.userId !== userId && (project as any).ownerId !== userId) {
+    if (String(project.userId) !== String(userId) && (project as any).ownerId !== userId) {
       return res.status(403).json({
         success: false,
         error: 'FORBIDDEN',

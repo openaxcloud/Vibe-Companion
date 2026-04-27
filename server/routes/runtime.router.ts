@@ -45,13 +45,13 @@ async function ensureProjectAccess(req: any, res: any, next: any) {
     }
     
     // Check if user owns the project
-    if (project.ownerId === userId) {
+    if (String(project.ownerId) === String(userId)) {
       return next();
     }
     
     // Check if user is a collaborator
     const collaborators = await storage.getProjectCollaborators(projectId);
-    const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+    const isCollaborator = collaborators.some((c: any) => String(c.userId) === String(userId));
     
     if (!isCollaborator) {
       return res.status(403).json({ error: "You don't have access to this project" });
@@ -372,9 +372,9 @@ router.post('/projects/:id/execute-direct', ensureAuthenticated, async (req, res
         return res.status(404).json({ error: 'Project not found' });
       }
       
-      if (project.ownerId !== userId) {
+      if (String(project.ownerId) !== String(userId)) {
         const collaborators = await storage.getProjectCollaborators(projectId);
-        const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+        const isCollaborator = collaborators.some((c: any) => String(c.userId) === String(userId));
         if (!isCollaborator) {
           return res.status(403).json({ error: "You don't have access to this project" });
         }

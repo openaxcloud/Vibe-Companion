@@ -101,7 +101,7 @@ export class AgentPlanRouter {
         if (!project) {
           return res.status(404).json({ error: 'Project not found' });
         }
-        if (project.ownerId !== userId) {
+        if (String(project.ownerId) !== String(userId)) {
           return res.status(403).json({ error: 'Access denied' });
         }
 
@@ -218,7 +218,7 @@ export class AgentPlanRouter {
         if (!project) {
           return res.status(404).json({ error: 'Project not found' });
         }
-        if (project.ownerId !== userId) {
+        if (String(project.ownerId) !== String(userId)) {
           return res.status(403).json({ error: 'Access denied' });
         }
 
@@ -298,7 +298,7 @@ export class AgentPlanRouter {
           return res.status(404).json({ error: 'Plan not found' });
         }
 
-        if (conversation.userId !== userId) {
+        if (String(conversation.userId) !== String(userId)) {
           return res.status(403).json({ error: 'Access denied' });
         }
 

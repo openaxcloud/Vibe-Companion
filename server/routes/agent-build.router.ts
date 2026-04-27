@@ -71,7 +71,7 @@ export class AgentBuildRouter {
           if (!project) {
             return res.status(404).json({ error: 'Project not found' });
           }
-          if (project.ownerId !== userId) {
+          if (String(project.ownerId) !== String(userId)) {
             return res.status(403).json({ error: 'Access denied' });
           }
 
@@ -171,7 +171,7 @@ export class AgentBuildRouter {
           if (!project) {
             return res.status(404).json({ error: 'Project not found' });
           }
-          if (project.ownerId !== userId) {
+          if (String(project.ownerId) !== String(userId)) {
             return res.status(403).json({ error: 'Access denied' });
           }
 
@@ -271,7 +271,7 @@ export class AgentBuildRouter {
           if (!project) {
             return res.status(404).json({ error: 'Project not found' });
           }
-          if (project.ownerId !== userId) {
+          if (String(project.ownerId) !== String(userId)) {
             return res.status(403).json({ error: 'Access denied' });
           }
 
@@ -332,7 +332,7 @@ export class AgentBuildRouter {
           if (!project) {
             return res.status(404).json({ error: 'Project not found' });
           }
-          if (project.ownerId !== userId) {
+          if (String(project.ownerId) !== String(userId)) {
             return res.status(403).json({ error: 'Access denied' });
           }
 

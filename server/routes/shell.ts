@@ -122,7 +122,7 @@ function initializeShellWebSocket() {
       try {
         const { storage } = await import('../storage');
         const project = await storage.getProject(projectId);
-        if (!project || project.ownerId !== userId) {
+        if (!project || String(project.ownerId) !== String(userId)) {
           ws.close(1008, 'Access denied: You do not own this project');
           return;
         }
@@ -299,7 +299,7 @@ initializeShellWebSocket();
 router.get('/sessions', ensureAuthenticated, (req, res) => {
   const userId = (req.user as any).id;
   const sessions = Array.from(shellSessions.values())
-    .filter(session => session.userId === userId)
+    .filter(session => String(session.userId) === String(userId))
     .map(session => ({
       id: session.id,
       created: session.created,

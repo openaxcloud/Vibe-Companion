@@ -318,12 +318,12 @@ const ensureProjectAccess = async (req: any, res: any, next: any) => {
     return res.status(404).json({ message: "Project not found" });
   }
   
-  if (project.userId === userId || (project as any).ownerId === userId || String(project.userId) === String(userId)) {
+  if (String(project.userId) === String(userId) || (project as any).ownerId === userId || String(project.userId) === String(userId)) {
     return next();
   }
   
   const collaborators = await storage.getProjectCollaborators(projectId);
-  const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+  const isCollaborator = collaborators.some((c: any) => String(c.userId) === String(userId));
   
   if (isCollaborator) {
     return next();
@@ -363,9 +363,9 @@ router.get('/url', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
     
-    if ((project as any).userId !== userId && (project as any).ownerId !== userId) {
+    if (String((project as any).userId) !== String(userId) && String((project as any).ownerId) !== String(userId)) {
       const collaborators = await storage.getProjectCollaborators(projectId);
-      const isCollaborator = collaborators.some((c: any) => c.userId === userId);
+      const isCollaborator = collaborators.some((c: any) => String(c.userId) === String(userId));
       
       if (!isCollaborator) {
         return res.status(403).json({ error: "You don't have access to this project" });

@@ -68,7 +68,7 @@ export async function registerSecurityScannerRoutes(app: Express, ctx: any): Pro
   async function verifyProjectWriteAccess(projectId: string, userId: string): Promise<boolean> {
     const project = await storage.getProject(projectId);
     if (!project) return false;
-    if (project.userId === userId) return true;
+    if (String(project.userId) === String(userId)) return true;
     if (project.teamId) {
       const teams = await storage.getUserTeams(userId);
       const teamMatch = teams.find(t => t.id === project.teamId);

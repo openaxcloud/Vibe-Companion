@@ -13,7 +13,7 @@ const router = Router();
 async function verifyProjectAccess(userId: string, projectId: string): Promise<boolean> {
   try {
     const project = await storage.getProject(projectId);
-    return project?.userId === userId;
+    return String(project?.userId) === String(userId);
   } catch {
     return false;
   }

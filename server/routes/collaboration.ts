@@ -21,7 +21,7 @@ const router = Router();
 async function verifyProjectAccess(projectId: string, userId: number): Promise<boolean> {
   const project = await storage.getProject(projectId);
   if (!project) return false;
-  if (project.ownerId === userId || project.userId === userId) return true;
+  if (String(project.ownerId) === String(userId) || String(project.userId) === String(userId)) return true;
   
   const participant = await db
     .select()

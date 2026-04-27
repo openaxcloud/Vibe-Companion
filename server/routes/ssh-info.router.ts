@@ -37,7 +37,7 @@ router.post('/ssh-keys', ensureAuthenticated, async (req: Request, res: Response
     const fingerprintFormatted = `SHA256:${fingerprint.replace(/=+$/, '')}`;
 
     const existing = await storage.findSshKeyByFingerprint(fingerprintFormatted);
-    if (existing && existing.userId === userId) {
+    if (existing && String(existing.userId) === String(userId)) {
       return res.status(409).json({ message: 'This SSH key is already added to your account.' });
     }
 

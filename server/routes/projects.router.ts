@@ -158,13 +158,13 @@ export class ProjectsRouter {
     }
     
     // Check if user is owner
-    if (project.userId === userId) {
+    if (String(project.userId) === String(userId)) {
       return next();
     }
     
     // Check if user is collaborator
     const collaborators = await this.storage.getProjectCollaborators(projectId);
-    const isCollaborator = collaborators.some(c => c.userId === userId);
+    const isCollaborator = collaborators.some(c => String(c.userId) === String(userId));
     
     if (isCollaborator) {
       return next();
@@ -976,7 +976,7 @@ export class ProjectsRouter {
         }
 
         const project = await this.storage.getProject(projectId);
-        if (!project || project.userId !== userId) {
+        if (!project || String(project.userId) !== String(userId)) {
           return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
         }
 
@@ -1017,7 +1017,7 @@ export class ProjectsRouter {
 
       // Validate project exists and user has access
       const project = await this.storage.getProject(projectId);
-      if (!project || project.userId !== userId) {
+      if (!project || String(project.userId) !== String(userId)) {
         return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
       }
 

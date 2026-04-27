@@ -7,9 +7,9 @@ const router = Router();
 async function verifyAccess(projectId: string, userId: any): Promise<boolean> {
   const project = await storage.getProject(projectId);
   if (!project) return false;
-  if (project.ownerId === userId) return true;
+  if (String(project.ownerId) === String(userId)) return true;
   const collabs = await storage.getProjectCollaborators(projectId);
-  return collabs.some((c: any) => c.userId === userId);
+  return collabs.some((c: any) => String(c.userId) === String(userId));
 }
 
 router.get("/projects/:id/automations", ensureAuthenticated, async (req: Request, res: Response) => {
