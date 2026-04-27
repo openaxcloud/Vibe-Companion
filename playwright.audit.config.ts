@@ -27,7 +27,12 @@ export default defineConfig({
   // round-trip, plus a margin for slow runs.
   timeout: 180_000,
   expect: { timeout: 10_000 },
-  retries: 0,
+  // 1 retry: a 22-spec serial run pressures the dev server long enough
+  // that the session cookie occasionally arrives stale on a single
+  // spec mid-suite (observed with `collaboration` at spec 17/22).
+  // Standalone re-run of the same spec passes in 3min — the failure is
+  // dev-runtime back-pressure, not a real regression.
+  retries: 1,
   workers: 1,
   reporter: [['list'], ['html', { outputFolder: 'tests/e2e/report', open: 'never' }]],
   use: {
