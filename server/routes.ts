@@ -1338,6 +1338,12 @@ export async function registerRoutes(
     });
   });
 
+  // GLOBAL CSRF GUARD — protects every /api/* mutating request, including
+  // routes mounted later by MainRouter (agent, ai, payments, …). Express
+  // middleware runs in registration order, so this MUST be registered BEFORE
+  // mainRouter.registerRoutes(app) at the end of this function (≈line 2356).
+  // Coverage is locked in by tests/csrf-coverage.test.ts — if you reorder
+  // this, the test fails. Exempt paths are listed in CSRF_EXEMPT_PATHS above.
   app.use("/api", csrfProtection);
 
   async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
