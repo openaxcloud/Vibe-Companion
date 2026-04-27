@@ -1,3 +1,5 @@
+import { fetchWithRetry } from "../utils/fetch-with-retry";
+
 export interface TavilySearchResult {
   title: string;
   url: string;
@@ -31,7 +33,7 @@ export async function searchTavily(
 
   const startTime = Date.now();
 
-  const response = await fetch("https://api.tavily.com/search", {
+  const response = await fetchWithRetry("https://api.tavily.com/search", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -45,7 +47,10 @@ export async function searchTavily(
       include_domains: options.includeDomains || [],
       exclude_domains: options.excludeDomains || [],
     }),
-    signal: AbortSignal.timeout(15000),
+    timeoutMs: 15000,
+    retries: 3,
+    onRetry: ({ attempt, status, delayMs }) =>
+      console.warn(`[tavily] retry ${attempt} after ${delayMs}ms (status=${status ?? "network"})`),
   });
 
   if (!response.ok) {

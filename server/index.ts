@@ -561,6 +561,15 @@ async function ensureAgentSessionsColumns() {
   const gracefulShutdown = async (signal: string) => {
     log(`Received ${signal}, shutting down gracefully...`);
 
+    // Hard ceiling: if any cleanup step hangs, force-exit after 30s.
+    // .unref() ensures this timer doesn't keep the event loop alive
+    // when shutdown completes cleanly.
+    const forceExitTimer = setTimeout(() => {
+      log("Forced shutdown after timeout");
+      process.exit(1);
+    }, 30000);
+    forceExitTimer.unref();
+
     // Clear all intervals to prevent memory leaks
     clearInterval(cleanupInterval);
     if (sslRenewalInterval) clearInterval(sslRenewalInterval);
@@ -569,17 +578,58 @@ async function ensureAgentSessionsColumns() {
     // Shutdown managed processes (deployments + local dev servers)
     await Promise.allSettled([shutdownAllProcesses(), shutdownAllLocalWorkspaces()]);
 
-    // Close HTTP server (stop accepting new connections)
-    httpServer.close(() => {
-      log("HTTP server closed");
-      process.exit(0);
+    // Close HTTP server first (stop accepting new connections); wrap in a
+    // promise so we can keep going to the DB/Redis cleanup once it resolves.
+    await new Promise<void>((resolve) => {
+      httpServer.close(() => {
+        log("HTTP server closed");
+        resolve();
+      });
     });
 
-    // Force shutdown after timeout (30s to allow running operations to complete)
-    setTimeout(() => {
-      log("Forced shutdown after timeout");
-      process.exit(1);
-    }, 30000);
+    // Close DB pool — without this, the process may exit while the
+    // pool still has open sockets, leaving connections half-open on the
+    // upstream (Postgres/PgBouncer) until their idle timeout. Audit
+    // 2026-04-27.
+    try {
+      const { pool } = await import("./db");
+      await pool.end();
+      log("DB pool closed");
+    } catch (err: any) {
+      console.error("[shutdown] Failed to close DB pool:", err?.message || err);
+    }
+
+    // Close Redis clients (idempotent — services that never connected
+    // are no-ops). The cache and idempotency services share the same
+    // ioredis client pattern; the terminal session manager has its own.
+    await Promise.allSettled([
+      (async () => {
+        try {
+          const { redisCache } = await import("./services/redis-cache.service");
+          if (typeof (redisCache as any)?.close === "function") {
+            await (redisCache as any).close();
+            log("Redis cache client closed");
+          }
+        } catch (err: any) {
+          console.warn("[shutdown] Redis cache close skipped:", err?.message || err);
+        }
+      })(),
+      (async () => {
+        try {
+          const mod = await import("./terminal/redis-session-manager");
+          const mgr = (mod as any).redisSessionManager ?? (mod as any).default;
+          if (mgr && typeof mgr.disconnect === "function") {
+            await mgr.disconnect();
+            log("Redis session manager disconnected");
+          }
+        } catch (err: any) {
+          console.warn("[shutdown] Redis session manager close skipped:", err?.message || err);
+        }
+      })(),
+    ]);
+
+    log("Graceful shutdown complete");
+    process.exit(0);
   };
 
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

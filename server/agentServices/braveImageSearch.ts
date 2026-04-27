@@ -1,3 +1,5 @@
+import { fetchWithRetry } from "../utils/fetch-with-retry";
+
 export interface BraveImageResult {
   title: string;
   imageUrl: string;
@@ -46,7 +48,7 @@ export async function searchBraveImages(
     safesearch: "moderate",
   });
 
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `https://api.search.brave.com/res/v1/images/search?${params}`,
     {
       headers: {
@@ -54,7 +56,10 @@ export async function searchBraveImages(
         "Accept-Encoding": "gzip",
         "X-Subscription-Token": apiKey,
       },
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
+      retries: 3,
+      onRetry: ({ attempt, status, delayMs }) =>
+        console.warn(`[brave-image-search] retry ${attempt} after ${delayMs}ms (status=${status ?? "network"})`),
     }
   );
 

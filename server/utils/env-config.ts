@@ -157,6 +157,35 @@ function validateEnvironment(): EnvConfig {
       blockers.push('STRIPE_SECRET_KEY is a test key (sk_test_...) but NODE_ENV=production. Either use a live key (sk_live_...) or unset STRIPE_SECRET_KEY.');
     }
 
+    // Project credential encryption key — without this the
+    // project-database-provisioning.service.ts derives one from
+    // DATABASE_URL (catastrophic if rotated). The service itself also
+    // throws at module load in production, but failing in env-config
+    // gives a single, consolidated error message at boot.
+    if (!process.env.DATABASE_ENCRYPTION_KEY || process.env.DATABASE_ENCRYPTION_KEY.length < 32) {
+      blockers.push(
+        'DATABASE_ENCRYPTION_KEY must be set in production (>=32 chars / 256 bits). ' +
+        'Without it, project DB credentials are encrypted with a key derived from DATABASE_URL — ' +
+        'rotating the URL would make every encrypted secret unreadable. ' +
+        'Generate one with: openssl rand -hex 32',
+      );
+    }
+
+    // Workspace runner shared secret — if RUNNER_BASE_URL is set, the
+    // runner service trusts JWTs signed with this secret to delegate
+    // file/PTY/exec capabilities into per-user containers. A missing
+    // or short secret means workspace isolation is unsigned.
+    if (process.env.RUNNER_BASE_URL) {
+      const runnerSecret = process.env.RUNNER_JWT_SECRET;
+      if (!runnerSecret || runnerSecret.length < 32) {
+        blockers.push(
+          'RUNNER_JWT_SECRET must be set in production when RUNNER_BASE_URL is configured (>=32 chars / 256 bits). ' +
+          'Without it, workspace isolation is unsigned and any client could forge workspace tokens. ' +
+          'Generate one with: openssl rand -hex 32',
+        );
+      }
+    }
+
     if (!process.env.SENTRY_DSN) {
       securityWarnings.push('SENTRY_DSN not set — error tracking disabled. @sentry/node is installed, set SENTRY_DSN to enable.');
     }

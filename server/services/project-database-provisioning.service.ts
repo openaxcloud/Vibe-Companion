@@ -23,14 +23,47 @@ import {
 
 const logger = createLogger('ProjectDatabaseProvisioning');
 
+// Encryption key for project DB credentials at rest.
+//
+// Audit 2026-04-27: this used to silently fall back to a key derived
+// from DATABASE_URL when DATABASE_ENCRYPTION_KEY was unset, and from
+// the literal string "ecode-fallback-key" when DATABASE_URL was also
+// unset. Catastrophic in two ways:
+//   1. Rotating DATABASE_URL (failover, password rotation, replica
+//      promotion) would silently make every encrypted project credential
+//      unreadable.
+//   2. Any environment without DATABASE_URL ever set would encrypt with
+//      a known constant — same key in dev, staging, and any pre-prod
+//      environment that happens to leak data.
+//
+// Production now hard-fails at module load if DATABASE_ENCRYPTION_KEY
+// is missing or shorter than 32 chars (256 bits). Dev keeps the
+// derived-key fallback for ergonomics but logs at error level.
 const ENCRYPTION_KEY = process.env.DATABASE_ENCRYPTION_KEY;
-if (!ENCRYPTION_KEY) {
-  console.warn('[ProjectDatabaseProvisioning] DATABASE_ENCRYPTION_KEY not set - using derived key from DATABASE_URL');
+const NODE_ENV = process.env.NODE_ENV;
+if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
+  const reason = !ENCRYPTION_KEY
+    ? 'DATABASE_ENCRYPTION_KEY is not set'
+    : `DATABASE_ENCRYPTION_KEY is too short (${ENCRYPTION_KEY.length} chars, need >=32)`;
+  if (NODE_ENV === 'production') {
+    const msg =
+      `[ProjectDatabaseProvisioning] ${reason}. Generate a 256-bit key with ` +
+      `\`openssl rand -hex 32\` and set it as DATABASE_ENCRYPTION_KEY. ` +
+      `Without this, project DB credentials are encrypted with a key derived ` +
+      `from DATABASE_URL — rotating the URL would make every secret unreadable.`;
+    console.error(msg);
+    throw new Error(msg);
+  }
+  console.error(
+    `[ProjectDatabaseProvisioning] ${reason} - using derived key from DATABASE_URL ` +
+    `(insecure, dev only). Generate a real key with \`openssl rand -hex 32\` and ` +
+    `set DATABASE_ENCRYPTION_KEY in production.`,
+  );
 }
 
 function getEncryptionKey(): string {
-  if (ENCRYPTION_KEY) {
-    return ENCRYPTION_KEY.padEnd(32).slice(0, 32);
+  if (ENCRYPTION_KEY && ENCRYPTION_KEY.length >= 32) {
+    return ENCRYPTION_KEY.slice(0, 32);
   }
   const dbUrl = process.env.DATABASE_URL || 'ecode-fallback-key';
   const hash = crypto.createHash('sha256').update(dbUrl).digest('hex');
