@@ -197,6 +197,10 @@ export function useIDEWorkspace(projectId: string) {
       return res.json();
     },
     enabled: !!projectId,
+    // Project metadata rarely changes mid-session; avoid a refetch on every
+    // window-focus event. Mutations that change project data call
+    // queryClient.invalidateQueries() directly, so freshness is maintained.
+    staleTime: 30_000,
   });
 
   const filesQuery = useQuery<File[]>({
@@ -208,6 +212,10 @@ export function useIDEWorkspace(projectId: string) {
       return res.json();
     },
     enabled: !!projectId,
+    // File list is kept in sync via WebSocket events + explicit invalidation
+    // after saves. A 30 s staleTime prevents redundant HTTP round-trips on
+    // focus that were measured at 6.3 s under serialised load.
+    staleTime: 30_000,
   });
 
   const creditBalanceQuery = useQuery<{
@@ -236,6 +244,7 @@ export function useIDEWorkspace(projectId: string) {
       return res.json();
     },
     enabled: !!projectId,
+    staleTime: 60_000,
   });
 
   const gitDiffQuery = useQuery<{ branch: string; changes: any[]; hasCommits: boolean }>({
@@ -701,6 +710,7 @@ export function useIDEWorkspace(projectId: string) {
       return res.json();
     },
     enabled: project?.visibility === 'private',
+    staleTime: 60_000,
   });
 
   const inviteGuestMutation = useMutation({
