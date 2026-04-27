@@ -13,8 +13,8 @@ type Fixtures = {
   freshProjectId: string;
 };
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'admin@test.com';
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'e2e-admin-password';
+export const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'admin@test.com';
+export const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'e2e-admin-password';
 
 let cachedProjectId: string | null = null;
 
@@ -25,16 +25,16 @@ async function getCsrf(page: Page): Promise<string | null> {
   return body?.csrfToken || body?.token || null;
 }
 
-async function login(page: Page) {
+export async function login(page: Page, email = ADMIN_EMAIL, password = ADMIN_PASSWORD) {
   const csrf = await getCsrf(page);
   const r = await page.request.post('/api/auth/login', {
-    data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+    data: { email, password },
     headers: csrf ? { 'x-csrf-token': csrf } : {},
   });
   expect(r.ok(), `login failed: ${r.status()} ${await r.text()}`).toBeTruthy();
 }
 
-async function getOrCreateProject(page: Page): Promise<string> {
+export async function getOrCreateProject(page: Page): Promise<string> {
   if (cachedProjectId) return cachedProjectId;
   const list = await page.request.get('/api/projects');
   if (list.ok()) {
@@ -58,7 +58,7 @@ async function getOrCreateProject(page: Page): Promise<string> {
 
 export const test = base.extend<Fixtures>({
   freshProjectId: async ({ page }, use) => {
-    await login(page);
+    await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
     const id = await getOrCreateProject(page);
     await use(id);
   },
