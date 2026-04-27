@@ -63,6 +63,18 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
   } = ctx;
   const path = path_;
 
+  // Bug #6 fix (audit 2026-04-27): the central upgrade dispatcher
+  // had its `register()` calls scattered across this file (and other
+  // modules) but `initialize(server)` was never called by anyone, so
+  // its `prependListener('upgrade', …)` never attached. /ws/project
+  // upgrades reached the legacy `httpServer.on('upgrade', …)` block
+  // below, which has no /ws/project branch, so the socket died with
+  // code 1006. /ws/collab and /ws/terminal happened to work via
+  // their own attachments. Calling initialize here, before any
+  // register(), ensures the dispatcher routes upgrades for every
+  // path it knows about.
+  centralUpgradeDispatcher.initialize(httpServer);
+
 
   // --- WebSocket ---
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
