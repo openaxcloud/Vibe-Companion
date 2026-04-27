@@ -10,7 +10,7 @@
  * Uses useIDEWorkspace for centralized state management
  */
 
-import { useState, useCallback, Suspense, useRef, useEffect, useMemo, startTransition } from 'react';
+import { useState, useCallback, Suspense, lazy, useRef, useEffect, useMemo, startTransition } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { createPanHandlers, type PanInfo } from '@/lib/native-motion';
@@ -79,50 +79,54 @@ import { MobilePreviewPanel } from '@/components/mobile/MobilePreviewPanel';
 import { MobileMoreMenu } from '@/components/mobile/MobileMoreMenu';
 import { MobileSecurityPanel } from '@/components/mobile/MobileSecurityPanel';
 import { MobileTabSwitcher } from '@/components/mobile/MobileTabSwitcher';
+// CommandPalette and GlobalSearch are overlay components rendered eagerly
 import CommandPalette from '@/components/CommandPalette';
 import { GlobalSearch } from '@/components/GlobalSearch';
-import { CollaborationPanel } from '@/components/CollaborationPanel';
-import { DatabasePanel } from '@/components/ide/DatabasePanel';
-import { ReplitAuthPanel } from '@/components/ide/ReplitAuthPanel';
-import { ReplitGitPanel } from '@/components/editor/ReplitGitPanel';
-import { ReplitPackagesPanel } from '@/components/editor/ReplitPackagesPanel';
-import { ReplitDebuggerPanel } from '@/components/editor/ReplitDebuggerPanel';
-import { ReplitTestingPanel } from '@/components/editor/ReplitTestingPanel';
-import { ReplitSecretsPanel } from '@/components/editor/ReplitSecretsPanel';
-import { ReplitHistoryPanel } from '@/components/editor/ReplitHistoryPanel';
-import { UnifiedCheckpointsPanel } from '@/components/UnifiedCheckpointsPanel';
-import { ReplitSettingsPanel } from '@/components/editor/ReplitSettingsPanel';
-import { ReplitThemesPanel } from '@/components/editor/ReplitThemesPanel';
-import { ReplitMultiplayers } from '@/components/editor/ReplitMultiplayers';
-import { WorkflowsPanel } from '@/components/ide/WorkflowsPanel';
-import { ExtensionsMarketplace } from '@/components/ExtensionsMarketplace';
-import { VisualEditorPanel } from '@/components/ide/VisualEditorPanel';
-import { ShellPanel } from '@/components/editor/ShellPanel';
-import { AppStoragePanel } from '@/components/editor/AppStoragePanel';
-import { ReplitConsolePanel } from '@/components/ide/ReplitConsolePanel';
-import { ResourcesPanel } from '@/components/ide/ResourcesPanel';
-import TaskBoard from '@/components/TaskBoard';
-import { LogsViewerPanel } from '@/components/ide/LogsViewerPanel';
-import SlideEditor from '@/components/SlideEditor';
-import VideoEditor from '@/components/VideoEditor';
-import AnimationPreview from '@/components/AnimationPreview';
-import DesignCanvas from '@/components/DesignCanvas';
-import ConversionDialog from '@/components/ConversionDialog';
-import AutomationsPanel from '@/components/AutomationsPanel';
-import BackupRecoverySection from '@/components/BackupRecoverySection';
-import ConfigPanel from '@/components/ConfigPanel';
-import FeedbackInboxPanel from '@/components/FeedbackInboxPanel';
-import GitHubPanel from '@/components/GitHubPanel';
-import IntegrationsPanel from '@/components/IntegrationsPanel';
-import MCPPanel from '@/components/MCPPanel';
-import MergeConflictPanel from '@/components/MergeConflictPanel';
-import MonitoringPanel from '@/components/MonitoringPanel';
-import NetworkingPanel from '@/components/NetworkingPanel';
-import SkillsPanel from '@/components/SkillsPanel';
-import SSHPanel from '@/components/SSHPanel';
-import ThreadsPanel from '@/components/ThreadsPanel';
-import TestRunnerPanel from '@/components/TestRunnerPanel';
-import SecurityScannerPanel from '@/components/SecurityScannerPanel';
+
+// Secondary panels: loaded on demand via React.lazy() so they are code-split
+// out of the initial bundle. Each is already wrapped in a <Suspense> boundary.
+const CollaborationPanel = lazy(() => import('@/components/CollaborationPanel').then(m => ({ default: m.CollaborationPanel })));
+const DatabasePanel = lazy(() => import('@/components/ide/DatabasePanel').then(m => ({ default: m.DatabasePanel })));
+const ReplitAuthPanel = lazy(() => import('@/components/ide/ReplitAuthPanel').then(m => ({ default: m.ReplitAuthPanel })));
+const ReplitGitPanel = lazy(() => import('@/components/editor/ReplitGitPanel').then(m => ({ default: m.ReplitGitPanel })));
+const ReplitPackagesPanel = lazy(() => import('@/components/editor/ReplitPackagesPanel').then(m => ({ default: m.ReplitPackagesPanel })));
+const ReplitDebuggerPanel = lazy(() => import('@/components/editor/ReplitDebuggerPanel').then(m => ({ default: m.ReplitDebuggerPanel })));
+const ReplitTestingPanel = lazy(() => import('@/components/editor/ReplitTestingPanel').then(m => ({ default: m.ReplitTestingPanel })));
+const ReplitSecretsPanel = lazy(() => import('@/components/editor/ReplitSecretsPanel').then(m => ({ default: m.ReplitSecretsPanel })));
+const ReplitHistoryPanel = lazy(() => import('@/components/editor/ReplitHistoryPanel').then(m => ({ default: m.ReplitHistoryPanel })));
+const UnifiedCheckpointsPanel = lazy(() => import('@/components/UnifiedCheckpointsPanel').then(m => ({ default: m.UnifiedCheckpointsPanel })));
+const ReplitSettingsPanel = lazy(() => import('@/components/editor/ReplitSettingsPanel').then(m => ({ default: m.ReplitSettingsPanel })));
+const ReplitThemesPanel = lazy(() => import('@/components/editor/ReplitThemesPanel').then(m => ({ default: m.ReplitThemesPanel })));
+const ReplitMultiplayers = lazy(() => import('@/components/editor/ReplitMultiplayers').then(m => ({ default: m.ReplitMultiplayers })));
+const WorkflowsPanel = lazy(() => import('@/components/ide/WorkflowsPanel').then(m => ({ default: m.WorkflowsPanel })));
+const ExtensionsMarketplace = lazy(() => import('@/components/ExtensionsMarketplace').then(m => ({ default: m.ExtensionsMarketplace })));
+const VisualEditorPanel = lazy(() => import('@/components/ide/VisualEditorPanel').then(m => ({ default: m.VisualEditorPanel })));
+const ShellPanel = lazy(() => import('@/components/editor/ShellPanel').then(m => ({ default: m.ShellPanel })));
+const AppStoragePanel = lazy(() => import('@/components/editor/AppStoragePanel').then(m => ({ default: m.AppStoragePanel })));
+const ReplitConsolePanel = lazy(() => import('@/components/ide/ReplitConsolePanel').then(m => ({ default: m.ReplitConsolePanel })));
+const ResourcesPanel = lazy(() => import('@/components/ide/ResourcesPanel').then(m => ({ default: m.ResourcesPanel })));
+const TaskBoard = lazy(() => import('@/components/TaskBoard'));
+const LogsViewerPanel = lazy(() => import('@/components/ide/LogsViewerPanel').then(m => ({ default: m.LogsViewerPanel })));
+const SlideEditor = lazy(() => import('@/components/SlideEditor'));
+const VideoEditor = lazy(() => import('@/components/VideoEditor'));
+const AnimationPreview = lazy(() => import('@/components/AnimationPreview'));
+const DesignCanvas = lazy(() => import('@/components/DesignCanvas'));
+const ConversionDialog = lazy(() => import('@/components/ConversionDialog'));
+const AutomationsPanel = lazy(() => import('@/components/AutomationsPanel'));
+const BackupRecoverySection = lazy(() => import('@/components/BackupRecoverySection'));
+const ConfigPanel = lazy(() => import('@/components/ConfigPanel'));
+const FeedbackInboxPanel = lazy(() => import('@/components/FeedbackInboxPanel'));
+const GitHubPanel = lazy(() => import('@/components/GitHubPanel'));
+const IntegrationsPanel = lazy(() => import('@/components/IntegrationsPanel'));
+const MCPPanel = lazy(() => import('@/components/MCPPanel'));
+const MergeConflictPanel = lazy(() => import('@/components/MergeConflictPanel'));
+const MonitoringPanel = lazy(() => import('@/components/MonitoringPanel'));
+const NetworkingPanel = lazy(() => import('@/components/NetworkingPanel'));
+const SkillsPanel = lazy(() => import('@/components/SkillsPanel'));
+const SSHPanel = lazy(() => import('@/components/SSHPanel'));
+const ThreadsPanel = lazy(() => import('@/components/ThreadsPanel'));
+const TestRunnerPanel = lazy(() => import('@/components/TestRunnerPanel'));
+const SecurityScannerPanel = lazy(() => import('@/components/SecurityScannerPanel'));
 
 interface UnifiedIDELayoutProps {
   projectId: string;
