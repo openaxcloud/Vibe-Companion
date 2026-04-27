@@ -18,10 +18,12 @@ const getPoolConfig = (): PoolConfig => {
   
   return {
     connectionString: process.env.DATABASE_URL,
-    
-    // Pool sizing - optimized for production
-    min: isProduction ? 5 : 2, // Minimum connections in pool
-    max: isProduction ? 20 : 10, // Maximum connections in pool
+
+    // Pool sizing: see server/services/database-pool.ts for the
+    // rationale. Two pool managers exist (this one + DatabasePoolManager);
+    // both should agree on production caps.
+    min: parseInt(process.env.DB_POOL_MIN || (isProduction ? '5' : '2'), 10),
+    max: parseInt(process.env.DB_POOL_MAX || (isProduction ? '50' : '10'), 10),
     
     // Connection management
     idleTimeoutMillis: 30000, // Close idle connections after 30 seconds

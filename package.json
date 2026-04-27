@@ -13,7 +13,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint server/ client/src/ --max-warnings 50",
-    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/db-migrate.mts",
+    "db:push:dangerous": "drizzle-kit push",
     "postinstall": "patch-package"
   },
   "dependencies": {

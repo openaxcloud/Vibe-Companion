@@ -91,7 +91,7 @@ async function ensureDatabaseMigrated(force = false) {
   if (!existsSync(migrationsFolder)) {
     logger.warn(
       `Database migrations folder not found at ${migrationsFolder}. ` +
-      "Automatic migration skipped. Run `npm run db:push` to create the schema manually.",
+      "Automatic migration skipped. Run `npm run db:migrate` to apply versioned migrations.",
     );
     migrationsEnsured = true;
     return;

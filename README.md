@@ -13,7 +13,7 @@ git clone https://github.com/openaxcloud/Vibe-Companion.git
 cd Vibe-Companion
 cp .env.example .env                        # then fill in DATABASE_URL + at least one *_API_KEY
 npm install
-npm run db:push                             # apply Drizzle schema to your Postgres
+npm run db:migrate                          # apply versioned SQL migrations
 npm run dev                                 # http://localhost:5000
 ```
 
@@ -43,7 +43,9 @@ Minimum to boot:
 | `npm run lint` | ESLint server + client (max 50 warnings) |
 | `npm run check` | Full TypeScript check (`tsc --noEmit`) |
 | `npm test` | Vitest unit tests |
-| `npm run db:push` | Apply Drizzle schema migrations |
+| `npm run db:generate` | Diff `shared/schema.ts` → new SQL file in `migrations/` |
+| `npm run db:migrate` | Apply unrun migrations (idempotent, tracked in `_drizzle_migrations`) |
+| `npm run db:push:dangerous` | Direct schema sync — only on throwaway DBs (drops cols silently) |
 
 ## Architecture
 
