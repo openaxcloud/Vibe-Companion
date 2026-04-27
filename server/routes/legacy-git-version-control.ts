@@ -67,7 +67,7 @@ export async function registerGitVersionControlRoutes(app: Express, ctx: any): P
 
   app.get("/api/projects/:projectId/git/commits", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo)) {
       return res.status(404).json({ message: "Project not found" });
     }
     try {
@@ -92,7 +92,7 @@ export async function registerGitVersionControlRoutes(app: Express, ctx: any): P
 
   app.get("/api/projects/:projectId/git/commits/:commitId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo)) {
       return res.status(404).json({ message: "Project not found" });
     }
     try {
@@ -119,7 +119,7 @@ export async function registerGitVersionControlRoutes(app: Express, ctx: any): P
 
   app.post("/api/projects/:projectId/git/commits", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const activeMerge = await storage.getMergeState(req.params.projectId);
@@ -193,7 +193,7 @@ export async function registerGitVersionControlRoutes(app: Express, ctx: any): P
 
   app.get("/api/projects/:projectId/git/branches", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     try {
@@ -225,7 +225,7 @@ export async function registerGitVersionControlRoutes(app: Express, ctx: any): P
 
   app.post("/api/projects/:projectId/git/branches", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     const activeMerge = await storage.getMergeState(req.params.projectId);
@@ -261,7 +261,7 @@ export async function registerGitVersionControlRoutes(app: Express, ctx: any): P
 
   app.delete("/api/projects/:projectId/git/branches/:branchId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
 
@@ -284,7 +284,7 @@ export async function registerGitVersionControlRoutes(app: Express, ctx: any): P
 
   app.post("/api/projects/:projectId/git/checkout", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const activeMerge = await storage.getMergeState(req.params.projectId);
@@ -329,7 +329,7 @@ export async function registerGitVersionControlRoutes(app: Express, ctx: any): P
 
   app.get("/api/projects/:projectId/git/diff", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const branchName = qstr(req.query.branch) || "main";
@@ -346,7 +346,7 @@ export async function registerGitVersionControlRoutes(app: Express, ctx: any): P
 
   app.get("/api/projects/:projectId/git/blame/:filename", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const branchName = qstr(req.query.branch) || "main";

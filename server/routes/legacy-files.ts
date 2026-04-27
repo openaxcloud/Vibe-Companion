@@ -10,6 +10,54 @@ function sanitizeProjectName(name: string): string | null {
   return sanitized;
 }
 
+// Auto-extracted route file forgot to copy several helpers from
+// routes.ts. Adding them locally so /api/projects/:id/files endpoints
+// don't ReferenceError at runtime. Bodies copied verbatim from
+// server/routes.ts:765-794.
+async function verifyProjectWriteAccess(projectId: string, userId: string | number): Promise<boolean> {
+  try {
+    const collaborators = await storage.getProjectCollaborators(projectId);
+    const uid = String(userId);
+    return collaborators.some((c: any) => String(c.userId) === uid && (c.role === 'editor' || c.role === 'admin' || c.role === 'owner'));
+  } catch {
+    return false;
+  }
+}
+
+async function isProjectCollaborator(projectId: string | number, userId: string | number): Promise<{ allowed: boolean; role?: string }> {
+  try {
+    const collaborators = await storage.getProjectCollaborators(String(projectId));
+    const uid = String(userId);
+    const collab = collaborators.find((c: any) => String(c.userId) === uid);
+    return collab ? { allowed: true, role: collab.role } : { allowed: false };
+  } catch {
+    return { allowed: false };
+  }
+}
+
+function sanitizePath(p: string): string | null {
+  if (!p || typeof p !== "string") return null;
+  const decoded = decodeURIComponent(p);
+  if (decoded.includes("..") || decoded.includes("\\")) return null;
+  if (p.includes("..") || p.includes("\\")) return null;
+  const normalized = pathPosix.normalize(decoded).replace(/^\/+/, "");
+  if (normalized.includes("..") || !normalized || normalized.startsWith("/")) return null;
+  return normalized;
+}
+
+function sanitizeInput(input: string, maxLength: number = 10000): string {
+  if (typeof input !== "string") return "";
+  return input.slice(0, maxLength);
+}
+
+function sanitizeFilename(filename: string): string | null {
+  if (!filename || typeof filename !== "string") return null;
+  const trimmed = filename.trim().slice(0, 500);
+  if (/[<>"'`;{}|&$!]/.test(trimmed)) return null;
+  if (/[\x00-\x1f\x7f]/.test(trimmed)) return null;
+  return sanitizePath(trimmed);
+}
+
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -77,7 +125,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
-    if (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(req.params.projectId, req.session.userId!)) {
+    if (String(project.userId) !== String(req.session.userId) && !project.isDemo && !await verifyProjectAccess(req.params.projectId, req.session.userId!)) {
       const collab = await isProjectCollaborator(project.id, req.session.userId!);
       if (!collab.allowed) {
         return res.status(403).json({ message: "Access denied" });
@@ -89,7 +137,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
 
   app.post("/api/projects/:projectId/files", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.projectId, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(req.params.projectId, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
     try {
@@ -109,7 +157,8 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0].message });
       }
-      return res.status(500).json({ message: "Failed to create file" });
+      console.error("[POST /api/projects/:projectId/files]", error?.message, error?.stack);
+      return res.status(500).json({ message: "Failed to create file", detail: error?.message });
     }
   });
 
@@ -120,7 +169,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
 
   app.post("/api/projects/:projectId/upload", requireAuth, upload.array("files", 10), async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.projectId, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(req.params.projectId, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
     const files = req.files as Express.Multer.File[];
@@ -153,7 +202,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
       return res.status(404).json({ message: "File not found" });
     }
     const project = await storage.getProject(existingFile.projectId);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(existingFile.projectId, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(existingFile.projectId, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { content, filename } = req.body;
@@ -236,7 +285,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
       return res.status(404).json({ message: "File not found" });
     }
     const project = await storage.getProject(existingFile.projectId);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(existingFile.projectId, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(existingFile.projectId, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
     await storage.deleteFile(req.params.id);
@@ -263,7 +312,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
       if (projectId === null) {
         projectId = existingFile.projectId;
         const project = await storage.getProject(projectId);
-        if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(projectId, req.session.userId!))) {
+        if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(projectId, req.session.userId!))) {
           return res.status(403).json({ message: "Access denied" });
         }
       } else if (existingFile.projectId !== projectId) {
@@ -284,7 +333,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
 
   app.patch("/api/projects/:id", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { name, language, devUrlPublic } = req.body;
@@ -320,7 +369,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
   app.post("/api/projects/:id/artifacts", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
         return res.status(403).json({ message: "Access denied" });
       }
       const { name, type, entryFile, settings } = req.body;
@@ -357,7 +406,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
   app.patch("/api/projects/:id/artifacts/:artifactId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
         return res.status(403).json({ message: "Access denied" });
       }
       const existing = await storage.getArtifact(req.params.artifactId);
@@ -381,7 +430,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
   app.delete("/api/projects/:id/artifacts/:artifactId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
         return res.status(403).json({ message: "Access denied" });
       }
       const existing = await storage.getArtifact(req.params.artifactId);
@@ -434,7 +483,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
 
   app.post("/api/projects/:id/spotlight/invites", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     let { email, role } = req.body;
@@ -529,7 +578,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
 
   app.patch("/api/projects/:id/spotlight/invites/:inviteId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { role } = req.body;
@@ -590,7 +639,7 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
 
   app.delete("/api/projects/:id/spotlight/invites/:inviteId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const deleted = await storage.deleteProjectInvite(req.params.inviteId, project.id);

@@ -67,7 +67,7 @@ export async function registerGitBackupRecoveryRoutes(app: Express, ctx: any): P
   app.get("/api/projects/:id/git/backup-status", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const status = await getBackupStatus(project.id);
       return res.json(status);
     } catch (err: any) {
@@ -78,7 +78,7 @@ export async function registerGitBackupRecoveryRoutes(app: Express, ctx: any): P
   app.post("/api/projects/:id/git/backup", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const backup = await createBackup(project.id, "manual");
       if (!backup) return res.status(400).json({ message: "No git state to backup" });
       return res.status(201).json({ id: backup.id, version: backup.version, sizeBytes: backup.sizeBytes, trigger: backup.triggerType, createdAt: backup.createdAt });
@@ -90,7 +90,7 @@ export async function registerGitBackupRecoveryRoutes(app: Express, ctx: any): P
   app.post("/api/projects/:id/git/backup/restore", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const { version } = z.object({ version: z.number().optional() }).parse(req.body);
       const success = await restoreFromBackup(project.id, version);
       if (!success) return res.status(404).json({ message: "No backup found to restore" });
@@ -104,7 +104,7 @@ export async function registerGitBackupRecoveryRoutes(app: Express, ctx: any): P
   app.get("/api/projects/:id/git/backups", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const backups = await storage.getGitBackups(project.id);
       return res.json(backups.map(b => ({
         id: b.id,

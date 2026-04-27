@@ -97,15 +97,18 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
     }
   });
 
-  async function canAccessProject(userId: string, project: { id?: string; userId: string; isDemo?: boolean; teamId?: string | null }): Promise<boolean> {
-    if (project.userId === userId) return true;
+  async function canAccessProject(userId: string | number, project: { id?: string; userId: string; isDemo?: boolean; teamId?: string | null }): Promise<boolean> {
+    // String() coercion mirrors the fix in commit 1cfed00f for HTTP routes —
+    // project.userId is varchar in the live DB, session.userId is integer.
+    const uidStr = String(userId);
+    if (String(project.userId) === uidStr) return true;
     if (project.isDemo) return true;
     if (project.teamId) {
-      const teams = await storage.getUserTeams(userId);
+      const teams = await storage.getUserTeams(uidStr as any);
       if (teams.some(t => t.id === project.teamId)) return true;
     }
     if (project.id) {
-      const isCollab = await storage.isProjectCollaborator(project.id, userId);
+      const isCollab = await storage.isProjectCollaborator(project.id, uidStr as any);
       if (isCollab) return true;
     }
     return false;

@@ -67,7 +67,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/git/connect-github", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const { repoFullName } = req.body;
@@ -87,7 +87,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.delete("/api/projects/:projectId/git/connect-github", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     await storage.updateProject(req.params.projectId, { githubRepo: "" });
@@ -96,7 +96,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.get("/api/projects/:projectId/git/github-status", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const githubRepo = project.githubRepo;
@@ -123,7 +123,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/git/push", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const githubRepo = project.githubRepo;
@@ -161,7 +161,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/git/pull", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const githubRepo = project.githubRepo;
@@ -231,7 +231,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/git/resolve-conflicts", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const { resolvedFiles } = req.body;
@@ -271,7 +271,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.get("/api/projects/:projectId/git/merge-status", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     try {
@@ -293,7 +293,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/git/resolve-conflict", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const { path: filePath, resolvedContent } = req.body;
@@ -325,7 +325,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/git/complete-merge", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     try {
@@ -376,7 +376,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/git/abort-merge", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     try {
@@ -409,7 +409,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.get("/api/projects/:projectId/git/state-hash", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
 
@@ -423,7 +423,7 @@ export async function registerGithubSyncRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/git/clone", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const { owner, repo } = req.body;

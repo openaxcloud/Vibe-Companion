@@ -172,7 +172,7 @@ export async function registerAccountEnvVarsRoutes(app: Express, ctx: any): Prom
 
   app.get("/api/projects/:projectId/linked-account-vars", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const links = await storage.getAccountEnvVarLinks(req.params.projectId);
@@ -185,7 +185,7 @@ export async function registerAccountEnvVarsRoutes(app: Express, ctx: any): Prom
 
   app.post("/api/projects/:projectId/provision-database-secrets", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { databaseUrl } = req.body;

@@ -67,7 +67,7 @@ export async function registerSystemDependenciesRoutes(app: Express, ctx: any): 
   app.get("/api/projects/:id/system-deps", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const deps = await storage.getSystemDeps(project.id);
       return res.json({ deps });
     } catch {
@@ -78,7 +78,7 @@ export async function registerSystemDependenciesRoutes(app: Express, ctx: any): 
   app.post("/api/projects/:id/system-deps", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const { name } = z.object({ name: z.string().min(1).max(200) }).parse(req.body);
       const existing = await storage.getSystemDeps(project.id);
       if (existing.find(d => d.name === name)) return res.status(409).json({ message: "Dependency already added" });
@@ -93,7 +93,7 @@ export async function registerSystemDependenciesRoutes(app: Express, ctx: any): 
   app.delete("/api/projects/:id/system-deps/:depId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const deps = await storage.getSystemDeps(project.id);
       const target = deps.find(d => d.id === req.params.depId);
       if (!target) return res.status(404).json({ message: "Dependency not found" });

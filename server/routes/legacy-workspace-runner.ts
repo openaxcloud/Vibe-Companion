@@ -75,7 +75,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.post("/api/workspaces/:projectId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
 
@@ -134,7 +134,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.post("/api/workspaces/:projectId/start", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const workspace = await storage.getWorkspaceByProject(project.id);
@@ -170,7 +170,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.post("/api/workspaces/:projectId/stop", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const workspace = await storage.getWorkspaceByProject(project.id);
@@ -195,7 +195,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
       return res.json({ status: "running", localMode: true });
     }
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const workspace = await storage.getWorkspaceByProject(project.id);
@@ -213,7 +213,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.get("/api/workspaces/:projectId/terminal-url", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const protocol = req.headers["x-forwarded-proto"] === "https" ? "wss" : "ws";
@@ -225,7 +225,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.get("/api/workspaces/:projectId/terminal-sessions", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const sessionsList = listTerminalSessions(project.id, req.session.userId!);
@@ -234,7 +234,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.post("/api/workspaces/:projectId/terminal-sessions", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const sessionId = req.body.sessionId || `shell-${Date.now()}`;
@@ -269,7 +269,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.put("/api/workspaces/:projectId/terminal-sessions/:sessionId/select", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const found = setSessionSelected(project.id, req.session.userId!, req.params.sessionId);
@@ -281,7 +281,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.delete("/api/workspaces/:projectId/terminal-sessions/:sessionId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     destroyTerminalSession(project.id, req.session.userId!, req.params.sessionId);
@@ -290,7 +290,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.post("/api/workspaces/:projectId/sync-from-terminal", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     try {
@@ -319,7 +319,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   const getWorkspaceForProject = async (req: Request, res: Response): Promise<{ project: any; workspace: any } | null> => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       res.status(404).json({ message: "Project not found" });
       return null;
     }
@@ -414,7 +414,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.get("/api/workspaces/:projectId/preview-url", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const workspace = await storage.getWorkspaceByProject(project.id);
@@ -445,7 +445,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.get("/api/projects/:id/dev-url", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     const devUrl = `${project.id}.dev.${process.env.APP_DOMAIN || "e-code.ai"}`;
@@ -478,7 +478,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.get("/api/projects/:id/extensions", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     const extensions = await getProjectExtensions(project.id);
@@ -487,7 +487,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.post("/api/projects/:id/extensions", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     const { extensionId } = req.body;
@@ -502,7 +502,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
 
   app.delete("/api/projects/:id/extensions/:extId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     const current = await getProjectExtensions(project.id);
@@ -514,7 +514,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
   app.get("/api/workspaces/:projectId/preview-proxy", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(404).json({ message: "Project not found" });
       }
       const workspace = await storage.getWorkspaceByProject(project.id);
@@ -557,7 +557,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
     try {
       const projectId = req.params[0];
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(404).json({ message: "Project not found" });
       }
       const workspace = await storage.getWorkspaceByProject(project.id);

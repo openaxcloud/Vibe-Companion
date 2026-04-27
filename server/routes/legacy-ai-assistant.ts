@@ -689,7 +689,7 @@ ${formatInstruction}`;
 
   app.get("/api/ai/conversations/:projectId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const conversation = await storage.getConversation(req.params.projectId, req.session.userId!);
@@ -702,7 +702,7 @@ ${formatInstruction}`;
 
   app.post("/api/ai/conversations/:projectId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const existing = await storage.getConversation(req.params.projectId, req.session.userId!);
@@ -732,7 +732,7 @@ ${formatInstruction}`;
 
   app.post("/api/ai/conversations/:projectId/messages", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { role, content, model: msgModel, fileOps, conversationId: reqConvId } = req.body;
@@ -794,7 +794,7 @@ ${formatInstruction}`;
 
   app.delete("/api/ai/conversations/:projectId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const targetId = req.query.conversationId as string | undefined;
@@ -814,7 +814,7 @@ ${formatInstruction}`;
 
   app.get("/api/ai/queue/:projectId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo)) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const messages = await storage.getQueuedMessages(req.params.projectId, req.session.userId!);
@@ -823,7 +823,7 @@ ${formatInstruction}`;
 
   app.post("/api/ai/queue/:projectId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { content, attachments } = req.body;
@@ -853,7 +853,7 @@ ${formatInstruction}`;
 
   app.patch("/api/ai/queue/:projectId/:messageId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { content, attachments } = req.body;
@@ -867,7 +867,7 @@ ${formatInstruction}`;
 
   app.put("/api/ai/queue/:projectId/reorder", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { updates } = req.body;
@@ -881,7 +881,7 @@ ${formatInstruction}`;
 
   app.delete("/api/ai/queue/:projectId/:messageId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     await storage.deleteQueuedMessage(req.params.messageId, req.params.projectId, req.session.userId!);
@@ -890,7 +890,7 @@ ${formatInstruction}`;
 
   app.delete("/api/ai/queue/:projectId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     await storage.clearQueuedMessages(req.params.projectId, req.session.userId!);
@@ -899,7 +899,7 @@ ${formatInstruction}`;
 
   app.post("/api/ai/queue/:projectId/dequeue", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const msg = await storage.dequeueNextMessage(req.params.projectId, req.session.userId!);
@@ -964,7 +964,7 @@ ${formatInstruction}`;
       }
 
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
@@ -1188,7 +1188,7 @@ Any closing remarks...`;
   app.get("/api/ai/plans/:projectId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const plan = await storage.getLatestPlan(req.params.projectId, req.session.userId!);
@@ -1219,7 +1219,7 @@ Any closing remarks...`;
   app.put("/api/ai/plans/:projectId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
@@ -1245,7 +1245,7 @@ Any closing remarks...`;
       if (!plan) return res.status(404).json({ message: "Plan not found" });
 
       const project = await storage.getProject(plan.projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
@@ -1274,7 +1274,7 @@ Any closing remarks...`;
       if (!plan) return res.status(404).json({ message: "Plan not found" });
 
       const project = await storage.getProject(plan.projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
@@ -1291,7 +1291,7 @@ Any closing remarks...`;
   app.delete("/api/ai/plans/:projectId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
@@ -5237,7 +5237,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
       if (!projectId) return res.status(400).json({ message: "projectId required" });
 
       const project = await storage.getProject(projectId);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
       }
 
@@ -5284,7 +5284,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
      */
     app.post("/api/preview/projects/:projectId/preview/start", requireAuth, async (req: Request, res: Response) => {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
       }
 
@@ -5331,7 +5331,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
      */
     app.post("/api/preview/projects/:projectId/preview/stop", requireAuth, async (req: Request, res: Response) => {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
       }
 
@@ -5357,7 +5357,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
      */
     app.get("/api/preview/projects/:projectId/preview/logs", requireAuth, async (req: Request, res: Response) => {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
       }
       return res.json({ logs: localWS.getLocalWorkspaceLogs(project.id) });
@@ -5371,7 +5371,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
     app.get("/api/preview/:projectId", requireAuth, async (req: Request, res: Response, next) => {
       if (req.params.projectId === 'projects') return next();
       const project = await storage.getProject(req.params.projectId);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
       }
       await proxyToLocalDevServer(project.id, req, res, "/");
@@ -5380,7 +5380,7 @@ Based on the search results above, provide a comprehensive answer to the user's 
     app.all("/api/preview/:projectId/{*path}", requireAuth, async (req: Request, res: Response, next) => {
       if (req.params.projectId === 'projects') return next();
       const project = await storage.getProject(req.params.projectId);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
       }
       const subpath = "/" + (req.params.path || "");

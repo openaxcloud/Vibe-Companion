@@ -67,7 +67,7 @@ export async function registerSystemModulesRoutes(app: Express, ctx: any): Promi
   app.get("/api/projects/:id/system-modules", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const modules = await storage.getSystemModules(project.id);
       return res.json({ modules });
     } catch {
@@ -78,7 +78,7 @@ export async function registerSystemModulesRoutes(app: Express, ctx: any): Promi
   app.post("/api/projects/:id/system-modules", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const { name, version } = z.object({ name: z.string().min(1).max(100), version: z.string().max(50).optional() }).parse(req.body);
       const existing = await storage.getSystemModules(project.id);
       if (existing.find(m => m.name === name)) return res.status(409).json({ message: "Module already added" });
@@ -93,7 +93,7 @@ export async function registerSystemModulesRoutes(app: Express, ctx: any): Promi
   app.delete("/api/projects/:id/system-modules/:moduleId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const modules = await storage.getSystemModules(project.id);
       const target = modules.find(m => m.id === req.params.moduleId);
       if (!target) return res.status(404).json({ message: "Module not found" });

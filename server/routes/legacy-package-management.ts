@@ -198,7 +198,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.get("/api/projects/:id/config", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
       }
       const files = await storage.getFiles(req.params.id);
@@ -234,7 +234,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.put("/api/projects/:id/config", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
         return res.status(403).json({ message: "Access denied" });
       }
       const { replit, nix, rawReplit, rawNix } = req.body;
@@ -284,7 +284,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.post("/api/projects/:id/onboot", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
       }
       const config = await getProjectConfig(req.params.id);
@@ -301,7 +301,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.get("/api/projects/:id/files", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const files = await storage.getFiles(req.params.id);
       res.json(files);
     } catch { res.json([]); }
@@ -310,7 +310,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.get("/api/projects/:id/packages", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const files = await storage.getFiles(req.params.id);
       const managers = detectAllManagers(files);
       const pm = managers[0] || "none";
@@ -423,7 +423,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.post("/api/projects/:id/packages/add", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { name, dev, version, manager: requestedManager } = z.object({
         name: z.string().min(1).max(200),
         dev: z.boolean().optional(),
@@ -454,7 +454,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.post("/api/projects/:id/packages/install-stream", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const { name, dev, version, manager: requestedManager } = z.object({
         name: z.string().min(1).max(200),
         dev: z.boolean().optional(),
@@ -484,7 +484,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.post("/api/projects/:id/packages/remove", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { name, manager: requestedManager } = z.object({
         name: z.string().min(1),
         manager: z.enum(["npm", "pip", "poetry"]).optional(),
@@ -512,7 +512,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.post("/api/projects/:id/packages/remove-stream", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const { name, manager: requestedManager } = z.object({
         name: z.string().min(1),
         manager: z.enum(["npm", "pip", "poetry"]).optional(),
@@ -537,7 +537,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.post("/api/projects/:id/packages/update", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const { name, manager: requestedManager } = z.object({
         name: z.string().optional(),
         manager: z.enum(["npm", "pip", "poetry"]).optional(),
@@ -565,7 +565,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.post("/api/projects/:id/packages/update-stream", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const { name, manager: requestedManager } = z.object({
         name: z.string().optional(),
         manager: z.enum(["npm", "pip", "poetry"]).optional(),
@@ -631,7 +631,7 @@ export async function registerPackageManagementRoutes(app: Express, ctx: any): P
   app.get("/api/projects/:id/packages/outdated", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
 
       const cached = outdatedCache.get(project.id);
       if (cached && Date.now() - cached.ts < OUTDATED_CACHE_TTL) {

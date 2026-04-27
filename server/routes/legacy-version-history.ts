@@ -68,7 +68,7 @@ export async function registerVersionHistoryRoutes(app: Express, ctx: any): Prom
     try {
       const { message } = z.object({ message: z.string().min(1).max(200) }).parse(req.body);
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const projectFiles = await storage.getFiles(project.id);
       const snapshot: Record<string, string> = {};
       projectFiles.forEach(f => { snapshot[f.filename] = f.content; });
@@ -116,7 +116,7 @@ export async function registerVersionHistoryRoutes(app: Express, ctx: any): Prom
   app.post("/api/projects/:id/restore/:commitId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(req.params.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const commit = await storage.getCommit(req.params.commitId);
       if (!commit || commit.projectId !== project.id) return res.status(404).json({ message: "Commit not found" });
       await createCheckpoint(project.id, req.session.userId!, "pre_risky_op", `Before restoring to commit ${commit.id.slice(0, 7)}`).catch(() => {});
@@ -135,7 +135,7 @@ export async function registerVersionHistoryRoutes(app: Express, ctx: any): Prom
   app.get("/api/projects/:id/files/:fileId/history", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const file = await storage.getFile(req.params.fileId);
       if (!file || file.projectId !== project.id) return res.status(404).json({ message: "File not found" });
       const page = Math.max(1, parseInt(qstr(req.query.page)) || 1);
@@ -155,7 +155,7 @@ export async function registerVersionHistoryRoutes(app: Express, ctx: any): Prom
   app.get("/api/projects/:id/files/:fileId/history/:versionId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const file = await storage.getFile(req.params.fileId);
       if (!file || file.projectId !== project.id) return res.status(404).json({ message: "File not found" });
       const version = await storage.getFileVersion(req.params.versionId);
@@ -169,7 +169,7 @@ export async function registerVersionHistoryRoutes(app: Express, ctx: any): Prom
   app.post("/api/projects/:id/files/:fileId/restore/:versionId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const file = await storage.getFile(req.params.fileId);
       if (!file || file.projectId !== project.id) return res.status(404).json({ message: "File not found" });
       const version = await storage.getFileVersion(req.params.versionId);
@@ -195,7 +195,7 @@ export async function registerVersionHistoryRoutes(app: Express, ctx: any): Prom
   app.get("/api/projects/:id/file-history/:filename", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const filename = decodeURIComponent(req.params.filename);
       const projectFiles = await storage.getFiles(project.id);
       const file = projectFiles.find(f => f.filename === filename);
@@ -222,7 +222,7 @@ export async function registerVersionHistoryRoutes(app: Express, ctx: any): Prom
     try {
       const { filename, content, commitId } = z.object({ filename: z.string(), content: z.string(), commitId: z.string().optional() }).parse(req.body);
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const projectFiles = await storage.getFiles(project.id);
       const file = projectFiles.find(f => f.filename === filename);
       if (!file) return res.status(404).json({ message: "File not found" });

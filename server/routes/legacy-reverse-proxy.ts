@@ -166,7 +166,7 @@ export async function registerReverseProxyRoutes(app: Express, ctx: any): Promis
           return res.status(401).send(`<!DOCTYPE html><html><head><title>Authentication Required</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0}div{text-align:center;padding:2rem;max-width:400px}h1{font-size:1.5rem;margin-bottom:0.5rem}p{color:#888;margin-bottom:1.5rem}a{display:inline-block;padding:0.75rem 2rem;background:#0079F2;color:white;text-decoration:none;border-radius:8px;font-weight:500}a:hover{background:#0062c4}</style></head><body><div><h1>Authentication Required</h1><p>This development URL is private. Please sign in to access it.</p><a href="/auth/login">Sign In</a></div></body></html>`);
         }
 
-        const hasAccess = project.userId === req.session.userId || await verifyProjectAccess(projectId, req.session.userId!);
+        const hasAccess = String(project.userId) === String(req.session.userId) || await verifyProjectAccess(projectId, req.session.userId!);
         if (!hasAccess) {
           return res.status(403).send(`<!DOCTYPE html><html><head><title>Access Denied</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0}div{text-align:center;padding:2rem;max-width:400px}h1{font-size:1.5rem;margin-bottom:0.5rem}p{color:#888}</style></head><body><div><h1>Access Denied</h1><p>You do not have permission to view this development URL. Only the project owner and authorized team members can access private development URLs.</p></div></body></html>`);
         }
@@ -271,7 +271,7 @@ export async function registerReverseProxyRoutes(app: Express, ctx: any): Promis
   app.get("/api/projects/:id/checkpoints", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const cps = await storage.getCheckpoints(project.id);
       const position = await storage.getCheckpointPosition(project.id);
       const stripped = cps.map(({ stateSnapshot, ...rest }) => {
@@ -295,7 +295,7 @@ export async function registerReverseProxyRoutes(app: Express, ctx: any): Promis
   app.post("/api/projects/:id/checkpoints", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const description = typeof req.body?.description === "string" ? req.body.description.slice(0, 500) : undefined;
       const trigger = typeof req.body?.trigger === "string" && ["manual", "feature_complete", "deployment", "pre_risky_op"].includes(req.body.trigger) ? req.body.trigger : "manual";
       const cp = await createCheckpoint(project.id, req.session.userId!, trigger, description);
@@ -311,7 +311,7 @@ export async function registerReverseProxyRoutes(app: Express, ctx: any): Promis
   app.get("/api/projects/:id/checkpoints/:cpId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const cp = await storage.getCheckpoint(req.params.cpId);
       if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
       return res.json(cp);
@@ -323,7 +323,7 @@ export async function registerReverseProxyRoutes(app: Express, ctx: any): Promis
   app.post("/api/projects/:id/checkpoints/:cpId/restore", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const cp = await storage.getCheckpoint(req.params.cpId);
       if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
       const { includeDatabase } = req.body || {};
@@ -338,7 +338,7 @@ export async function registerReverseProxyRoutes(app: Express, ctx: any): Promis
   app.get("/api/projects/:id/checkpoints/:cpId/diff", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const cp = await storage.getCheckpoint(req.params.cpId);
       if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
       const diff = await getCheckpointDiff(cp.id);
@@ -352,7 +352,7 @@ export async function registerReverseProxyRoutes(app: Express, ctx: any): Promis
   app.delete("/api/projects/:id/checkpoints/:cpId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const cp = await storage.getCheckpoint(req.params.cpId);
       if (!cp || cp.projectId !== project.id) return res.status(404).json({ message: "Checkpoint not found" });
       await storage.deleteCheckpoint(cp.id);

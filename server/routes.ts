@@ -1094,7 +1094,7 @@ export async function registerRoutes(
   app.get("/uploads/feedback/:projectId/:filename", requireAuth, async (req: Request, res: Response) => {
     const { projectId, filename } = req.params;
     const project = await storage.getProject(projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Not authorized" });
     }
     if (/[\/\\]|\.\./.test(filename)) {

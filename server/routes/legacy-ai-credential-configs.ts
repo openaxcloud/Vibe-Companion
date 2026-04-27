@@ -68,7 +68,7 @@ export async function registerAiCredentialConfigsRoutes(app: Express, ctx: any):
     try {
       const projectId = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Access denied" });
       }
       const configs = await storage.getAiCredentialConfigs(projectId);
@@ -90,7 +90,7 @@ export async function registerAiCredentialConfigsRoutes(app: Express, ctx: any):
     try {
       const projectId = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Access denied" });
       }
       const provider = Array.isArray(req.params.provider) ? req.params.provider[0] : req.params.provider;
@@ -118,7 +118,7 @@ export async function registerAiCredentialConfigsRoutes(app: Express, ctx: any):
     try {
       const projectId = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Access denied" });
       }
       const provider = Array.isArray(req.params.provider) ? req.params.provider[0] : req.params.provider;
