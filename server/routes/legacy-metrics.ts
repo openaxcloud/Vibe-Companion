@@ -218,7 +218,7 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
     const { projectId, repoName, isPrivate } = req.body;
     if (!projectId || !repoName) return res.status(400).json({ message: "projectId and repoName required" });
     const project = await storage.getProject(projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     try {

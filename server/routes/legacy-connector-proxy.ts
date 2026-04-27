@@ -76,7 +76,7 @@ export async function registerConnectorProxyRoutes(app: Express, ctx: any): Prom
   app.post("/api/projects/:id/connectors/:connectorName/execute", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
 
       const connectorName = req.params.connectorName as string;
       const connectorKey = getConnectorKey(connectorName) || connectorName.toLowerCase();

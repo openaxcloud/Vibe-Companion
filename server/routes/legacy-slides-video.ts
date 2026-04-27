@@ -68,7 +68,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const data = await storage.getSlidesData(projectId);
       if (!data) return res.json({ projectId, slides: [], theme: null });
       return res.json(data);
@@ -144,7 +144,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const parsed = slidesUpdateSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid slides payload", errors: parsed.error.errors });
       const { slides, theme } = parsed.data;
@@ -168,7 +168,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       await storage.deleteSlidesData(projectId);
       return res.json({ success: true });
     } catch {
@@ -180,7 +180,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const data = await storage.getVideoData(projectId);
       if (!data) return res.json({ projectId, scenes: [], audioTracks: [], resolution: { width: 1920, height: 1080 }, fps: 30 });
       return res.json(data);
@@ -193,7 +193,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const parsed = videoUpdateSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid video payload", errors: parsed.error.errors });
       const { scenes, audioTracks, resolution, fps } = parsed.data;
@@ -219,7 +219,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       await storage.deleteVideoData(projectId);
       return res.json({ success: true });
     } catch {
@@ -231,7 +231,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const data = await storage.getSlidesData(projectId);
       if (!data || !data.slides || data.slides.length === 0) return res.status(400).json({ message: "No slides to export" });
 
@@ -352,7 +352,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const data = await storage.getSlidesData(projectId);
       if (!data || !data.slides || data.slides.length === 0) return res.status(400).json({ message: "No slides to export" });
 
@@ -483,7 +483,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
 
       const { data, filename, columns } = req.body;
       if (!data || !Array.isArray(data) || data.length === 0) {
@@ -527,7 +527,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
 
       const { title, kpis, charts, summary } = req.body;
       if (title && typeof title !== "string") return res.status(400).json({ message: "Invalid title" });
@@ -613,7 +613,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
 
       const file = req.file;
       if (!file) return res.status(400).json({ message: "No file uploaded" });
@@ -669,7 +669,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
 
       const { url } = req.body;
       if (!url || typeof url !== "string") return res.status(400).json({ message: "URL is required" });
@@ -734,7 +734,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const data = await storage.getVideoData(projectId);
       if (!data || !data.scenes || (data.scenes as any[]).length === 0) return res.status(400).json({ message: "No scenes to export" });
 
@@ -840,7 +840,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
     try {
       const projectId = req.params.projectId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
 
       const exportSchema = z.object({
         artifactId: z.string().optional(),
@@ -893,7 +893,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
       const projectId = req.params.projectId as string;
       const artifactId = req.params.artifactId as string;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
 
       const artifact = await storage.getArtifact(artifactId);
       if (!artifact || artifact.projectId !== projectId) return res.status(404).json({ message: "Artifact not found" });

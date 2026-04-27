@@ -67,7 +67,7 @@ export async function registerCustomDomainsRoutes(app: Express, ctx: any): Promi
   app.post("/api/projects/:id/domains", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { domain } = z.object({ domain: z.string().min(3).max(253) }).parse(req.body);
       const result = await addDomain(domain, project.id, req.session.userId!);
       return res.json(result);
@@ -80,7 +80,7 @@ export async function registerCustomDomainsRoutes(app: Express, ctx: any): Promi
   app.post("/api/projects/:id/domains/:domainId/verify", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const domainRecord = await getDomainById(req.params.domainId);
       if (!domainRecord || domainRecord.projectId !== project.id) return res.status(404).json({ message: "Domain not found" });
       const result = await verifyDomain(req.params.domainId);
@@ -96,7 +96,7 @@ export async function registerCustomDomainsRoutes(app: Express, ctx: any): Promi
   app.delete("/api/projects/:id/domains/:domainId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const domainToDelete = await getDomainById(req.params.domainId);
       if (!domainToDelete || domainToDelete.projectId !== project.id) return res.status(404).json({ message: "Domain not found" });
       const success = await removeDomain(req.params.domainId, req.session.userId!);
@@ -113,7 +113,7 @@ export async function registerCustomDomainsRoutes(app: Express, ctx: any): Promi
   app.get("/api/projects/:id/domains", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const domains = await getProjectDomains(project.id);
       return res.json(domains);
     } catch {

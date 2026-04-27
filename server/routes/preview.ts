@@ -489,7 +489,7 @@ async function proxyToLivePreview(req: Request, res: Response, next: NextFunctio
       return next();
     }
     const relativePath = req.originalUrl.replace(
-      new RegExp(`/api/preview/projects/${projectId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/preview`),
+      new RegExp(`/api/preview/projects/${String(projectId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/preview`),
       ''
     ) || '/';
     const options: http.RequestOptions = {

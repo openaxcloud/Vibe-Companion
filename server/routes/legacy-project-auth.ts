@@ -67,7 +67,7 @@ export async function registerProjectAuthRoutes(app: Express, ctx: any): Promise
   app.get("/api/projects/:id/auth/config", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const config = await storage.getProjectAuthConfig(req.params.id);
       res.json(config || { enabled: false, providers: ["email"], requireEmailVerification: false, sessionDurationHours: 24, allowedDomains: [], appName: null, appIconUrl: null });
     } catch (err: any) {
@@ -78,7 +78,7 @@ export async function registerProjectAuthRoutes(app: Express, ctx: any): Promise
   app.put("/api/projects/:id/auth/config", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const schema = z.object({
         enabled: z.boolean().optional(),
         providers: z.array(z.string()).optional(),
@@ -100,7 +100,7 @@ export async function registerProjectAuthRoutes(app: Express, ctx: any): Promise
   app.get("/api/projects/:id/auth/users", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const users = await storage.getProjectAuthUsers(req.params.id);
       res.json(users);
     } catch (err: any) {
@@ -111,7 +111,7 @@ export async function registerProjectAuthRoutes(app: Express, ctx: any): Promise
   app.post("/api/projects/:id/auth/users", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const schema = z.object({
         email: z.string().email(),
         password: z.string().min(6),
@@ -131,7 +131,7 @@ export async function registerProjectAuthRoutes(app: Express, ctx: any): Promise
   app.delete("/api/projects/:id/auth/users/:userId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const deleted = await storage.deleteProjectAuthUser(req.params.id, req.params.userId);
       if (!deleted) return res.status(404).json({ message: "User not found" });
       res.json({ message: "User deleted" });

@@ -84,7 +84,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/mcp/servers", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const { name, command, args, env, baseUrl, headers: reqHeaders, serverType } = req.body;
@@ -140,7 +140,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
 
   app.put("/api/projects/:projectId/mcp/servers/:serverId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const server = await storage.getMcpServer(req.params.serverId);
@@ -177,7 +177,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
 
   app.delete("/api/projects/:projectId/mcp/servers/:serverId", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const server = await storage.getMcpServer(req.params.serverId);
@@ -198,7 +198,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/mcp/servers/test-remote", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const { baseUrl, headers: reqHeaders } = req.body;
@@ -228,7 +228,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/mcp/servers/:serverId/test", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const server = await storage.getMcpServer(req.params.serverId);
@@ -259,7 +259,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/mcp/servers/:serverId/connect", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const server = await storage.getMcpServer(req.params.serverId);
@@ -304,7 +304,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/mcp/servers/:serverId/start", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const server = await storage.getMcpServer(req.params.serverId);
@@ -334,7 +334,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/mcp/servers/:serverId/stop", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const server = await storage.getMcpServer(req.params.serverId);
@@ -351,7 +351,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/mcp/servers/:serverId/restart", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     const server = await storage.getMcpServer(req.params.serverId);
@@ -466,7 +466,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
 
   app.post("/api/projects/:projectId/mcp/init-builtin", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(404).json({ message: "Project not found" });
     }
     try {

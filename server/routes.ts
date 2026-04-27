@@ -1097,7 +1097,7 @@ export async function registerRoutes(
   app.get("/uploads/feedback/:projectId/:filename", requireAuth, async (req: Request, res: Response) => {
     const { projectId, filename } = req.params;
     const project = await storage.getProject(projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Not authorized" });
     }
     if (/[\/\\]|\.\./.test(filename)) {
@@ -1343,11 +1343,17 @@ export async function registerRoutes(
   async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
     const project = await storage.getProject(projectId);
     if (!project) return false;
-    if (project.userId === userId) return true;
+    // Coerce both sides to string: live DB has users.id as integer
+    // (legacy) but projects.user_id as varchar (new schema), so the
+    // session userId is a number while project.userId is a string.
+    // Strict `!==` would always trip and lock the owner out of their
+    // own project (root cause of the IDE splash freeze).
+    const uid = String(userId);
+    if (String(project.userId) === uid) return true;
     if (project.visibility === "public" || project.isPublic) return true;
     if (project.teamId) {
       const teams = await storage.getUserTeams(userId);
-      if (teams.some((t: any) => t.id === project.teamId)) return true;
+      if (teams.some((t: any) => String(t.id) === uid)) return true;
     }
     const isGuest = await storage.isProjectGuest(projectId, userId);
     if (isGuest) return true;
@@ -1357,7 +1363,7 @@ export async function registerRoutes(
       if (invite) return true;
     }
     const collaborators = await storage.getProjectCollaborators(projectId);
-    if (collaborators.some((c: any) => c.userId === userId)) return true;
+    if (collaborators.some((c: any) => String(c.userId) === uid)) return true;
     return false;
   }
 

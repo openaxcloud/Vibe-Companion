@@ -343,7 +343,7 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
   app.post("/api/projects/:projectId/debug-run", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId!) return res.status(403).json({ message: "Access denied" });
+    if (String(project.userId) !== String(req.session.userId)!) return res.status(403).json({ message: "Access denied" });
 
     const files = await storage.getFiles(project.id);
     if (!files || files.length === 0) return res.status(400).json({ message: "No files in project" });
@@ -467,7 +467,7 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
   app.get("/api/projects/:projectId/console-runs", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+    if (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
     const limit = parseInt(qstr(req.query.limit)) || 50;
     const runs = await storage.getConsoleRunsByProject(project.id, limit);
     return res.json(runs);
@@ -476,7 +476,7 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
   app.post("/api/projects/:projectId/console-runs", requireAuth, csrfProtection, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+    if (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
     const { command } = req.body;
     if (!command) return res.status(400).json({ message: "command is required" });
     const run = await storage.createConsoleRun({ projectId: project.id, command });
@@ -487,7 +487,7 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
     const run = await storage.getConsoleRun(req.params.id);
     if (!run) return res.status(404).json({ message: "Console run not found" });
     const project = await storage.getProject(run.projectId);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(403).json({ message: "Access denied" });
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(403).json({ message: "Access denied" });
     const { status, logs, exitCode, finishedAt } = req.body;
     const validStatuses = ["running", "completed", "failed"];
     const updates: any = {};
@@ -503,7 +503,7 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
   app.post("/api/projects/:projectId/stop", requireAuth, csrfProtection, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+    if (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
     const cancelled = executionPool.cancelProjectExecution(project.id);
     return res.json({ stopped: cancelled });
   });
@@ -511,7 +511,7 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
   app.delete("/api/projects/:projectId/console-runs", requireAuth, csrfProtection, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
+    if (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
     const excludeRunId = qstr(req.query.excludeRunId) || undefined;
     await storage.clearConsoleRuns(project.id, excludeRunId);
     return res.json({ success: true });
@@ -526,7 +526,7 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
     const projectId = req.params.projectId;
     const project = await storage.getProject(projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(projectId, req.session.userId!)) {
+    if (String(project.userId) !== String(req.session.userId) && !project.isDemo && !await verifyProjectAccess(projectId, req.session.userId!)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const since = parseInt(qstr(req.query.since)) || 0;

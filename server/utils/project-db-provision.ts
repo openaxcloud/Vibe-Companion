@@ -4,7 +4,7 @@ import { createLogger } from './logger';
 const logger = createLogger('project-db-provision');
 
 function sanitizeSchemaName(projectId: string): string {
-  return `proj_${projectId.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+  return `proj_${String(projectId).replace(/[^a-zA-Z0-9_]/g, '_')}`;
 }
 
 export async function autoProvisionProjectDatabase(

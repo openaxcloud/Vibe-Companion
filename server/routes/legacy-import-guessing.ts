@@ -67,7 +67,7 @@ export async function registerImportGuessingRoutes(app: Express, ctx: any): Prom
   app.get("/api/projects/:id/imports/missing", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const files = await storage.getFiles(project.id);
       const pm = detectPackageManager(files);
 

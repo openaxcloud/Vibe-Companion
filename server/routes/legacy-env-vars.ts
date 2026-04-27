@@ -112,7 +112,7 @@ export async function registerEnvVarsRoutes(app: Express, ctx: any): Promise<voi
 
   app.post("/api/projects/:projectId/env-vars", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { key, value } = req.body;
@@ -139,7 +139,7 @@ export async function registerEnvVarsRoutes(app: Express, ctx: any): Promise<voi
 
   app.patch("/api/projects/:projectId/env-vars/:id", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const envVar = await storage.getProjectEnvVar(req.params.id);
@@ -159,7 +159,7 @@ export async function registerEnvVarsRoutes(app: Express, ctx: any): Promise<voi
 
   app.delete("/api/projects/:projectId/env-vars/:id", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const envVar = await storage.getProjectEnvVar(req.params.id);
@@ -172,7 +172,7 @@ export async function registerEnvVarsRoutes(app: Express, ctx: any): Promise<voi
 
   app.put("/api/projects/:projectId/env-vars/bulk", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
-    if (!project || project.userId !== req.session.userId) {
+    if (!project || String(project.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const { vars } = req.body;

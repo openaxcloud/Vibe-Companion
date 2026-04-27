@@ -78,7 +78,7 @@ export async function registerDatabaseViewerRoutes(app: Express, ctx: any): Prom
     return VALID_IDENTIFIER_RE.test(name);
   }
   function getProjectSchema(projectId: string, env?: string): string {
-    const sanitized = projectId.replace(/[^a-zA-Z0-9_]/g, "_");
+    const sanitized = String(projectId).replace(/[^a-zA-Z0-9_]/g, "_");
     return env === "production" ? `prod_${sanitized}` : `proj_${sanitized}`;
   }
   async function ensureProjectSchema(pool: any, projectId: string, env?: string): Promise<string> {

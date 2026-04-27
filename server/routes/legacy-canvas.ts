@@ -109,7 +109,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.get("/api/projects/:projectId/canvas/frames", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const frames = await storage.getCanvasFrames(req.params.projectId);
       return res.json(frames);
     } catch {
@@ -120,7 +120,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.post("/api/projects/:projectId/canvas/frames", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const parsed = canvasFrameCreateSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid frame data", errors: parsed.error.errors });
       const frame = await storage.createCanvasFrame({ projectId: req.params.projectId, ...parsed.data });
@@ -134,7 +134,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.put("/api/projects/:projectId/canvas/frames/:frameId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const parsed = canvasFrameUpdateSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid update data", errors: parsed.error.errors });
       const frame = await storage.updateCanvasFrame(req.params.frameId, req.params.projectId, parsed.data);
@@ -149,7 +149,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.delete("/api/projects/:projectId/canvas/frames/:frameId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const deleted = await storage.deleteCanvasFrame(req.params.frameId, req.params.projectId);
       if (!deleted) return res.status(404).json({ message: "Frame not found" });
       return res.json({ success: true });
@@ -215,7 +215,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
     try {
       const project = await storage.getProject(req.params.projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
-      const isOwner = project.userId === req.session.userId;
+      const isOwner = String(project.userId) === String(req.session.userId);
       const isCollab = !isOwner && await storage.isProjectCollaborator(req.params.projectId, req.session.userId!);
       const isGuest = !isOwner && !isCollab && await storage.isProjectGuest(req.params.projectId, req.session.userId!);
       if (!isOwner && !isCollab && !isGuest) return res.status(403).json({ message: "Access denied" });
@@ -353,7 +353,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
     try {
       const project = await storage.getProject(req.params.projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
-      const isOwner = project.userId === req.session.userId;
+      const isOwner = String(project.userId) === String(req.session.userId);
       const isCollab = !isOwner && await storage.isProjectCollaborator(req.params.projectId, req.session.userId!);
       const isGuest = !isOwner && !isCollab && await storage.isProjectGuest(req.params.projectId, req.session.userId!);
       if (!isOwner && !isCollab && !isGuest) return res.status(403).json({ message: "Access denied" });
@@ -406,7 +406,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.get("/api/projects/:projectId/canvas/annotations", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const annotations = await storage.getCanvasAnnotations(req.params.projectId);
       return res.json(annotations);
     } catch {
@@ -417,7 +417,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.post("/api/projects/:projectId/canvas/annotations", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const parsed = canvasAnnotationCreateSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid annotation data", errors: parsed.error.errors });
       const annotation = await storage.createCanvasAnnotation({ projectId: req.params.projectId, ...parsed.data });
@@ -431,7 +431,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.put("/api/projects/:projectId/canvas/annotations/:annotationId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const parsed = canvasAnnotationUpdateSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid update data", errors: parsed.error.errors });
       const annotation = await storage.updateCanvasAnnotation(req.params.annotationId, req.params.projectId, parsed.data);
@@ -446,7 +446,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.delete("/api/projects/:projectId/canvas/annotations/:annotationId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const deleted = await storage.deleteCanvasAnnotation(req.params.annotationId, req.params.projectId);
       if (!deleted) return res.status(404).json({ message: "Annotation not found" });
       return res.json({ success: true });
@@ -458,7 +458,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.get("/api/projects/:projectId/conversions", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const conversionsList = await storage.getConversions(req.params.projectId);
       return res.json(conversionsList);
     } catch {
@@ -469,7 +469,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.get("/api/projects/:projectId/conversions/:conversionId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const conversion = await storage.getConversion(req.params.conversionId);
       if (!conversion || conversion.projectId !== req.params.projectId) return res.status(404).json({ message: "Conversion not found" });
       return res.json(conversion);
@@ -486,7 +486,7 @@ export async function registerCanvasRoutes(app: Express, ctx: any): Promise<void
   app.post("/api/projects/:projectId/conversions", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const parsed = conversionCreateSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid conversion data", errors: parsed.error.errors });
 
@@ -603,7 +603,7 @@ export default function App() {
   app.post("/api/projects/:projectId/device-preset", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const { preset, customWidth, customHeight } = req.body;
       if (!preset || typeof preset !== "string") return res.status(400).json({ message: "Invalid preset" });
       const settings = { ...(project.description ? {} : {}), devicePreset: preset, customWidth, customHeight };
@@ -618,7 +618,7 @@ export default function App() {
   app.get("/api/projects/:projectId/device-preset", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.projectId);
-      if (!project || project.userId !== req.session.userId) return res.status(404).json({ message: "Project not found" });
+      if (!project || String(project.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Project not found" });
       const storageKey = `device-preset:${req.params.projectId}`;
       const entry = await storage.getStorageKvEntry(req.params.projectId, storageKey);
       if (!entry) return res.json({ preset: "responsive", customWidth: null, customHeight: null });

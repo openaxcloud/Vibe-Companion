@@ -128,7 +128,7 @@ export async function registerDeploymentFeedbackRoutes(app: Express, ctx: any): 
     try {
       const { projectId } = req.params;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const status = qstr(req.query.status) || undefined;
@@ -143,7 +143,7 @@ export async function registerDeploymentFeedbackRoutes(app: Express, ctx: any): 
     try {
       const { projectId, feedbackId } = req.params;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const { status } = req.body;
@@ -165,7 +165,7 @@ export async function registerDeploymentFeedbackRoutes(app: Express, ctx: any): 
       const projectId = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;
       const feedbackId = Array.isArray(req.params.feedbackId) ? req.params.feedbackId[0] : req.params.feedbackId;
       const project = await storage.getProject(projectId);
-      if (!project || project.userId !== req.session.userId) {
+      if (!project || String(project.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Not authorized" });
       }
       const deleted = await storage.deleteDeploymentFeedback(feedbackId, projectId);

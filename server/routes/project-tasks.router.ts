@@ -14,7 +14,7 @@ async function verifyProjectAccess(req: Request, res: Response, next: NextFuncti
       .from(projects)
       .where(eq(projects.id, projectId));
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (project.userId !== req.session.userId) return res.status(403).json({ message: "Access denied" });
+    if (String(project.userId) !== String(req.session.userId)) return res.status(403).json({ message: "Access denied" });
     next();
   } catch {
     res.status(500).json({ message: "Failed to verify project access" });

@@ -63,6 +63,18 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
   } = ctx;
   const path = path_;
 
+  // Bug #6 fix (audit 2026-04-27): the central upgrade dispatcher
+  // had its `register()` calls scattered across this file (and other
+  // modules) but `initialize(server)` was never called by anyone, so
+  // its `prependListener('upgrade', …)` never attached. /ws/project
+  // upgrades reached the legacy `httpServer.on('upgrade', …)` block
+  // below, which has no /ws/project branch, so the socket died with
+  // code 1006. /ws/collab and /ws/terminal happened to work via
+  // their own attachments. Calling initialize here, before any
+  // register(), ensures the dispatcher routes upgrades for every
+  // path it knows about.
+  centralUpgradeDispatcher.initialize(httpServer);
+
 
   // --- WebSocket ---
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
@@ -97,15 +109,18 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
     }
   });
 
-  async function canAccessProject(userId: string, project: { id?: string; userId: string; isDemo?: boolean; teamId?: string | null }): Promise<boolean> {
-    if (project.userId === userId) return true;
+  async function canAccessProject(userId: string | number, project: { id?: string; userId: string; isDemo?: boolean; teamId?: string | null }): Promise<boolean> {
+    // String() coercion mirrors the fix in commit 1cfed00f for HTTP routes —
+    // project.userId is varchar in the live DB, session.userId is integer.
+    const uidStr = String(userId);
+    if (String(project.userId) === uidStr) return true;
     if (project.isDemo) return true;
     if (project.teamId) {
-      const teams = await storage.getUserTeams(userId);
+      const teams = await storage.getUserTeams(uidStr as any);
       if (teams.some(t => t.id === project.teamId)) return true;
     }
     if (project.id) {
-      const isCollab = await storage.isProjectCollaborator(project.id, userId);
+      const isCollab = await storage.isProjectCollaborator(project.id, uidStr as any);
       if (isCollab) return true;
     }
     return false;

@@ -17,7 +17,7 @@ async function getHttp(): Promise<GitHttpClient> {
 const projectDirs = new Map<string, string>();
 
 export function getProjectDir(projectId: string): string {
-  const safeId = projectId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const safeId = String(projectId).replace(/[^a-zA-Z0-9_-]/g, "_");
   let dir = projectDirs.get(safeId);
   if (!dir) {
     dir = path.join(os.tmpdir(), "git-repos", safeId);

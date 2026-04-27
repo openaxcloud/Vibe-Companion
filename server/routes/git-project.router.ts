@@ -12,7 +12,7 @@ const router = Router();
 const PROJECTS_BASE = path.join(process.cwd(), 'project-workspaces');
 
 async function getProjectDir(projectId: string): Promise<string> {
-  const safeId = projectId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeId = String(projectId).replace(/[^a-zA-Z0-9_-]/g, '_');
   const dir = path.join(PROJECTS_BASE, safeId);
   await fs.mkdir(dir, { recursive: true });
   return dir;

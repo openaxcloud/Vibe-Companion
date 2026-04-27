@@ -67,7 +67,7 @@ export async function registerVisibilityRoutes(app: Express, ctx: any): Promise<
   app.patch("/api/projects/:id/visibility", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { visibility } = z.object({ visibility: z.enum(["public", "private", "team"]) }).parse(req.body);
       if (visibility === "private" || visibility === "team") {
         const quota = await storage.getUserQuota(req.session.userId!);

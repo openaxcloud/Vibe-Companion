@@ -81,7 +81,7 @@ export async function registerProjectGuestsRoutes(app: Express, ctx: any): Promi
   app.get("/api/projects/:id/guests", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const guests = await storage.getProjectGuests(project.id);
       return res.json(guests);
     } catch {
@@ -92,7 +92,7 @@ export async function registerProjectGuestsRoutes(app: Express, ctx: any): Promi
   app.post("/api/projects/:id/guests", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { email, role } = z.object({ email: z.string().email(), role: z.enum(["viewer", "editor"]).default("viewer") }).parse(req.body);
       const existing = await storage.getProjectGuestByEmail(project.id, email);
       if (existing) return res.status(409).json({ message: "Guest already invited" });
@@ -119,7 +119,7 @@ export async function registerProjectGuestsRoutes(app: Express, ctx: any): Promi
   app.delete("/api/projects/:id/guests/:guestId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const removed = await storage.removeProjectGuest(req.params.guestId, req.params.id);
       if (!removed) return res.status(404).json({ message: "Guest not found" });
       return res.json({ success: true });

@@ -76,7 +76,7 @@ export async function registerIntegrationsRoutes(app: Express, ctx: any): Promis
   app.get("/api/projects/:id/integrations", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const integrations = await storage.getProjectIntegrations(req.params.id);
       res.json(integrations);
     } catch (err: any) {
@@ -87,7 +87,7 @@ export async function registerIntegrationsRoutes(app: Express, ctx: any): Promis
   app.post("/api/projects/:id/integrations", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const schema = z.object({
         integrationId: z.string(),
         config: z.record(z.string()).default({}),
@@ -124,7 +124,7 @@ export async function registerIntegrationsRoutes(app: Express, ctx: any): Promis
   app.post("/api/projects/:id/integrations/:integrationId/test", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const integrations = await storage.getProjectIntegrations(req.params.id);
       const pi = integrations.find(i => i.id === req.params.integrationId);
       if (!pi) return res.status(404).json({ message: "Integration not found" });
@@ -149,7 +149,7 @@ export async function registerIntegrationsRoutes(app: Express, ctx: any): Promis
   app.delete("/api/projects/:id/integrations/:integrationId", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
 
       const integrations = await storage.getProjectIntegrations(req.params.id);
       const pi = integrations.find(i => i.id === req.params.integrationId);
@@ -168,7 +168,7 @@ export async function registerIntegrationsRoutes(app: Express, ctx: any): Promis
   app.get("/api/projects/:id/integrations/:integrationId/logs", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const logs = await storage.getIntegrationLogs(req.params.id, req.params.integrationId, 50);
       res.json(logs);
     } catch (err: any) {
@@ -198,7 +198,7 @@ export async function registerIntegrationsRoutes(app: Express, ctx: any): Promis
   app.post("/api/projects/:id/integrations/oauth/start", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { integrationId } = z.object({ integrationId: z.string() }).parse(req.body);
       const catalog = await storage.getIntegrationCatalog();
       const entry = catalog.find(c => c.id === integrationId);

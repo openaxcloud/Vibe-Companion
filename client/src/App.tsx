@@ -138,8 +138,6 @@ class ErrorBoundary extends Component<
       }, 100);
       return;
     }
-
-    console.error("[ErrorBoundary]", error, errorInfo);
     try {
       fetch("/api/analytics/track", {
         method: "POST",
