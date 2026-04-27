@@ -423,7 +423,7 @@ export async function registerProjectsRoutes(app: Express, ctx: any): Promise<vo
   async function isProjectCollaborator(projectId: string, userId: string): Promise<{ allowed: boolean; role: "owner" | "editor" | "viewer" | null }> {
     const proj = await storage.getProject(projectId);
     if (!proj) return { allowed: false, role: null };
-    if (proj.userId === userId) return { allowed: true, role: "owner" };
+    if (String(proj.userId) === String(userId)) return { allowed: true, role: "owner" };
     const usr = await storage.getUser(userId);
     if (!usr) return { allowed: false, role: null };
     const invite = await storage.getAcceptedInviteForProject(projectId, usr.email.toLowerCase());
@@ -442,7 +442,9 @@ export async function registerProjectsRoutes(app: Express, ctx: any): Promise<vo
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
-    if (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!)) {
+    // Coerce to string — see verifyProjectAccess in routes.ts for the
+    // same drift fix (session.userId is number, project.userId is string).
+    if (String(project.userId) !== String(req.session.userId) && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!)) {
       const collab = await isProjectCollaborator(project.id, req.session.userId!);
       if (!collab.allowed) {
         return res.status(403).json({ message: "Access denied" });
@@ -502,7 +504,7 @@ export async function registerProjectsRoutes(app: Express, ctx: any): Promise<vo
     if (!sourceProject) {
       return res.status(404).json({ message: "Project not found" });
     }
-    if (sourceProject.userId !== req.session.userId && !sourceProject.isDemo && !await verifyProjectAccess(sourceProject.id, req.session.userId!)) {
+    if (String(sourceProject.userId) !== String(req.session.userId) && !sourceProject.isDemo && !await verifyProjectAccess(sourceProject.id, req.session.userId!)) {
       return res.status(403).json({ message: "Access denied" });
     }
     const projectLimit = await storage.checkProjectLimit(req.session.userId!);
@@ -518,7 +520,7 @@ export async function registerProjectsRoutes(app: Express, ctx: any): Promise<vo
 
   app.get("/api/projects/:id/ecode", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || (project.userId !== req.session.userId && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !project.isDemo && !await verifyProjectAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     const projectFiles = await storage.getFiles(project.id);
@@ -528,7 +530,7 @@ export async function registerProjectsRoutes(app: Express, ctx: any): Promise<vo
 
   app.post("/api/projects/:id/ecode/generate", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.id);
-    if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+    if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
       return res.status(404).json({ message: "Project not found" });
     }
     const projectFiles = await storage.getFiles(project.id);
@@ -547,7 +549,7 @@ export async function registerProjectsRoutes(app: Express, ctx: any): Promise<vo
   app.post("/api/projects/:id/ecode/refresh", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
       }
       const projectFiles = await storage.getFiles(project.id);
@@ -577,7 +579,7 @@ export async function registerProjectsRoutes(app: Express, ctx: any): Promise<vo
   app.get("/api/projects/:id/ecode/preferences", requireAuth, async (req: Request, res: Response) => {
     try {
       const project = await storage.getProject(req.params.id);
-      if (!project || (project.userId !== req.session.userId && !await verifyProjectAccess(project.id, req.session.userId!))) {
+      if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
       }
       const projectFiles = await storage.getFiles(project.id);
