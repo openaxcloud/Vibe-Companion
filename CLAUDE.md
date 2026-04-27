@@ -24,6 +24,35 @@ Finaliser la plateforme (clone Replit amélioré) pour qu'elle soit **prête pou
 - Reste les actions opérateur listées dans [`docs/HANDOFF.md`](docs/HANDOFF.md)
   (secrets, comptes tiers, fix `OPENAI_API_KEY` cassée).
 
+## Critical-path audit — 2026-04-27 (commits `28c1e457` → `c9a1a978`)
+
+5 blockers identifiés et corrigés sur le chemin prompt → AI → fichiers
+→ preview → terminal :
+
+1. **React Rules of Hooks violation** dans `UnifiedIDELayout.tsx` —
+   `useCallback` après early-return → splash IDE jamais levé.
+2. **5 tables manquantes / drift de schéma** : `ai_plans`,
+   `account_env_vars[_links]`, `automations`, + `themes` et
+   `deployments` recréés (legacy archivés). Migrations 0022-0024.
+3. **`tenantId` absent du schéma Drizzle** → Drizzle générait du SQL
+   malformé `WHERE undefined = $2`. Ajout du champ + backfill +
+   trigger.
+4. **213 sites de coercion userId** (int↔varchar) avec `===` strict
+   bloquaient toutes les écritures de fichier, le WS terminal,
+   etc. Fix sed-style global.
+5. **Helpers manquants** dans `legacy-files.ts` (auto-extracteur a
+   oublié `verifyProjectWriteAccess`, `sanitizeFilename`, …) →
+   ReferenceError au runtime.
+
+Validation E2E : prompt → app via Sonnet 4.6 en 25s, 1 fichier créé,
+preview HTML OK, terminal PTY mounté, file CRUD complet (POST/GET/PATCH/DELETE).
+Détail dans [`docs/AUDIT-CRITICAL-PATH-2026-04-27.md`](docs/AUDIT-CRITICAL-PATH-2026-04-27.md).
+
+**Hors-scope cette session** (chiffré dans le rapport) : 14 panels
+desktop + 20 mobile non couverts par tests, container/sandbox
+runtime, OAuth/RBAC/invite flow, Y.js multi-user, perf, DEPLOYMENT.md
+exhaustif (HANDOFF.md couvre déjà 60%).
+
 ## Tâches
 
 ### T1 — Vérifier synchronisation repo
