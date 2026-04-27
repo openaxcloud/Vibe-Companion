@@ -133,36 +133,61 @@ function validateEnvironment(): EnvConfig {
 
   if (isProduction) {
     const securityWarnings: string[] = [];
+    const blockers: string[] = [];
 
-    if (!process.env.JWT_SECRET) {
-      securityWarnings.push('JWT_SECRET not set - using auto-generated secret');
+    if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+      blockers.push('SESSION_SECRET must be set in production (>=32 chars). Generate one with: openssl rand -hex 32');
     }
-    if (!process.env.SESSION_SECRET) {
-      securityWarnings.push('SESSION_SECRET not set - using auto-generated secret');
+    if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length < 32) {
+      blockers.push('ENCRYPTION_KEY must be set in production (>=32 chars). Generate one with: openssl rand -hex 32');
     }
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+      securityWarnings.push('JWT_SECRET should be set in production (>=32 chars). Generate one with: openssl rand -hex 32');
+    }
+
+    if (!process.env.REDIS_URL && process.env.REDIS_ENABLED !== 'false') {
+      if (isReplit) {
+        securityWarnings.push('REDIS_URL not set on Replit — multi-replica deploys will have inconsistent caches, idempotency keys, and rate limits. Provision a managed Redis (Upstash/Render/Aiven) and set REDIS_URL.');
+      } else {
+        blockers.push('REDIS_URL not set in production. The platform uses Redis for distributed cache, idempotency, rate-limiting, and pub/sub. Without it, every replica will have its own state and double-process billing/email/sessions. Set REDIS_URL or explicitly opt out with REDIS_ENABLED=false (single-replica only).');
+      }
+    }
+
+    if (process.env.STRIPE_SECRET_KEY?.startsWith('sk_test_')) {
+      blockers.push('STRIPE_SECRET_KEY is a test key (sk_test_...) but NODE_ENV=production. Either use a live key (sk_live_...) or unset STRIPE_SECRET_KEY.');
+    }
+
     if (!process.env.SENTRY_DSN) {
-      securityWarnings.push('SENTRY_DSN not set - error tracking disabled');
+      securityWarnings.push('SENTRY_DSN not set — error tracking disabled. @sentry/node is installed, set SENTRY_DSN to enable.');
     }
 
     const storageBackend = process.env.STORAGE_BACKEND?.toLowerCase();
     const hasReplitStorage = !!(process.env.PRIVATE_OBJECT_DIR || process.env.REPLIT_OBJECT_STORAGE_BUCKET);
     const hasS3Storage = !!(process.env.S3_BUCKET && process.env.S3_ACCESS_KEY_ID);
     if (!isReplit && !storageBackend && !hasReplitStorage && !hasS3Storage) {
-      throw new Error(
+      blockers.push(
         'No object storage configured in production. Set STORAGE_BACKEND=replit (with REPLIT_OBJECT_STORAGE_BUCKET) ' +
         'or STORAGE_BACKEND=s3 (with S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY). ' +
         'Local filesystem storage is not durable and not supported in production.'
       );
     }
     if (storageBackend === 's3' && (!process.env.S3_BUCKET || !process.env.S3_ACCESS_KEY_ID || !process.env.S3_SECRET_ACCESS_KEY)) {
-      throw new Error(
+      blockers.push(
         'STORAGE_BACKEND=s3 but required credentials are missing. ' +
         'Set S3_BUCKET, S3_ACCESS_KEY_ID, and S3_SECRET_ACCESS_KEY environment variables.'
       );
     }
 
+    if (blockers.length > 0) {
+      const msg = `Production environment is missing critical configuration:\n  - ${blockers.join('\n  - ')}\n\nRefer to docs/HANDOFF.md and .env.production.example.`;
+      logger.error(msg);
+      throw new Error(msg);
+    }
+
     if (securityWarnings.length > 0 && !isReplit) {
       logger.warn(`Production security warnings:\n  - ${securityWarnings.join('\n  - ')}`);
+    } else if (securityWarnings.length > 0) {
+      logger.warn(`Production warnings (Replit deploy):\n  - ${securityWarnings.join('\n  - ')}`);
     }
   }
 

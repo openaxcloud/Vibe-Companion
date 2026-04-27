@@ -285,6 +285,25 @@ app.use((req, res, next) => {
   next();
 });
 
+async function verifyStripeKeyHealth(): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    const { getUncachableStripeClient } = await import("./stripeClient");
+    const client = await getUncachableStripeClient();
+    await client.balance.retrieve();
+    return { ok: true };
+  } catch (err: any) {
+    const code = err?.code || err?.raw?.code;
+    const message = err?.message || String(err);
+    if (code === "api_key_expired") {
+      return { ok: false, reason: `Stripe API key is EXPIRED (code=api_key_expired). Regenerate STRIPE_SECRET_KEY in the Stripe dashboard. Original: ${message}` };
+    }
+    if (code === "invalid_api_key" || /Invalid API Key/i.test(message)) {
+      return { ok: false, reason: `Stripe API key is INVALID (code=${code}). Check STRIPE_SECRET_KEY value. Original: ${message}` };
+    }
+    return { ok: false, reason: `Stripe key health check failed: ${message}` };
+  }
+}
+
 async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -297,6 +316,21 @@ async function initStripe() {
     log("Stripe not configured, skipping initialization. Connect Stripe integration to enable payments.", "stripe");
     return;
   }
+
+  log("Verifying Stripe key health...", "stripe");
+  const keyHealth = await verifyStripeKeyHealth();
+  if (!keyHealth.ok) {
+    const isProd = process.env.NODE_ENV === "production";
+    const msg = `[stripe] CRITICAL: ${keyHealth.reason}`;
+    if (isProd) {
+      console.error(msg);
+      console.error("[stripe] Refusing to boot in production with a broken Stripe key. Billing would be silently dead.");
+      throw new Error(`Stripe key health check failed in production: ${keyHealth.reason}`);
+    }
+    log(`${msg} (continuing in ${process.env.NODE_ENV || "development"} mode)`, "warn");
+    return;
+  }
+  log("Stripe key healthy", "stripe");
 
   try {
     log("Initializing Stripe schema...", "stripe");
@@ -328,6 +362,9 @@ async function initStripe() {
       });
   } catch (error) {
     console.error("Failed to initialize Stripe:", error);
+    if (process.env.NODE_ENV === "production") {
+      throw error;
+    }
   }
 }
 
@@ -463,6 +500,13 @@ async function ensureAgentSessionsColumns() {
   await initStripe();
   await initTaskTables();
   await ensureAgentSessionsColumns();
+
+  try {
+    const { logSchemaDriftAtBoot } = await import("./utils/schema-drift-check");
+    await logSchemaDriftAtBoot();
+  } catch (err: any) {
+    console.warn("[schema] drift check skipped:", err?.message || err);
+  }
 
   await registerRoutes(httpServer, app);
 
