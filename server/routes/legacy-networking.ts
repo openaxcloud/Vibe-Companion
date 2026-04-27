@@ -398,7 +398,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
   app.get("/api/domains/purchased/:domainId", requireAuth, async (req: Request, res: Response) => {
     try {
       const domain = await storage.getPurchasedDomain(req.params.domainId);
-      if (!domain || domain.userId !== req.session.userId!) return res.status(404).json({ message: "Domain not found" });
+      if (!domain || String(domain.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Domain not found" });
       const records = await storage.getDomainDnsRecords(domain.id);
       res.json({ ...domain, dnsRecords: records });
     } catch { res.status(500).json({ message: "Failed to load domain" }); }
@@ -407,7 +407,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
   app.post("/api/domains/purchased/:domainId/dns", requireAuth, async (req: Request, res: Response) => {
     try {
       const domain = await storage.getPurchasedDomain(req.params.domainId);
-      if (!domain || domain.userId !== req.session.userId!) return res.status(404).json({ message: "Domain not found" });
+      if (!domain || String(domain.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Domain not found" });
       const { recordType, name, value, ttl } = req.body;
       if (!recordType || typeof recordType !== "string" || !name || typeof name !== "string" || !value || typeof value !== "string") {
         return res.status(400).json({ message: "Record type, name, and value required" });
@@ -435,7 +435,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
   app.put("/api/domains/purchased/:domainId/dns/:recordId", requireAuth, async (req: Request, res: Response) => {
     try {
       const domain = await storage.getPurchasedDomain(req.params.domainId);
-      if (!domain || domain.userId !== req.session.userId!) return res.status(404).json({ message: "Domain not found" });
+      if (!domain || String(domain.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Domain not found" });
       const record = await storage.getDnsRecord(req.params.recordId);
       if (!record || record.domainId !== domain.id) return res.status(404).json({ message: "Record not found" });
       const { recordType, name, value, ttl } = req.body;
@@ -465,7 +465,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
   app.delete("/api/domains/purchased/:domainId/dns/:recordId", requireAuth, async (req: Request, res: Response) => {
     try {
       const domain = await storage.getPurchasedDomain(req.params.domainId);
-      if (!domain || domain.userId !== req.session.userId!) return res.status(404).json({ message: "Domain not found" });
+      if (!domain || String(domain.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Domain not found" });
       const record = await storage.getDnsRecord(req.params.recordId);
       if (!record || record.domainId !== domain.id) return res.status(404).json({ message: "Record not found" });
       await storage.deleteDnsRecord(req.params.recordId);
@@ -483,7 +483,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
   app.patch("/api/domains/purchased/:domainId", requireAuth, async (req: Request, res: Response) => {
     try {
       const domain = await storage.getPurchasedDomain(req.params.domainId);
-      if (!domain || domain.userId !== req.session.userId!) return res.status(404).json({ message: "Domain not found" });
+      if (!domain || String(domain.userId) !== String(req.session.userId)) return res.status(404).json({ message: "Domain not found" });
       const { projectId, autoRenew } = req.body;
       const updates: Partial<{ projectId: string | null; status: string; autoRenew: boolean; expiresAt: Date }> = {};
       if (typeof autoRenew === "boolean") updates.autoRenew = autoRenew;

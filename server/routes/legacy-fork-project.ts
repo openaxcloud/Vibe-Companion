@@ -68,7 +68,7 @@ export async function registerForkProjectRoutes(app: Express, ctx: any): Promise
     try {
       const sourceProject = await storage.getProject(req.params.id);
       if (!sourceProject) return res.status(404).json({ message: "Project not found" });
-      const isOwner = sourceProject.userId === req.session.userId;
+      const isOwner = String(sourceProject.userId) === String(req.session.userId);
       const isAccessible = sourceProject.visibility === "public" || sourceProject.isPublished || sourceProject.isPublic;
       if (!isOwner && !isAccessible) return res.status(403).json({ message: "Cannot fork a private project" });
       const sourceFiles = await storage.getFiles(sourceProject.id);

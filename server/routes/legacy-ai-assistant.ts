@@ -743,7 +743,7 @@ ${formatInstruction}`;
     let conversation: any = null;
     if (reqConvId && !forceNew) {
       conversation = await storage.getConversationById(reqConvId);
-      if (!conversation || conversation.userId !== req.session.userId) {
+      if (!conversation || String(conversation.userId) !== String(req.session.userId)) {
         conversation = null;
       }
     }
@@ -785,7 +785,7 @@ ${formatInstruction}`;
 
   app.get("/api/ai/conversations/:projectId/load/:conversationId", requireAuth, async (req: Request, res: Response) => {
     const conv = await storage.getConversationById(req.params.conversationId);
-    if (!conv || conv.userId !== req.session.userId || conv.projectId !== req.params.projectId) {
+    if (!conv || String(conv.userId) !== String(req.session.userId) || conv.projectId !== req.params.projectId) {
       return res.status(404).json({ message: "Conversation not found" });
     }
     const msgs = await storage.getMessages(conv.id);
@@ -800,7 +800,7 @@ ${formatInstruction}`;
     const targetId = req.query.conversationId as string | undefined;
     if (targetId) {
       const conv = await storage.getConversationById(targetId);
-      if (conv && conv.userId === req.session.userId && conv.projectId === req.params.projectId) {
+      if (conv && String(conv.userId) === String(req.session.userId) && conv.projectId === req.params.projectId) {
         await storage.deleteConversation(conv.id);
       }
     } else {

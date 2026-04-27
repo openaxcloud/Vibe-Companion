@@ -62,6 +62,20 @@ export async function registerTeamsRoutes(app: Express, ctx: any): Promise<void>
   } = ctx;
   const path = path_;
 
+  async function createAndBroadcastNotification(userId: string, data: { category: string; title: string; message: string; actionUrl?: string; metadata?: Record<string, any> }) {
+    try {
+      const prefs = await storage.getNotificationPreferences(userId);
+      const category = data.category as keyof typeof prefs;
+      if (category in prefs && prefs[category] === false) return null;
+      const notification = await storage.createNotification({ userId, ...data, isRead: false });
+      const unreadCount = await storage.getUnreadNotificationCount(userId);
+      broadcastToUser(userId, { type: "notification", notification, unreadCount });
+      return notification;
+    } catch (err) {
+      log(`Failed to create notification for user ${userId}: ${err}`, "notifications");
+      return null;
+    }
+  }
 
   // --- TEAMS ---
   app.get("/api/teams", requireAuth, async (req: Request, res: Response) => {
@@ -92,7 +106,7 @@ export async function registerTeamsRoutes(app: Express, ctx: any): Promise<void>
       const team = await storage.getTeam(req.params.id);
       if (!team) return res.status(404).json({ message: "Team not found" });
       const members = await storage.getTeamMembers(team.id);
-      const isMember = members.some(m => m.userId === req.session.userId);
+      const isMember = members.some(m => String(m.userId) === String(req.session.userId));
       if (!isMember) return res.status(403).json({ message: "Not a team member" });
       return res.json({ ...team, members });
     } catch {
@@ -129,7 +143,7 @@ export async function registerTeamsRoutes(app: Express, ctx: any): Promise<void>
       const team = await storage.getTeam(req.params.id);
       if (!team) return res.status(404).json({ message: "Team not found" });
       const members = await storage.getTeamMembers(team.id);
-      const requester = members.find(m => m.userId === req.session.userId);
+      const requester = members.find(m => String(m.userId) === String(req.session.userId));
       if (!requester || !["owner", "admin"].includes(requester.role)) return res.status(403).json({ message: "Not authorized to invite" });
       const { email, role } = z.object({ email: z.string().email(), role: z.enum(["member", "admin"]).default("member") }).parse(req.body);
       const token = crypto.randomBytes(32).toString("hex");
@@ -184,7 +198,7 @@ export async function registerTeamsRoutes(app: Express, ctx: any): Promise<void>
       const team = await storage.getTeam(req.params.id);
       if (!team) return res.status(404).json({ message: "Team not found" });
       const members = await storage.getTeamMembers(team.id);
-      const requester = members.find(m => m.userId === req.session.userId);
+      const requester = members.find(m => String(m.userId) === String(req.session.userId));
       if (!requester || !["owner", "admin"].includes(requester.role)) return res.status(403).json({ message: "Not authorized" });
       if (req.params.userId === team.ownerId) return res.status(400).json({ message: "Cannot remove team owner" });
       await storage.removeTeamMember(team.id, req.params.userId);

@@ -119,7 +119,7 @@ export async function registerPublishingAnalyticsRoutes(app: Express, ctx: any):
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const deployments = await storage.getProjectDeployments(project.id);
       const liveDeployment = deployments.find(d => d.status === "live");
-      const slug = project.publishedSlug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + project.id.slice(0, 8);
+      const slug = project.publishedSlug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + String(project.id).slice(0, 8);
       const processStatus = liveDeployment ? getProcessStatus(project.id) : null;
       const latestDeployment = deployments.length > 0 ? deployments.reduce((a, b) => (a.version > b.version ? a : b)) : null;
       const configSource = liveDeployment || latestDeployment;

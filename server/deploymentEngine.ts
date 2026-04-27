@@ -203,7 +203,7 @@ async function ensureDir(dir: string) {
 }
 
 function generateSlug(name: string, projectId: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + projectId.slice(0, 8);
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + String(projectId).slice(0, 8);
 }
 
 function getMimeType(filename: string): string {
@@ -1357,7 +1357,7 @@ async function resolveSlugToProject(slug: string): Promise<{ projectId: string; 
       .limit(200);
 
     for (const row of results) {
-      const computedSlug = row.publishedSlug || row.projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + row.projectId.slice(0, 8);
+      const computedSlug = row.publishedSlug || row.projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + String(row.projectId).slice(0, 8);
       slugToProjectCache.set(computedSlug, { projectId: row.projectId, deploymentId: row.deploymentId, expiresAt: Date.now() + 60000 });
       if (computedSlug === slug) {
         return { projectId: row.projectId, deploymentId: row.deploymentId };

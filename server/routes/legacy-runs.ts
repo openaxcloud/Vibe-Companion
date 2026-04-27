@@ -343,7 +343,7 @@ export async function registerRunsRoutes(app: Express, ctx: any): Promise<void> 
   app.post("/api/projects/:projectId/debug-run", requireAuth, async (req: Request, res: Response) => {
     const project = await storage.getProject(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
-    if (String(project.userId) !== String(req.session.userId)!) return res.status(403).json({ message: "Access denied" });
+    if (String(project.userId) !== String(req.session.userId)) return res.status(403).json({ message: "Access denied" });
 
     const files = await storage.getFiles(project.id);
     if (!files || files.length === 0) return res.status(400).json({ message: "No files in project" });
