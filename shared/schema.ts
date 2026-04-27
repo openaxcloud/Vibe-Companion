@@ -176,6 +176,11 @@ export const projects = pgTable("projects", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id", { length: 36 }).notNull(),
   teamId: varchar("team_id", { length: 36 }),
+  // Live DB column is `tenant_id integer` (legacy). Persistence-engine
+  // tenant isolation relies on this column existing on the schema, so
+  // declare it here. Defaults to NULL for older rows; new rows get it
+  // populated by the storage layer.
+  tenantId: integer("tenant_id"),
   name: text("name").notNull(),
   description: text("description"),
   coverImageUrl: text("cover_image_url"),
