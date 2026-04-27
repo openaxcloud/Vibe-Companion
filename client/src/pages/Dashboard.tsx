@@ -359,6 +359,27 @@ export default function Dashboard() {
     staleTime: 30000,
   });
 
+  interface SharedProject {
+    id: string;
+    projectId: string;
+    userId: string;
+    role: string;
+    addedBy: string;
+    createdAt: string;
+    projectName: string;
+    projectLanguage: string;
+    projectUpdatedAt: string | null;
+  }
+
+  const sharedProjectsQuery = useQuery<SharedProject[]>({
+    queryKey: ["/api/me/shared-projects"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/me/shared-projects");
+      return res.json();
+    },
+    staleTime: 60000,
+  });
+
   const notificationsQuery = useQuery<{ notifications: Notification[]; unreadCount: number }>({
     queryKey: ["/api/notifications"],
     queryFn: async () => {
@@ -2181,6 +2202,7 @@ export default function Dashboard() {
                           {project.isPublished && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 shrink-0 font-medium ml-auto">Live</span>
                           )}
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-[#7C65CB]/10 text-[#7C65CB] border border-[#7C65CB]/20 ml-auto" data-testid={`badge-role-grid-${project.id}`}>owner</span>
                         </div>
                       </div>
                     );
@@ -2213,6 +2235,7 @@ export default function Dashboard() {
                         {project.isPublished && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#0CCE6B]/10 text-[#0CCE6B] border border-[#0CCE6B]/20 font-medium">Live</span>
                         )}
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-[#7C65CB]/10 text-[#7C65CB] border border-[#7C65CB]/20" data-testid={`badge-role-list-${project.id}`}>owner</span>
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -2235,6 +2258,44 @@ export default function Dashboard() {
                     );
                   })}
                 </div>
+                )}
+
+                {/* Shared with me */}
+                {(sharedProjectsQuery.data?.length ?? 0) > 0 && (
+                  <div className="mt-8">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Users className="w-4 h-4 text-[#7C65CB]" />
+                      <h3 className="text-[13px] font-semibold text-[var(--ide-text)]">Shared with me</h3>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#7C65CB]/10 text-[#7C65CB] border border-[#7C65CB]/20 font-medium">{sharedProjectsQuery.data!.length}</span>
+                    </div>
+                    <div className="border border-[var(--ide-border)]/50 rounded-xl overflow-hidden bg-[var(--ide-panel)]/20">
+                      {sharedProjectsQuery.data!.map((collab, idx) => {
+                        const langInfo = LANG_ICONS[collab.projectLanguage] || LANG_ICONS.javascript;
+                        return (
+                          <div
+                            key={collab.id}
+                            className={`flex items-center gap-3 px-4 py-3 hover:bg-[var(--ide-panel)]/60 cursor-pointer transition-all group ${idx !== 0 ? "border-t border-[var(--ide-border)]/30" : ""}`}
+                            onClick={() => setLocation(`/project/${collab.projectId}`)}
+                            data-testid={`shared-project-${collab.projectId}`}
+                          >
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[9px] font-bold shrink-0 ${langInfo.bg} ${langInfo.color}`}>
+                              {langInfo.label}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-medium text-[13px] text-[var(--ide-text)] truncate">{collab.projectName}</h3>
+                              <span className="text-[10px] text-[var(--ide-text-muted)] capitalize">{collab.projectLanguage}</span>
+                            </div>
+                            <span
+                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium border ${collab.role === "editor" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}
+                              data-testid={`badge-role-shared-${collab.projectId}`}
+                            >
+                              {collab.role}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
             </div>
           )}

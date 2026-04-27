@@ -68,18 +68,21 @@ export async function registerSecurityScannerRoutes(app: Express, ctx: any): Pro
   async function verifyProjectWriteAccess(projectId: string, userId: string): Promise<boolean> {
     const project = await storage.getProject(projectId);
     if (!project) return false;
-    if (project.userId === userId) return true;
+    if (String(project.userId) === String(userId)) return true;
     if (project.teamId) {
       const teams = await storage.getUserTeams(userId);
-      const teamMatch = teams.find(t => t.id === project.teamId);
+      const teamMatch = teams.find((t: any) => t.id === project.teamId);
       if (teamMatch && (teamMatch.role === "owner" || teamMatch.role === "admin" || teamMatch.role === "editor")) return true;
     }
+    const collaborators = await storage.getProjectCollaborators(projectId);
+    const collab = collaborators.find((c: any) => String(c.userId) === String(userId));
+    if (collab && (collab.role === "editor" || collab.role === "owner" || collab.role === "admin")) return true;
     const guest = await storage.getProjectGuestByUserId(projectId, userId);
     if (guest && guest.role === "editor") return true;
     const usr = await storage.getUser(userId);
     if (usr) {
       const invite = await storage.getAcceptedInviteForProject(projectId, usr.email.toLowerCase());
-      if (invite && invite.role === "editor") return true;
+      if (invite && (invite.role === "editor" || invite.role === "owner")) return true;
     }
     return false;
   }

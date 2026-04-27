@@ -31,8 +31,18 @@ import OpenAI from "openai";
 
 async function verifyProjectWriteAccess(projectId: string, userId: string): Promise<boolean> {
   try {
+    const project = await storage.getProject(projectId);
+    if (!project) return false;
+    if (String(project.userId) === String(userId)) return true;
     const collaborators = await storage.getProjectCollaborators(projectId);
-    return collaborators.some((c: any) => c.userId === userId && (c.role === 'editor' || c.role === 'admin' || c.role === 'owner'));
+    const collab = collaborators.find((c: any) => String(c.userId) === String(userId));
+    if (collab && (collab.role === "editor" || collab.role === "owner" || collab.role === "admin")) return true;
+    const usr = await storage.getUser(userId);
+    if (usr) {
+      const accepted = await storage.getAcceptedInviteForProject(projectId, usr.email.toLowerCase());
+      if (accepted && (accepted.role === "editor" || accepted.role === "owner")) return true;
+    }
+    return false;
   } catch {
     return false;
   }

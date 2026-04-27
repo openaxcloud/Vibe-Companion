@@ -1343,7 +1343,7 @@ export async function registerRoutes(
   async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
     const project = await storage.getProject(projectId);
     if (!project) return false;
-    if (project.userId === userId) return true;
+    if (String(project.userId) === String(userId)) return true;
     if (project.visibility === "public" || project.isPublic) return true;
     if (project.teamId) {
       const teams = await storage.getUserTeams(userId);
@@ -2343,6 +2343,15 @@ export async function registerRoutes(
     console.error(`[routes] Failed to load legacy-ai-usage-tracking.ts: ${err.message}`);
   }
 
+
+  // RBAC invite routes (JWT-based)
+  try {
+    await (await import("./routes/rbac-invites")).registerRbacInviteRoutes(app, {
+      requireAuth, getAppUrl,
+    });
+  } catch (err: any) {
+    console.error(`[routes] Failed to load rbac-invites.ts: ${err.message}`);
+  }
 
   // Register modular routes from server/routes/ directory
   try {
