@@ -414,6 +414,7 @@ export interface IStorage {
   setFindingAgentSession(id: string, agentSessionId: string): Promise<SecurityFinding | undefined>;
 
   getProjectCollaborators(projectId: string): Promise<(ProjectCollaborator & { user: Pick<User, 'id' | 'email' | 'displayName' | 'avatarUrl'> })[]>;
+  getCollaborationsForUser(userId: string): Promise<(ProjectCollaborator & { projectName: string; projectLanguage: string; projectUpdatedAt: Date | null })[]>;
   addProjectCollaborator(data: InsertProjectCollaborator): Promise<ProjectCollaborator>;
   removeProjectCollaborator(projectId: string, userId: string): Promise<boolean>;
   isProjectCollaborator(projectId: string, userId: string): Promise<boolean>;
@@ -2506,6 +2507,19 @@ export class DatabaseStorage implements IStorage {
     for (const c of collabs) {
       const [u] = await db.select({ id: users.id, email: users.email, displayName: users.displayName, avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, c.userId)).limit(1);
       if (u) results.push({ ...c, user: u });
+    }
+    return results;
+  }
+
+  async getCollaborationsForUser(userId: string): Promise<(ProjectCollaborator & { projectName: string; projectLanguage: string; projectUpdatedAt: Date | null })[]> {
+    const collabs = await db.select().from(projectCollaborators).where(eq(projectCollaborators.userId, userId));
+    const results: (ProjectCollaborator & { projectName: string; projectLanguage: string; projectUpdatedAt: Date | null })[] = [];
+    for (const c of collabs) {
+      const [p] = await db.select({ name: projects.name, language: projects.language, updatedAt: projects.updatedAt })
+        .from(projects)
+        .where(and(eq(projects.id, c.projectId), sql`${projects.deletedAt} IS NULL`))
+        .limit(1);
+      if (p) results.push({ ...c, projectName: p.name, projectLanguage: p.language, projectUpdatedAt: p.updatedAt });
     }
     return results;
   }
