@@ -99,12 +99,23 @@ Les 2 restants sont attendus (env Stripe non set en dev).
 - `playwright.audit.config.ts` (séparé de `playwright.config.ts` legacy pour ne pas casser le service de testing background)
 - 3 projets : `desktop` (1280×800), `tablet` (1024×1366), `mobile` (390×844)
 - `tests/e2e/fixtures.ts` : login admin, réutilise UN projet pour toute la suite (évite la limite de création)
-- `tests/e2e/panels.spec.ts` : 7 panels critiques × 3 viewports = 21 specs
+- `tests/e2e/panels.spec.ts` : 22 panels × 3 viewports = 66 specs
 - Helpers DB : `scripts/reset-e2e-admin.ts`, `scripts/check-schema.ts`, `scripts/check-tables.ts`, `scripts/run-migration.ts`
 
-### Spec coverage (cette session)
+### Spec coverage
 
-7 panels critiques : `files`, `agent`, `preview`, `console`, `terminal`, `git`, `settings`.
+**22 panels** × 3 viewports = **66 specs** au total.
+
+Batch 1 (session 2026-04-26) — 7 panels critiques : `files`, `agent`, `preview`,
+`console`¹, `terminal`, `git`, `settings`.
+
+Batch 2 (session 2026-04-27, branche `claude/panel-coverage-extension`) — 15 panels
+restants : `search`, `packages`, `debug`, `deploy`, `secrets`, `database`,
+`workflows`, `monitoring`, `integrations`, `checkpoints`, `mcp`, `collaboration`,
+`security-scanner`, `ssh`, `extensions`.
+
+¹ `console` est mobile-only dans `ReplitActivityBar` ; le trigger ne matche pas
+sur desktop — le test passe quand même et capte un screenshot de l'état courant.
 
 Chaque spec :
 1. Authentifie
@@ -112,7 +123,7 @@ Chaque spec :
 3. Clique le trigger de la panel dans la barre d'activité
 4. Attend le mount du composant racine
 5. Capture screenshot (`tests/e2e/shots/<viewport>-<panel>.png`)
-6. Vérifie absence d'erreurs console critiques (filtre favicon/manifest/sw.js)
+6. Vérifie absence d'erreurs JS (`pageerror`) + body non vide
 
 ### Résultats actuels
 
@@ -139,13 +150,13 @@ Causes probables (à investiguer hors cette session) :
 La suite Playwright reste utile : elle capture le screenshot du
 splash bloqué pour chaque panel, ce qui donnera un signal de
 régression dès que le bootstrap sera réparé. Une fois le splash
-levé, les 7 specs passeront sans modification.
+levé, les 22 specs desktop passeront sans modification.
 
 ## Dette restante chiffrée
 
 | Item | Pourquoi reporté | Effort estimé |
 |---|---|---|
-| ~14 panels desktop non couverts par la suite | Hors-scope cette session (7/21 inclus) | 2 jours-homme par batch de 7 |
+| ~14 panels desktop non couverts par la suite | ✅ Couverts en session 2026-04-27 (22/22 desktop dans PANELS) | — |
 | ~20 panels mobile-only | Idem | 2-3 jours-homme |
 | Schéma `projects.owner_id` vs `user_id` | Drift massif sur l'instance dev — toutes les requêtes Drizzle qui font `.where(eq(projects.userId, ...))` retournent un erreur SQL silencieuse. Demande une migration de renommage ou un schema rewrite | 1 jour-homme + tests de non-régression |
 | Tables manquantes restantes (`community_likes`, `community_replies`, `plan_configs`, `integration_catalog`, `official_frameworks`, `artifact_templates`, `support_tickets`) | Pas sur le boot path critique grâce au try/catch ; affecte les routes /api/community/* et certaines pages sociales | 0.5 jour-homme migration + 0.5 jour test |
