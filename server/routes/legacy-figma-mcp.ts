@@ -311,7 +311,7 @@ export async function registerFigmaMcpRoutes(app: Express, ctx: any): Promise<vo
     try {
       const theme = await storage.getTheme(req.params.id);
       if (!theme) return res.status(404).json({ message: "Theme not found" });
-      if (!theme.isPublished && theme.userId !== req.session?.userId) {
+      if (!theme.isPublished && String(theme.userId) !== String(req.session.userId)) {
         return res.status(404).json({ message: "Theme not found" });
       }
       return res.json(theme);
@@ -344,7 +344,7 @@ export async function registerFigmaMcpRoutes(app: Express, ctx: any): Promise<vo
   app.post("/api/themes/:id/publish", requireAuth, async (req: Request, res: Response) => {
     try {
       const existing = await storage.getTheme(req.params.id);
-      if (!existing || existing.userId !== req.session.userId!) {
+      if (!existing || String(existing.userId) !== String(req.session.userId)) {
         return res.status(404).json({ message: "Theme not found or not owned by you" });
       }
       if (!existing.title.trim() || !existing.description.trim()) {
@@ -372,7 +372,7 @@ export async function registerFigmaMcpRoutes(app: Express, ctx: any): Promise<vo
     try {
       const theme = await storage.getTheme(req.params.id);
       if (!theme) return res.status(404).json({ message: "Theme not found" });
-      if (!theme.isPublished && theme.userId !== req.session?.userId) {
+      if (!theme.isPublished && String(theme.userId) !== String(req.session.userId)) {
         return res.status(404).json({ message: "Theme not found" });
       }
       return res.json({
@@ -393,7 +393,7 @@ export async function registerFigmaMcpRoutes(app: Express, ctx: any): Promise<vo
     try {
       const theme = await storage.getTheme(req.params.id);
       if (!theme) return res.status(404).json({ message: "Theme not found" });
-      if (!theme.isPublished && theme.userId !== req.session.userId!) {
+      if (!theme.isPublished && String(theme.userId) !== String(req.session.userId)) {
         return res.status(403).json({ message: "Cannot install an unpublished theme" });
       }
       const installed = await storage.installTheme(req.session.userId!, req.params.id);

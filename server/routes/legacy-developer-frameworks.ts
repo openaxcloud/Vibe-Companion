@@ -126,7 +126,7 @@ export async function registerDeveloperFrameworksRoutes(app: Express, ctx: any):
     if (!framework) {
       return res.status(404).json({ message: "Framework not found" });
     }
-    if (framework.userId !== req.session.userId) {
+    if (String(framework.userId) !== String(req.session.userId)) {
       return res.status(403).json({ message: "Not the framework author" });
     }
     const updateSchema = z.object({ message: z.string().min(1).max(2000) });

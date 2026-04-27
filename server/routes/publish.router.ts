@@ -63,7 +63,7 @@ router.post('/projects/:id/publish', ensureAuthenticated, async (req: Request, r
     });
 
     const deployment = await deploymentManager.getDeployment(deploymentId);
-    const slug = project.publishedSlug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + projectId.slice(0, 8);
+    const slug = project.publishedSlug || project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + String(projectId).slice(0, 8);
 
     return res.status(201).json({
       success: true,

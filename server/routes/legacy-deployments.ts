@@ -62,6 +62,20 @@ export async function registerDeploymentsRoutes(app: Express, ctx: any): Promise
   } = ctx;
   const path = path_;
 
+  async function createAndBroadcastNotification(userId: string, data: { category: string; title: string; message: string; actionUrl?: string; metadata?: Record<string, any> }) {
+    try {
+      const prefs = await storage.getNotificationPreferences(userId);
+      const category = data.category as keyof typeof prefs;
+      if (category in prefs && prefs[category] === false) return null;
+      const notification = await storage.createNotification({ userId, ...data, isRead: false });
+      const unreadCount = await storage.getUnreadNotificationCount(userId);
+      broadcastToUser(userId, { type: "notification", notification, unreadCount });
+      return notification;
+    } catch (err) {
+      log(`Failed to create notification for user ${userId}: ${err}`, "notifications");
+      return null;
+    }
+  }
 
   // --- DEPLOYMENTS ---
   app.use(createDeploymentRouter());
@@ -243,7 +257,7 @@ export async function registerDeploymentsRoutes(app: Express, ctx: any): Promise
 
       const deployment = await storage.createDeployment(insertData);
       import("./workflowExecutor").then(({ fireTrigger }) => fireTrigger(project.id, "on-deploy")).catch(() => {});
-      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + String(project.id).slice(0, 8);
 
       const build = await buildAndDeploy(
         project.id,
@@ -327,7 +341,7 @@ export async function registerDeploymentsRoutes(app: Express, ctx: any): Promise
       const project = await storage.getProject(req.params.id);
       if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const { version } = z.object({ version: z.number().int().min(0) }).parse(req.body);
-      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + String(project.id).slice(0, 8);
       const result = await rollbackDeployment(project.id, slug, version, (line) => {
         broadcastToProject(project.id, { type: "deploy_log", line });
       });
@@ -354,7 +368,7 @@ export async function registerDeploymentsRoutes(app: Express, ctx: any): Promise
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
-      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + String(project.id).slice(0, 8);
       const versions = await listDeploymentVersions(slug);
       return res.json({ versions, slug });
     } catch {
@@ -366,7 +380,7 @@ export async function registerDeploymentsRoutes(app: Express, ctx: any): Promise
     try {
       const project = await storage.getProject(req.params.id);
       if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectWriteAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
-      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + String(project.id).slice(0, 8);
       await teardownDeployment(slug, project.id);
       await storage.updateProject(project.id, { isPublished: false, publishedSlug: undefined });
       return res.json({ success: true });
@@ -496,7 +510,7 @@ export async function registerDeploymentsRoutes(app: Express, ctx: any): Promise
       const project = await storage.getProject(req.params.id);
       if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) return res.status(404).json({ message: "Project not found" });
       const info = getProcessInfo(project.id);
-      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + project.id.slice(0, 8);
+      const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + String(project.id).slice(0, 8);
       const liveUrl = info ? `/deployed/${slug}/` : null;
       return res.json({
         process: info ? {

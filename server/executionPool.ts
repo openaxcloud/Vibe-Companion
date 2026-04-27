@@ -215,7 +215,7 @@ class ExecutionPool {
         if (job.abortController) {
           job.abortController.abort();
         }
-        log(`Job ${_id.slice(0, 8)} cancelled for project ${projectId.slice(0, 8)}`, "pool");
+        log(`Job ${_id.slice(0, 8)} cancelled for project ${String(projectId).slice(0, 8)}`, "pool");
         return true;
       }
     }
