@@ -27,7 +27,10 @@ const PANELS: Array<{ id: string; trigger: string }> = [
 ];
 
 const SHOTS = path.join(process.cwd(), 'tests/e2e/shots');
-const IDE_LOAD_MS = 12_000;
+// 90s budget: Vite cold-loads ~100 chunks on first navigation per
+// browser context. Diagnostic showed mount at t+36s with
+// waitUntil:'commit'. Going to 90s for headroom.
+const IDE_LOAD_MS = 90_000;
 const PANEL_SETTLE_MS = 4_000;
 
 test.describe('panel audit', () => {
@@ -40,22 +43,36 @@ test.describe('panel audit', () => {
       const fatalErrors: string[] = [];
       page.on('pageerror', e => fatalErrors.push(`pageerror: ${e.message}`));
 
+      // 'commit' returns as soon as navigation starts — much faster than
+      // 'domcontentloaded' which never resolves on Vite HMR (the dev
+      // websocket keeps the page "loading"). We then waitForLoadState
+      // separately with a longer budget.
       const candidates = [`/project/${freshProjectId}`, `/ide/${freshProjectId}`];
       let loaded = false;
+      let lastErr: any = null;
       for (const url of candidates) {
-        const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15_000 }).catch(() => null);
+        const resp = await page.goto(url, { waitUntil: 'commit', timeout: 30_000 }).catch(e => { lastErr = e; return null; });
         if (resp && resp.status() < 500) { loaded = true; break; }
       }
-      expect(loaded, 'project URL did not load on any candidate path').toBeTruthy();
+      expect(loaded, `project URL did not load: ${lastErr?.message ?? 'unknown'}`).toBeTruthy();
 
       // Dismiss the cookie consent if it's visible (otherwise it overlaps the activity bar).
       const decline = await page.$('button:has-text("Decline"), button:has-text("Refuser")');
       if (decline) await decline.click().catch(() => {});
 
-      // The IDE shows "Loading workspace…" while it provisions. Wait for that
-      // splash to disappear before counting console errors.
-      await page.waitForLoadState('networkidle', { timeout: IDE_LOAD_MS }).catch(() => {});
-      await page.waitForTimeout(IDE_LOAD_MS);
+      // **Honest readiness check**: the IDE root must mount before we
+      // pretend the panel is testable. UnifiedIDELayout adds
+      // `data-ide-layout="unified"` on the desktop / tablet / mobile
+      // roots once it has data. If we time out here, the spec fails
+      // for real — no more "passed because the cookie banner had text".
+      try {
+        await page.waitForSelector('[data-ide-layout="unified"]', { timeout: IDE_LOAD_MS });
+      } catch {
+        const shot = path.join(SHOTS, `${testInfo.project.name}-${panel.id}-stuck.png`);
+        await page.screenshot({ path: shot, fullPage: false }).catch(() => {});
+        await testInfo.attach(`${panel.id}-stuck.png`, { path: shot, contentType: 'image/png' }).catch(() => {});
+        throw new Error(`IDE never mounted within ${IDE_LOAD_MS}ms — splash never resolved (see ${shot})`);
+      }
 
       // Click the trigger if present.
       const trigger = await page.$(panel.trigger);
@@ -68,12 +85,8 @@ test.describe('panel audit', () => {
       await page.screenshot({ path: shot, fullPage: false }).catch(() => {});
       await testInfo.attach(`${panel.id}.png`, { path: shot, contentType: 'image/png' }).catch(() => {});
 
-      // Hard fail only on JS pageerror (true exception in user code).
+      // Hard fail on JS pageerror (true exception in user code).
       expect(fatalErrors, `JS exceptions during ${panel.id} mount`).toEqual([]);
-
-      // Smoke check: page body has at least some rendered text (not blank).
-      const bodyText = await page.locator('body').innerText();
-      expect(bodyText.trim().length, `body text empty after ${panel.id} mount`).toBeGreaterThan(20);
     });
   }
 });

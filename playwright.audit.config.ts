@@ -15,7 +15,9 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 60_000,
+  // 180s per test: cold-load Vite is ~30-40s for first chunks +
+  // 90s splash mount budget + 4s panel settle + screenshot.
+  timeout: 180_000,
   expect: { timeout: 10_000 },
   retries: 0,
   workers: 1,
