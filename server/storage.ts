@@ -163,6 +163,7 @@ function hexColorDistance(hex1: string, hex2: string): number {
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
+  getUsersByIds(ids: string[]): Promise<User[]>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByDisplayName(displayName: string): Promise<User | undefined>;
   getUserByGithubId(githubId: string): Promise<User | undefined>;
@@ -738,6 +739,11 @@ export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
     return user;
+  }
+
+  async getUsersByIds(ids: string[]): Promise<User[]> {
+    if (ids.length === 0) return [];
+    return db.select().from(users).where(inArray(users.id, ids));
   }
 
   async getUserByDisplayName(displayName: string): Promise<User | undefined> {
