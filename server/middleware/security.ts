@@ -305,68 +305,12 @@ export const securityMiddleware = (): RequestHandler[] => {
   return middlewares;
 };
 
-// Enhanced CSRF protection with double-submit cookie pattern
-export function csrfProtection(req: Request, res: Response, next: NextFunction) {
-  const isApiRequest = req.path.startsWith('/api');
-  
-  // Skip CSRF for public endpoints
-  if (req.path.startsWith('/api/public') || req.path.startsWith('/api/health')) {
-    return next();
-  }
-
-  // Skip CSRF for anonymous telemetry ingestion (fire-and-forget, no state-change)
-  if (req.path === '/api/logs/ingest') {
-    return next();
-  }
-
-  // Generate CSRF token for GET requests
-  if (req.method === 'GET' && !isApiRequest) {
-    const token = crypto.randomBytes(32).toString('hex');
-    res.cookie('csrf-token', token, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production' || !!process.env.REPL_ID,
-      sameSite: (process.env.NODE_ENV === 'production' || !!process.env.REPL_ID) ? 'none' as const : 'lax' as const,
-      maxAge: 3600000
-    });
-  }
-  
-  // Verify CSRF token for state-changing requests
-  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
-    const headerToken = req.headers['x-csrf-token'] as string;
-    const cookieToken = (req as any).cookies?.['csrf-token'];
-    
-    // For API requests, only skip CSRF if request has a valid session
-    // SECURITY: Never skip CSRF based on Bearer token alone - must verify authentication
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      // Check if the request has an authenticated session (set by passport)
-      const user = (req as any).user;
-      if (user && user.id) {
-        // User is authenticated via session, safe to skip CSRF for API requests
-        return next();
-      }
-      // No valid session - continue with CSRF validation
-      // This prevents attackers from bypassing CSRF with fake Bearer tokens
-      logger.warn('Bearer token without valid session, requiring CSRF validation', {
-        ip: req.ip,
-        path: req.path
-      });
-    }
-    
-    if (!headerToken || headerToken !== cookieToken) {
-      logger.warn('CSRF token validation failed', {
-        ip: req.ip,
-        path: req.path,
-        method: req.method,
-        hasCookie: !!cookieToken,
-        hasHeader: !!headerToken
-      });
-      return res.status(403).json({ error: 'Invalid CSRF token' });
-    }
-  }
-  
-  next();
-}
+// CSRF protection now lives in `server/middleware/csrf.ts` — that's the
+// implementation every router actually imports. The duplicate that used to
+// live here was orphaned (zero importers) and drifted from the canonical
+// version, which is exactly the kind of "two CSRF gates with different
+// behaviour" footgun an audit will find. Removed.
+export { csrfProtection } from './csrf';
 
 // Input sanitization
 // A9-FIX: Code-content fields must NOT have angle brackets stripped.
