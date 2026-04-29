@@ -9,8 +9,14 @@ if (!process.env.DATABASE_URL) {
 export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  min: 2,
+  idleTimeoutMillis: 60_000,
+  connectionTimeoutMillis: 30_000,
+  keepAlive: true,
+});
+
+pool.on("error", (err) => {
+  console.warn("[db.pool] idle client error (will be replaced):", err?.message || err);
 });
 
 export const db = drizzle(pool, { schema });

@@ -2,6 +2,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import crypto from "crypto";
 import type { Request, Response, NextFunction } from "express";
+import { pool as sharedPool } from "../db";
 
 const isProduction = process.env.NODE_ENV === "production";
 const isReplit = !!(process.env.REPL_ID || process.env.REPLIT_DOMAINS || process.env.REPL_SLUG);
@@ -19,13 +20,13 @@ let store: session.Store;
 
 if (process.env.DATABASE_URL) {
   store = new PgStore({
-    conString: process.env.DATABASE_URL,
+    pool: sharedPool as any,
     tableName: "user_sessions",
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15,
     errorLog: (err: Error) => console.error("[session][pg-store]", err.message),
   });
-  console.log("[session] store=postgres table=user_sessions");
+  console.log("[session] store=postgres table=user_sessions (shared pool)");
 } else {
   if (isProduction) {
     throw new Error("DATABASE_URL is required in production for persistent session storage");

@@ -5262,14 +5262,37 @@ Based on the search results above, provide a comprehensive answer to the user's 
       if (wsStatus === "none") {
         const wsDir = localWS.getWorkspaceDir(projectId);
         let runnable = localWS.hasRunnableFiles(wsDir);
+        const dbFiles = await storage.getFiles(projectId);
+        const fname = (f: any) => f.filename || f.name || "";
         if (!runnable) {
-          const dbFiles = await storage.getFiles(projectId);
-          const fname = (f: any) => f.filename || f.name || "";
           runnable = dbFiles.some((f: any) => {
             const n = fname(f);
             return n === "package.json" || n === "index.html" || n === "main.py" || n === "app.py" || n === "index.ts" || n === "index.js" || n === "main.ts" || n === "main.js" || n === "server.ts" || n === "server.js";
           });
         }
+
+        // Static-only fallback: if the project has index.html and no
+        // server-runtime files (no package.json/Python/etc.), serve it
+        // through the preview proxy directly without spinning up a dev
+        // server. Mirrors the logic in `server/routes/preview.ts`.
+        const hasIndexHtml = dbFiles.some((f: any) => !f.isDirectory && fname(f).toLowerCase() === "index.html");
+        const hasServerRuntime = dbFiles.some((f: any) => {
+          if (f.isDirectory) return false;
+          const n = fname(f).toLowerCase();
+          return n === "package.json" || n.endsWith(".py") || n === "go.mod" ||
+            n === "cargo.toml" || n === "gemfile" || n === "pom.xml" ||
+            n === "composer.json" || n === "mix.exs" || n.endsWith(".rb") ||
+            n.endsWith(".go") || n.endsWith(".rs") || n.endsWith(".java") ||
+            n.endsWith(".php") || n.endsWith(".ex");
+        });
+        if (hasIndexHtml && !hasServerRuntime) {
+          return res.json({
+            previewUrl: `/api/preview/projects/${projectId}/preview/`,
+            status: "static",
+            message: "Static HTML preview available",
+          });
+        }
+
         return res.json({
           previewUrl: null,
           status: runnable ? "stopped" : "no_runnable_files",

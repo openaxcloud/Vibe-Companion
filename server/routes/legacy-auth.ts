@@ -113,6 +113,7 @@ export async function registerAuthRoutes(app: Express, ctx: any): Promise<void> 
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: error.errors[0].message });
       }
+      console.error("[auth] Register error:", error?.stack || error?.message || error);
       return res.status(500).json({ message: "Registration failed" });
     }
   });

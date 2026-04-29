@@ -100,11 +100,25 @@ export class AutonomousEngineService extends EventEmitter {
     let score = 0;
     const factors: RiskAssessment['factors'] = {};
     const reasons: string[] = [];
-    
+
+    // Normalize action types from the autonomous /build endpoint where the AI
+    // emits `create_file` / `update_file` / `edit_file` rather than `file_write`.
+    const normalizedType = (() => {
+      switch (actionType) {
+        case 'create_file': return 'file_write';
+        case 'update_file':
+        case 'edit_file':
+          return 'file_write';
+        case 'delete_file': return 'file_delete';
+        default: return actionType;
+      }
+    })();
+    actionType = normalizedType;
+
     // File operations risk assessment
     if (actionType.startsWith('file_')) {
       factors.fileModification = true;
-      
+
       if (actionType === 'file_delete') {
         score += RISK_WEIGHTS.file_delete;
         reasons.push('Deleting files is high-risk');
@@ -201,11 +215,18 @@ export class AutonomousEngineService extends EventEmitter {
     
     factors.impact = impact;
     
+    // Default auto-approval policy when no session context is available
+    // (e.g. one-shot autonomous /build endpoint). Uses the 'medium' threshold:
+    // anything < 50 is auto-approved. executeAction() overrides this with the
+    // session's configured threshold.
+    const defaultThreshold = RISK_THRESHOLDS.medium;
+    const autoApprove = score < defaultThreshold;
+
     return {
       score,
       factors,
-      autoApprove: false, // Will be determined by threshold
-      reasoning: reasons.join('; ')
+      autoApprove,
+      reasoning: reasons.join('; ') || `Risk score ${score} (threshold ${defaultThreshold})`,
     };
   }
   

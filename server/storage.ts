@@ -195,6 +195,7 @@ export interface IStorage {
 
   getFiles(projectId: string): Promise<File[]>;
   getFilesByProjectId(projectId: string): Promise<File[]>;
+  getProjectFiles(projectId: string): Promise<File[]>;
   getFile(id: string): Promise<File | undefined>;
   createFile(projectId: string, data: InsertFile): Promise<File>;
   updateFileContent(id: string, content: string): Promise<File | undefined>;
@@ -775,11 +776,20 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async createUser(data: InsertUser & { githubId?: string; googleId?: string; appleId?: string; twitterId?: string; replitId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User> {
+  async createUser(data: InsertUser & { username?: string; githubId?: string; googleId?: string; appleId?: string; twitterId?: string; replitId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User> {
+    // DB has users.username NOT NULL UNIQUE (drift vs Drizzle schema where it is nullable).
+    // Derive a stable, unique username when caller omits it so registration doesn't blow up.
+    const baseUsername =
+      data.username
+      || (data.displayName && data.displayName.replace(/[^a-zA-Z0-9_-]/g, "").toLowerCase())
+      || (data.email && data.email.split("@")[0].replace(/[^a-zA-Z0-9_-]/g, "").toLowerCase())
+      || "user";
+    const username = `${baseUsername || "user"}_${Math.random().toString(36).slice(2, 8)}`;
     const [user] = await db.insert(users).values({
       email: data.email,
       password: data.password || "",
       displayName: data.displayName,
+      username,
       githubId: data.githubId,
       googleId: data.googleId,
       appleId: data.appleId,
@@ -1022,20 +1032,47 @@ export class DatabaseStorage implements IStorage {
     return this.getFiles(projectId);
   }
 
+  async getProjectFiles(projectId: string): Promise<File[]> {
+    return this.getFiles(projectId);
+  }
+
   async getFile(id: string): Promise<File | undefined> {
     const [file] = await db.select().from(files).where(eq(files.id, id)).limit(1);
     return file;
   }
 
-  async createFile(projectId: string, data: InsertFile): Promise<File> {
+  async createFile(projectIdOrData: string | (Partial<InsertFile> & { projectId: string | number; name?: string; path?: string; isDirectory?: boolean }), data?: InsertFile): Promise<File> {
+    // Accept both:
+    //   createFile(projectId, { filename, content, ... })
+    //   createFile({ projectId, name|filename|path, content, ... })  (used by autonomous build)
+    let pid: string;
+    let payload: any;
+    if (typeof projectIdOrData === "string" || typeof projectIdOrData === "number") {
+      pid = String(projectIdOrData);
+      payload = data!;
+    } else {
+      const obj = projectIdOrData as any;
+      pid = String(obj.projectId);
+      const filename = obj.filename || obj.name || (typeof obj.path === "string" ? obj.path.split("/").pop() : undefined);
+      if (!filename) {
+        throw new Error("createFile: filename/name/path required");
+      }
+      payload = {
+        filename,
+        content: obj.content ?? "",
+        isBinary: obj.isBinary ?? false,
+        mimeType: obj.mimeType,
+        artifactId: obj.artifactId,
+      };
+    }
     const existing = await db.select().from(files).where(
-      and(eq(files.projectId, projectId), eq(files.filename, data.filename))
+      and(eq(files.projectId, pid), eq(files.filename, payload.filename))
     ).limit(1);
     if (existing.length > 0) {
-      const [updated] = await db.update(files).set({ content: data.content, updatedAt: new Date() }).where(eq(files.id, existing[0].id)).returning();
+      const [updated] = await db.update(files).set({ content: payload.content, updatedAt: new Date() }).where(eq(files.id, existing[0].id)).returning();
       return updated;
     }
-    const [file] = await db.insert(files).values({ ...data, projectId }).returning();
+    const [file] = await db.insert(files).values({ ...payload, projectId: pid }).returning();
     return file;
   }
 
