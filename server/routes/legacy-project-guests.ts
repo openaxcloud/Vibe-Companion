@@ -67,6 +67,10 @@ export async function registerProjectGuestsRoutes(app: Express, ctx: any): Promi
     const project = await storage.getProject(projectId);
     if (!project) return false;
     if (String(project.userId) === String(userId)) return true;
+    // Check project_collaborators table (owner/editor roles)
+    const collaborators = await storage.getProjectCollaborators(projectId);
+    const uid = String(userId);
+    if (collaborators.some((c: any) => String(c.userId) === uid && (c.role === "editor" || c.role === "admin" || c.role === "owner"))) return true;
     if (project.teamId) {
       const teams = await storage.getUserTeams(userId);
       const teamMatch = teams.find((t: any) => t.id === project.teamId);

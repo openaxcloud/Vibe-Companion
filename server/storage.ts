@@ -417,6 +417,7 @@ export interface IStorage {
   addProjectCollaborator(data: InsertProjectCollaborator): Promise<ProjectCollaborator>;
   removeProjectCollaborator(projectId: string, userId: string): Promise<boolean>;
   isProjectCollaborator(projectId: string, userId: string): Promise<boolean>;
+  getCollaboratedProjects(userId: string): Promise<(ProjectCollaborator & { project: any })[]>;
 
   createProjectInviteLink(data: InsertProjectInviteLink): Promise<ProjectInviteLink>;
   getProjectInviteLink(token: string): Promise<ProjectInviteLink | undefined>;
@@ -2527,6 +2528,15 @@ export class DatabaseStorage implements IStorage {
   async isProjectCollaborator(projectId: string, userId: string): Promise<boolean> {
     const [row] = await db.select({ id: projectCollaborators.id }).from(projectCollaborators).where(and(eq(projectCollaborators.projectId, projectId), eq(projectCollaborators.userId, userId))).limit(1);
     return !!row;
+  }
+
+  async getCollaboratedProjects(userId: string): Promise<(ProjectCollaborator & { project: any })[]> {
+    const rows = await db.select().from(projectCollaborators).where(eq(projectCollaborators.userId, userId));
+    const results = await Promise.all(rows.map(async (collab) => {
+      const project = await this.getProject(collab.projectId).catch(() => null);
+      return { ...collab, project };
+    }));
+    return results.filter(r => r.project !== null);
   }
 
   async createProjectInviteLink(data: InsertProjectInviteLink): Promise<ProjectInviteLink> {

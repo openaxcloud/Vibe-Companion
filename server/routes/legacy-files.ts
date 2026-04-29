@@ -614,8 +614,23 @@ export async function registerFilesRoutes(app: Express, ctx: any): Promise<void>
     const pending = await storage.getPendingInvitesForEmail(user.email.toLowerCase());
     const invite = pending.find(i => i.id === req.params.id);
     if (!invite) return res.status(404).json({ message: "Invite not found" });
-    const updated = await storage.updateProjectInvite(invite.id, invite.projectId, { status: "accepted" });
+
     const project = await storage.getProject(invite.projectId);
+    // Add to project_collaborators if not already owner or collaborator
+    if (project && String(project.userId) !== String(user.id)) {
+      const collaborators = await storage.getProjectCollaborators(invite.projectId);
+      const alreadyCollab = collaborators.some((c: any) => String(c.userId) === String(user.id));
+      if (!alreadyCollab) {
+        await storage.addProjectCollaborator({
+          projectId: invite.projectId,
+          userId: String(user.id),
+          role: (invite.role === "editor" ? "editor" : "viewer") as "editor" | "viewer",
+          addedBy: invite.invitedBy,
+        });
+      }
+    }
+
+    const updated = await storage.updateProjectInvite(invite.id, invite.projectId, { status: "accepted" });
     return res.json({ ...updated, projectId: invite.projectId, projectName: project?.name });
   });
 

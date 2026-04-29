@@ -38,13 +38,16 @@ const verifyEmailSchema = z.object({
 });
 
 // Google OAuth - requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables
-const googleClient = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-  ? new OAuth2Client(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      `${process.env.APP_URL || 'http://localhost:5000'}/api/auth/google/callback`
-    )
-  : null;
+function makeGoogleClient() {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return null;
+  return new OAuth2Client(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    `${process.env.APP_URL || 'http://localhost:5000'}/api/auth/google/callback`
+  );
+}
+// Re-create per request to avoid shared credential state across concurrent users
+const googleClientConfigured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
 // User Registration
 router.post('/register', async (req, res) => {
@@ -194,49 +197,55 @@ router.post('/reset-password', async (req, res) => {
 
 // Google OAuth
 router.get('/google', (req, res) => {
-  if (!googleClient) {
+  if (!googleClientConfigured) {
     return res.status(501).json({ error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' });
   }
-  
-  const authUrl = googleClient.generateAuthUrl({
+  const client = makeGoogleClient()!;
+  // CSRF: generate state and store in session
+  const state = randomBytes(32).toString('hex');
+  (req.session as any).googleOauthState = state;
+  const authUrl = client.generateAuthUrl({
     access_type: 'offline',
-    scope: ['openid', 'profile', 'email']
+    scope: ['openid', 'profile', 'email'],
+    state,
   });
-  
   res.redirect(authUrl);
 });
 
 router.get('/google/callback', async (req, res) => {
   try {
-    if (!googleClient) {
+    if (!googleClientConfigured) {
       throw new Error('Google OAuth not configured');
     }
-    
-    const { code } = req.query;
+    const client = makeGoogleClient()!;
+    const { code, state } = req.query;
     if (!code) {
       throw new Error('No authorization code received');
     }
-    
-    const { tokens } = await googleClient.getToken(code as string);
-    googleClient.setCredentials(tokens);
-    
+    // CSRF: validate state
+    const expectedState = (req.session as any).googleOauthState;
+    if (!state || !expectedState || state !== expectedState) {
+      console.error('Google OAuth state mismatch - potential CSRF attack');
+      return res.redirect('/login?error=csrf_validation_failed');
+    }
+    delete (req.session as any).googleOauthState;
+
+    const { tokens } = await client.getToken(code as string);
+    client.setCredentials(tokens);
+
     let googleId: string;
     let email: string;
     let name: string;
     let picture: string | undefined;
-    
+
     // Try to get user info from id_token if available (preferred)
     if (tokens.id_token) {
-      const ticket = await googleClient.verifyIdToken({
+      const ticket = await client.verifyIdToken({
         idToken: tokens.id_token,
         audience: process.env.GOOGLE_CLIENT_ID!
       });
-      
       const payload = ticket.getPayload();
-      if (!payload) {
-        throw new Error('Failed to verify ID token');
-      }
-      
+      if (!payload) throw new Error('Failed to verify ID token');
       googleId = payload.sub;
       email = payload.email!;
       name = payload.name || email.split('@')[0];
@@ -244,46 +253,41 @@ router.get('/google/callback', async (req, res) => {
     } else {
       // Fallback: fetch user info from Google userinfo API
       const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: {
-          'Authorization': `Bearer ${tokens.access_token}`
-        }
+        headers: { 'Authorization': `Bearer ${tokens.access_token}` }
       });
-      
-      if (!userInfoResponse.ok) {
-        throw new Error('Failed to fetch user info from Google');
-      }
-      
-      const userInfo = await userInfoResponse.json() as {
-        sub: string;
-        email: string;
-        name?: string;
-        picture?: string;
-      };
-      
+      if (!userInfoResponse.ok) throw new Error('Failed to fetch user info from Google');
+      const userInfo = await userInfoResponse.json() as { sub: string; email: string; name?: string; picture?: string };
       googleId = userInfo.sub;
       email = userInfo.email;
       name = userInfo.name || email.split('@')[0];
       picture = userInfo.picture;
     }
-    
-    if (!email) {
-      throw new Error('No email address found in Google account');
-    }
-    
-    // Find or create user
-    let user = await storage.getUserByEmail(email);
+
+    if (!email) throw new Error('No email address found in Google account');
+
+    // Find by googleId first, then by email (handles account linking)
+    let user = await storage.getUserByGoogleId(googleId);
     if (!user) {
-      user = await storage.createUser({
-        username: `google_${googleId}`,
-        email,
-        password: randomBytes(32).toString('hex'),
-        displayName: name,
-        avatarUrl: picture || null,
-        bio: null
-      });
+      user = await storage.getUserByEmail(email);
+      if (user) {
+        // Link the Google ID to the existing account
+        if (!user.googleId) {
+          await storage.updateUser(user.id, { googleId, avatarUrl: user.avatarUrl || picture || null });
+        }
+      } else {
+        user = await storage.createUser({
+          username: `google_${googleId.slice(0, 12)}`,
+          email,
+          password: randomBytes(32).toString('hex'),
+          displayName: name,
+          avatarUrl: picture || null,
+          bio: null,
+          googleId,
+          emailVerified: true,
+        });
+      }
     }
-    
-    // Log the user in
+
     req.login(user, (err) => {
       if (err) {
         console.error('Google OAuth login error:', err);
@@ -389,19 +393,29 @@ router.get('/github/callback', async (req, res) => {
       return res.redirect('/settings?github=connected');
     }
     
-    // Find or create user (login/signup flow)
-    let user = await storage.getUserByEmail(primaryEmail);
+    // Find or create user (login/signup flow) — look up by githubId first
+    let user = await storage.getUserByGithubId(String(githubUser.id));
     if (!user) {
-      user = await storage.createUser({
-        username: githubUser.login,
-        email: primaryEmail,
-        password: randomBytes(32).toString('hex'),
-        displayName: githubUser.name || githubUser.login,
-        avatarUrl: githubUser.avatar_url,
-        bio: githubUser.bio || null
-      });
+      user = await storage.getUserByEmail(primaryEmail);
+      if (user) {
+        // Link GitHub ID to existing account
+        if (!user.githubId) {
+          await storage.updateUser(user.id, { githubId: String(githubUser.id), avatarUrl: user.avatarUrl || githubUser.avatar_url });
+        }
+      } else {
+        user = await storage.createUser({
+          username: githubUser.login,
+          email: primaryEmail,
+          password: randomBytes(32).toString('hex'),
+          displayName: githubUser.name || githubUser.login,
+          avatarUrl: githubUser.avatar_url,
+          bio: githubUser.bio || null,
+          githubId: String(githubUser.id),
+          emailVerified: true,
+        });
+      }
     }
-    
+
     // Store encrypted token for Git operations
     const { githubOAuth } = await import('../services/github-oauth');
     await githubOAuth.storeUserToken(user.id, access_token, {
