@@ -1,12 +1,12 @@
-import {
-  Server as SshServer,
-  utils as sshUtils,
-  type Connection,
-  type ClientInfo,
-  type AuthContext,
-  type PublicKeyAuthContext,
-  type Session,
+import ssh2pkg from "ssh2";
+import type {
+  Connection,
+  ClientInfo,
+  AuthContext,
+  PublicKeyAuthContext,
+  Session,
 } from "ssh2";
+const { Server: SshServer, utils: sshUtils } = ssh2pkg as any;
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
