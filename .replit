@@ -34,6 +34,10 @@ RUNNER_MODE = "local"
 OPENHANDS_SERVER_URL = "https://app.all-hands.dev"
 
 [[ports]]
+localPort = 2222
+externalPort = 8080
+
+[[ports]]
 localPort = 3001
 externalPort = 3001
 
