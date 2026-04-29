@@ -488,43 +488,37 @@ export const insertFrameworkUpdateSchema = createInsertSchema(frameworkUpdates).
 export type InsertFrameworkUpdate = z.infer<typeof insertFrameworkUpdateSchema>;
 export type FrameworkUpdate = typeof frameworkUpdates.$inferSelect;
 
-// Aligned 2026-04-29 against the live `files` table via DB introspection.
-// DB has 16 columns; the schema previously declared only 8 — code that
-// reads `files.path` / `files.name` / `files.isDirectory` / `files.createdAt`
-// was emitting `WHERE undefined = $1` SQL silently.
+// `files` schema — 2026-04-29 consolidation pass.
 //
-// The DB carries both legacy (`name`, `is_folder`, `is_directory`, `path`,
-// `type`, `size`, `parent_id`, `created_at`) and modern (`filename`,
-// `is_binary`, `mime_type`, `artifact_id`) column families because the
-// consolidation migration that was supposed to drop the legacy set never
-// landed. Both are declared so Drizzle emits valid SQL either way.
+// The live DB has 16 columns; this schema declares 14. The two columns
+// NOT declared (`name`, `is_folder`) are duplicates of `filename` /
+// `is_directory` that the codebase already converged on. Migration 0028
+// backfilled the canonical columns from the legacy ones; subsequent code
+// reads/writes only the canonical fields. The legacy columns remain in
+// the DB until a future coordinated migration drops them — declaring
+// them in the schema would re-introduce the silent-divergence footgun.
 //
 // `id` and `projectId` are declared as `varchar(36)` even though the live
 // DB columns are `integer` — this is the same documented lie the system
-// relies on for `users.id` / `projects.id`. The 2026-04-27 audit added 213
-// `String(...)` coercion sites to make the runtime work despite the schema
-// type. Changing this here would ripple across hundreds of call sites; do
-// not adjust without a coordinated DB-side migration.
+// relies on for `users.id` / `projects.id` (213 String() coercion sites
+// in the 2026-04-27 audit). Do not flip without a coordinated sweep.
 export const files = pgTable("files", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
   artifactId: varchar("artifact_id", { length: 36 }),
-  // Modern column family
   filename: text("filename").notNull().default(""),
   content: text("content").default(""),
   isBinary: boolean("is_binary").notNull().default(false),
   mimeType: text("mime_type"),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  // Legacy column family — referenced by autonomy-task-executor,
-  // agent-tool-framework, agent-file-operations, files.router, analytics.router
-  name: text("name"),
-  path: varchar("path", { length: 1024 }).default("/"),
-  isFolder: boolean("is_folder").notNull().default(false),
   isDirectory: boolean("is_directory").default(false),
+  // `path` is independent semantic from filename — it's the full tree
+  // position (e.g. "/src/components/App.tsx"); filename is the basename.
+  path: varchar("path", { length: 1024 }).default("/"),
   parentId: integer("parent_id"),
   type: text("type").default("text"),
   size: integer("size").default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("files_artifact_id_idx").on(table.artifactId),
 ]);

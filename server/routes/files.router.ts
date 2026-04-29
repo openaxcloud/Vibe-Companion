@@ -809,7 +809,7 @@ export class FilesRouter {
               additions: fileVersions.additions,
               deletions: fileVersions.deletions,
               createdAt: fileVersions.createdAt,
-              fileName: files.name,
+              fileName: files.filename,
               filePath: files.path,
             })
             .from(fileVersions)
@@ -1102,7 +1102,7 @@ export class FilesRouter {
           const filesWithVersionCount = await db
             .select({
               id: files.id,
-              name: files.name,
+              name: files.filename,
               path: files.path,
               updatedAt: files.updatedAt,
               versionCount: sql<number>`COALESCE((SELECT COUNT(*) FROM file_versions WHERE file_id = ${files.id})::int, 0)`,

@@ -586,7 +586,7 @@ router.get('/storage', ensureAuthenticated, async (req: Request, res: Response) 
       if (projectIds.length > 0) {
         const fileRows = await db.select({
           projectId: files.projectId,
-          name: files.name,
+          name: files.filename,
           size: files.size,
         }).from(files)
           .where(

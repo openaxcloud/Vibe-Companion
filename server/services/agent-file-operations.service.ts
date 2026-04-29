@@ -744,7 +744,7 @@ export class AgentFileOperationsService extends EventEmitter {
         .where(and(
           eq(files.projectId, projectId),
           eq(files.isDirectory, true),
-          sql`(${files.path} = ${currentPath} OR ${files.path} = ${'/' + currentPath} OR ${files.name} = ${part})`
+          sql`(${files.path} = ${currentPath} OR ${files.path} = ${'/' + currentPath} OR ${files.filename} = ${part})`
         ))
         .limit(1);
       
