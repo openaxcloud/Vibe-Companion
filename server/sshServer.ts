@@ -1,4 +1,12 @@
-import * as ssh2 from "ssh2";
+import {
+  Server as SshServer,
+  utils as sshUtils,
+  type Connection,
+  type ClientInfo,
+  type AuthContext,
+  type PublicKeyAuthContext,
+  type Session,
+} from "ssh2";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
@@ -35,20 +43,20 @@ function computeFingerprint(pubKeyData: Buffer): string {
   return `SHA256:${hash.replace(/=+$/, "")}`;
 }
 
-export function startSSHServer(port: number = 2222): ssh2.Server {
+export function startSSHServer(port: number = 2222): SshServer {
   const hostKey = getOrCreateHostKey();
 
-  const server = new ssh2.Server(
+  const server = new SshServer(
     { hostKeys: [hostKey] },
-    (client: ssh2.Connection, info: ssh2.ClientInfo) => {
+    (client: Connection, info: ClientInfo) => {
       log(`SSH client connected: ${info.ip}`, "ssh");
 
       let authenticatedUserId: string | null = null;
       let requestedProjectId: string | null = null;
 
-      client.on("authentication", async (ctx: ssh2.AuthContext) => {
+      client.on("authentication", async (ctx: AuthContext) => {
         if (ctx.method === "publickey") {
-          const pubKeyCtx = ctx as ssh2.PublicKeyAuthContext;
+          const pubKeyCtx = ctx as PublicKeyAuthContext;
           try {
             const keyData = pubKeyCtx.key.data;
             const fingerprint = computeFingerprint(keyData);
@@ -77,7 +85,7 @@ export function startSSHServer(port: number = 2222): ssh2.Server {
               return ctx.accept();
             }
 
-            const parsedKey = ssh2.utils.parseKey(sshKey.publicKey);
+            const parsedKey = sshUtils.parseKey(sshKey.publicKey);
             if (parsedKey instanceof Error) {
               log(`SSH auth rejected: failed to parse stored key for fingerprint ${fingerprint}`, "ssh");
               return ctx.reject();
@@ -110,7 +118,7 @@ export function startSSHServer(port: number = 2222): ssh2.Server {
       client.on("ready", () => {
         log(`SSH client authenticated: user=${authenticatedUserId} project=${requestedProjectId}`, "ssh");
 
-        client.on("session", (accept: () => ssh2.Session) => {
+        client.on("session", (accept: () => Session) => {
           const session = accept();
 
           let ptyInfo: { cols: number; rows: number } = { cols: 80, rows: 24 };

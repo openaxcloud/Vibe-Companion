@@ -84,11 +84,14 @@ export function ApplicationIDEWrapper({
   // Create file mutation - REAL BACKEND
   const createFileMutation = useMutation({
     mutationFn: async ({ name, isFolder, parentId }: { name: string, isFolder: boolean, parentId?: number | null }) => {
-      const res = await apiRequest('POST', `/api/files/${projectId}`, {
-        name,
-        isFolder,
-        parentId: parentId || null,
-        content: isFolder ? null : '',
+      // The server has no folder records — folders are virtual paths inferred
+      // from filenames containing "/". For folders we resolve locally; for
+      // files we POST against the proper /api/projects/:projectId/files
+      // endpoint with the schema's `filename` field.
+      if (isFolder) return { virtualFolder: name };
+      const res = await apiRequest('POST', `/api/projects/${projectId}/files`, {
+        filename: name,
+        content: '',
       });
       return res.json();
     },

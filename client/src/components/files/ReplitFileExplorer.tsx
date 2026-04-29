@@ -120,7 +120,13 @@ export function ReplitFileExplorer({
   // Mutations pour les opérations sur les fichiers
   const createFileMutation = useMutation({
     mutationFn: async ({ path, type, name }: { path: string; type: "file" | "folder"; name: string }) => {
-      return apiRequest('POST', `/api/files/${projectId}`, { path: `${path}/${name}`, type });
+      // The server has no folder records — folders are virtual paths inferred
+      // from filenames containing "/". For type === "folder" we just succeed
+      // locally; the folder will materialize when the first file is dropped
+      // into it.
+      if (type === "folder") return { virtualFolder: `${path}/${name}` };
+      const filename = `${path}/${name}`.replace(/^\/+/, "");
+      return apiRequest('POST', `/api/projects/${projectId}/files`, { filename, content: "" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
@@ -142,7 +148,7 @@ export function ReplitFileExplorer({
 
   const deleteFileMutation = useMutation({
     mutationFn: async (file: FileNode) => {
-      return apiRequest('DELETE', `/api/files/${projectId}/${file.id}`);
+      return apiRequest('DELETE', `/api/files/${file.id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
@@ -162,7 +168,7 @@ export function ReplitFileExplorer({
 
   const renameFileMutation = useMutation({
     mutationFn: async ({ file, newName }: { file: FileNode; newName: string }) => {
-      return apiRequest('PATCH', `/api/files/${projectId}/${file.id}`, { name: newName });
+      return apiRequest('PATCH', `/api/files/${file.id}`, { filename: newName });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });

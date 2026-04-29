@@ -65,11 +65,11 @@ export function EnhancedMobileCodeEditor(props: EnhancedMobileCodeEditorProps) {
 
   const saveFileMutation = useMutation({
     mutationFn: async (content: string) =>
-      apiRequest('PUT', `/api/files/${props.fileId}`, { content }),
+      apiRequest('PATCH', `/api/files/${props.fileId}`, { content }),
     onSuccess: () => {
       setHasUnsavedChanges(false);
       toast({ title: 'File saved' });
-      queryClient.invalidateQueries({ queryKey: [`/api/files/${props.projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${props.projectId}/files`] });
     },
     onError: () => {
       toast({ title: 'Failed to save file', variant: 'destructive' });
