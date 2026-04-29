@@ -132,24 +132,92 @@ export const DEFAULT_KEYBOARD_SHORTCUTS = [
   { action: "Version Control", keys: ["Ctrl", "Shift", "G"] },
 ];
 
-// LOAD-BEARING DRIFT — the live `users` table has 72 columns; only the
-// surface used by the application is declared here. The DB column for
-// `id` is `integer` with `nextval('users_id_seq')`, NOT varchar(36).
-// Declared as varchar so call sites can keep using `String(userId)` /
-// `eq(users.id, String(userId))` (the convention adopted by the
-// 2026-04-27 audit's 213 coercion sites). Drizzle omits the column from
-// inserts when no id is provided, so the DB sequence wins at runtime.
-// Do NOT change to integer without coordinating the coercion sweep.
+// LOAD-BEARING DRIFT — the live `users` table has 72 columns. Previously
+// only ~20 were declared, which meant every db.update(users).set({...})
+// silently dropped writes to the 52 unmodelled columns (Stripe billing
+// fields, allowance_*, two_factor_backup_codes, profile fields, etc.) —
+// the writes worked through pool.query raw SQL but anything going via
+// Drizzle was a no-op for those fields. All 72 columns now declared,
+// aligned with information_schema.columns as of 2026-04-29.
+//
+// `id` is declared as varchar(36) even though the DB column is `integer`
+// with `nextval('users_id_seq')` — same documented lie as `projects.id`,
+// see the 213 `String(...)` coercion sites added in the 2026-04-27
+// audit. Do NOT flip to integer without a coordinated coercion sweep.
 export const users = pgTable("users", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  email: text("email").notNull().unique(),
+  username: text("username").notNull().unique(),
   password: text("password").notNull().default(""),
+  email: text("email").unique(),
   displayName: text("display_name"),
-  username: text("username").unique(),
-  usernameChangedAt: timestamp("username_changed_at"),
   avatarUrl: text("avatar_url"),
+  bio: text("bio"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
   emailVerified: boolean("email_verified").notNull().default(false),
+  emailVerificationToken: text("email_verification_token"),
+  emailVerificationExpiry: timestamp("email_verification_expiry"),
+  passwordResetToken: text("password_reset_token"),
+  passwordResetExpiry: timestamp("password_reset_expiry"),
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+  accountLockedUntil: timestamp("account_locked_until"),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  twoFactorSecret: text("two_factor_secret"),
+  lastLoginAt: timestamp("last_login_at"),
+  lastLoginIp: text("last_login_ip"),
+  // Profile fields (separate first/last name family alongside displayName)
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  website: varchar("website"),
+  githubUsername: varchar("github_username"),
+  twitterUsername: varchar("twitter_username"),
+  linkedinUsername: varchar("linkedin_username"),
+  reputation: integer("reputation").default(0),
+  isMentor: boolean("is_mentor").default(false),
+  // Stripe billing
+  stripeCustomerId: varchar("stripe_customer_id"),
+  stripeSubscriptionId: varchar("stripe_subscription_id"),
+  stripePriceId: varchar("stripe_price_id"),
+  subscriptionStatus: varchar("subscription_status"),
+  subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end"),
+  role: text("role").default("user"),
+  preferredAiModel: varchar("preferred_ai_model"),
+  // DB column type is the `subscription_tier` enum; declared as text here
+  // (Drizzle pgEnum would require a parallel definition, and the runtime
+  // accepts text values that match the enum's allowed set).
+  subscriptionTier: text("subscription_tier").default("free"),
+  // Numeric/decimal columns — Drizzle returns them as strings to preserve
+  // arbitrary precision. Callers convert with `Number(row.creditsBalance)`.
+  creditsBalance: numeric("credits_balance").default("0.00"),
+  creditsMonthlyAllowance: numeric("credits_monthly_allowance").default("0.00"),
+  lastCreditRefill: timestamp("last_credit_refill"),
+  allowanceVcpus: integer("allowance_vcpus").default(1),
+  allowanceRamGb: integer("allowance_ram_gb").default(2),
+  allowanceStorageGb: integer("allowance_storage_gb").default(1),
+  allowanceBandwidthGb: integer("allowance_bandwidth_gb").default(1),
+  usageComputeHours: numeric("usage_compute_hours").default("0.00"),
+  usageStorageGb: numeric("usage_storage_gb").default("0.00"),
+  usageBandwidthGb: numeric("usage_bandwidth_gb").default("0.00"),
+  usageDeployments: integer("usage_deployments").default(0),
+  usageResetAt: timestamp("usage_reset_at"),
+  lastBilledComputeHours: numeric("last_billed_compute_hours").default("0.00"),
+  lastBilledStorageGb: numeric("last_billed_storage_gb").default("0.00"),
+  lastBilledBandwidthGb: numeric("last_billed_bandwidth_gb").default("0.00"),
+  // Stripe Connect (for marketplace payouts)
+  stripeConnectAccountId: varchar("stripe_connect_account_id"),
+  stripeConnectOnboarded: boolean("stripe_connect_onboarded").default(false),
+  // Encrypted GitHub OAuth tokens at rest
+  githubTokenCiphertext: text("github_token_ciphertext"),
+  githubTokenIv: varchar("github_token_iv", { length: 32 }),
+  githubTokenCreatedAt: timestamp("github_token_created_at"),
+  // 2FA recovery codes — stored as a Postgres text[] (ARRAY in pg_catalog)
+  twoFactorBackupCodes: text("two_factor_backup_codes").array(),
+  twoFactorEmergencyCode: text("two_factor_emergency_code"),
+  twoFactorEmergencyExpiry: timestamp("two_factor_emergency_expiry"),
+  usernameChangedAt: timestamp("username_changed_at"),
   isAdmin: boolean("is_admin").notNull().default(false),
+  // OAuth provider IDs
   githubId: text("github_id"),
   googleId: text("google_id"),
   appleId: text("apple_id"),
@@ -160,7 +228,6 @@ export const users = pgTable("users", {
   banReason: text("ban_reason"),
   credits: integer("credits").notNull().default(0),
   preferences: json("preferences").$type<UserPreferencesStored>(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -2648,29 +2715,43 @@ export const agentMessages = pgTable("agent_messages", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Aligned 2026-04-29 against the live agent_sessions table via DB
+// introspection. The previous Drizzle definition had three load-bearing
+// drifts:
+//   - id was `serial` (integer auto-increment); DB is `varchar` UUID
+//   - user_id / project_id were `varchar`; DB is `integer NOT NULL`
+//     (FK to users.id which is also integer at DB level)
+//   - two phantom columns: `claudeSessionId` and `createdAt` exist in
+//     the schema but NOT in the DB — every Drizzle insert silently
+//     dropped them, every select returned undefined for them. No code
+//     actually reads them via Drizzle (`claudeSessionId` is a JS-only
+//     identifier in claude-agent-service.ts), so removed cleanly.
+// The DB equivalent of `createdAt` is `startedAt` — already declared.
 export const agentSessions = pgTable("agent_sessions", {
-  id: serial("id").primaryKey(),
-  projectId: varchar("project_id"),
-  userId: varchar("user_id"),
-  claudeSessionId: varchar("claude_session_id", { length: 255 }),
-  sessionToken: text("session_token"),
-  model: text("model"),
+  id: varchar("id").primaryKey().default(sql`(gen_random_uuid())::text`),
+  userId: integer("user_id").notNull(),
+  projectId: integer("project_id"),
+  sessionToken: text("session_token").notNull().unique(),
+  model: text("model").notNull(),
+  context: jsonb("context"),
   isActive: boolean("is_active").default(true),
+  totalTokensUsed: integer("total_tokens_used").default(0),
+  totalOperations: integer("total_operations").default(0),
   autonomousMode: boolean("autonomous_mode").default(false),
   riskThreshold: text("risk_threshold").default("medium"),
   autoApproveActions: boolean("auto_approve_actions").default(false),
   workflowStatus: text("workflow_status").default("idle"),
-  context: json("context"),
-  mode: text("mode").default("chat"),
-  status: text("status").default("active"),
-  metadata: json("metadata"),
-  totalTokensUsed: integer("total_tokens_used").default(0),
-  totalOperations: integer("total_operations").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
   startedAt: timestamp("started_at").defaultNow(),
   endedAt: timestamp("ended_at"),
+  metadata: jsonb("metadata"),
+  mode: text("mode").default("chat"),
+  status: text("status").default("active"),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("agent_sessions_user_id_idx").on(table.userId),
+  index("agent_sessions_project_id_idx").on(table.projectId),
+  index("agent_sessions_active_idx").on(table.isActive),
+]);
 
 export const agentAuditTrail = pgTable("agent_audit_trail", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

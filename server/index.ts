@@ -16,7 +16,7 @@ import { WebhookHandlers } from "./webhookHandlers";
 import { startAutoMetricsCollector, startResourceSnapshotCollector, stopAutoMetricsCollector } from "./metricsCollector";
 import { getAllManagedProcesses, performHealthCheck, shutdownAllProcesses } from "./deploymentEngine";
 import { shutdownAllLocalWorkspaces } from "./localWorkspaceManager";
-import { renewExpiringCertificates } from "./domainManager";
+import { sslRenewalService } from "./services/ssl-renewal.service";
 import { startSSHServer } from "./sshServer";
 import { initMonitoring } from "./monitoring";
 import fs from "fs";
@@ -556,8 +556,6 @@ async function ensureAgentSessionsColumns() {
     });
   }, 24 * 60 * 60 * 1000);
 
-  let sslRenewalInterval: NodeJS.Timeout | null = null;
-
   const gracefulShutdown = async (signal: string) => {
     log(`Received ${signal}, shutting down gracefully...`);
 
@@ -572,7 +570,7 @@ async function ensureAgentSessionsColumns() {
 
     // Clear all intervals to prevent memory leaks
     clearInterval(cleanupInterval);
-    if (sslRenewalInterval) clearInterval(sslRenewalInterval);
+    sslRenewalService.stop();
     stopAutoMetricsCollector();
 
     // Shutdown managed processes (deployments + local dev servers)
@@ -659,13 +657,7 @@ async function ensureAgentSessionsColumns() {
         30000,
       );
 
-      sslRenewalInterval = setInterval(async () => {
-        try {
-          await renewExpiringCertificates(30);
-        } catch (err: any) {
-          log(`[ssl-renewal] Certificate renewal check failed: ${err.message}`);
-        }
-      }, 12 * 60 * 60 * 1000);
+      sslRenewalService.start();
 
       try {
         const sshPort = parseInt(process.env.SSH_PORT || "2222", 10);

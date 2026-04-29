@@ -9,7 +9,7 @@
 import 'dotenv/config';
 import pg from 'pg';
 
-const TABLES = ['users', 'projects', 'files', 'agent_plans'];
+const TABLES = ['users', 'projects', 'files', 'agent_plans', 'agent_sessions'];
 
 async function main() {
   const url = process.env.DATABASE_URL;
