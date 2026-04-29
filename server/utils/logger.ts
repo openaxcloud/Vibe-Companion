@@ -72,21 +72,28 @@ function redactValue(value: unknown, depth = 0): unknown {
   return out;
 }
 
-function format(message: unknown, ...rest: unknown[]): string {
-  const parts: string[] = [];
-  const head = typeof message === 'string' ? message : JSON.stringify(redactValue(message));
-  parts.push(redactValue(head) as string);
-  for (const r of rest) {
-    if (typeof r === 'string') {
-      parts.push(redactValue(r) as string);
-    } else {
-      try {
-        parts.push(JSON.stringify(redactValue(r)));
-      } catch {
-        parts.push('[unserializable]');
-      }
-    }
+function formatOne(v: unknown): string {
+  if (v === null || v === undefined) return String(v);
+  if (typeof v === 'string') return redactValue(v) as string;
+  // Error.message / .stack / .name are non-enumerable, so JSON.stringify
+  // silently produces "{}" — historically the #1 cause of log lines like
+  // `[X] something failed: {}` that hide the actual exception. Pull the
+  // useful fields out by hand.
+  if (v instanceof Error) {
+    const code = (v as any).code ? ` [${(v as any).code}]` : '';
+    const stack = v.stack ? `\n${v.stack}` : '';
+    return redactValue(`${v.name}${code}: ${v.message}${stack}`) as string;
   }
+  try {
+    return JSON.stringify(redactValue(v));
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+function format(message: unknown, ...rest: unknown[]): string {
+  const parts: string[] = [formatOne(message)];
+  for (const r of rest) parts.push(formatOne(r));
   return parts.join(' ');
 }
 

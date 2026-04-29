@@ -292,8 +292,8 @@ export class AISecurityService {
         securityValidation,
       });
       
-    } catch (error) {
-      logger.error('[AISecurityService] CRITICAL: Failed to log action to database:', error);
+    } catch (error: any) {
+      logger.error(`[AISecurityService] CRITICAL: Failed to log action to database: ${error?.message || error} ${error?.stack ? `\n${error.stack}` : ''}`);
     }
   }
 
@@ -341,8 +341,8 @@ export class AISecurityService {
         remaining,
         resetAt
       };
-    } catch (error) {
-      logger.error('[AISecurityService] Rate limit check failed:', error);
+    } catch (error: any) {
+      logger.error(`[AISecurityService] Rate limit check failed: ${error?.message || error}`);
       // On error, allow the action (fail open for availability)
       return { allowed: true };
     }

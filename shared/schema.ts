@@ -3347,12 +3347,25 @@ export const insertBountySubmissionSchema = z.object({
 
 export const agentPlans = pgTable("agent_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  projectId: varchar("project_id").notNull(),
+  // Drizzle definition was 6 cols, the live agent_plans table has 14 — every
+  // insert from agent-plan-store silently dropped goal/tasks/metadata/etc.
+  // because Drizzle only emits columns it knows about. Aligned here with the
+  // call sites in services/agent-plan-store.service.ts.
   sessionId: varchar("session_id"),
-  plan: json("plan"),
+  projectId: varchar("project_id").notNull(),
+  planId: varchar("plan_id").notNull(),
+  goal: text("goal"),
+  tasks: json("tasks").$type<any[]>().default([]),
+  estimatedTime: integer("estimated_time"),
   status: text("status").notNull().default("draft"),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  totalCost: text("total_cost").default("0"),
+  metadata: json("metadata").$type<Record<string, any>>().default({}),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
 });
+export type AgentPlan = typeof agentPlans.$inferSelect;
+export type InsertAgentPlan = typeof agentPlans.$inferInsert;
 
 export const communityPostLikes = pgTable("community_post_likes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

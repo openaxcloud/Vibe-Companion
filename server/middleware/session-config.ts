@@ -24,7 +24,16 @@ if (process.env.DATABASE_URL) {
     tableName: "user_sessions",
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15,
-    errorLog: (err: Error) => console.error("[session][pg-store]", err.message),
+    errorLog: (err: unknown) => {
+      // connect-pg-simple types this as (err: Error) but in practice
+      // sometimes hands us a string or undefined — guard explicitly.
+      if (err instanceof Error) {
+        const code = (err as any).code ? ` [${(err as any).code}]` : '';
+        console.error(`[session][pg-store]${code} ${err.message}`);
+      } else if (err) {
+        console.error(`[session][pg-store] ${String(err)}`);
+      }
+    },
   });
   console.log("[session] store=postgres table=user_sessions (shared pool)");
 } else {

@@ -32,6 +32,28 @@ function mount(app: Application, path: string, ...handlers: (RequestHandler | Ro
   }
 }
 
+/**
+ * Like `mount`, but if the router module failed to load, mounts a sentinel
+ * handler that returns a clean 503 instead of letting the request fall
+ * through to the Vite SPA fallback (where clients get HTML and no signal
+ * that the API is down). Use for routes where silent disappearance would
+ * be worse than an explicit "this surface is unavailable".
+ */
+function mountOr503(app: Application, name: string, path: string, ...handlers: (RequestHandler | Router | null | undefined)[]) {
+  const hasRouter = handlers.some(h => h != null);
+  if (hasRouter) {
+    mount(app, path, ...handlers);
+    return;
+  }
+  app.use(path, (_req, res) => {
+    res.status(503).json({
+      error: 'Service unavailable',
+      surface: name,
+      detail: `The ${name} surface failed to initialize at boot. Check server logs.`,
+    });
+  });
+}
+
 export class MainRouter {
   private storage: IStorage;
 
@@ -355,7 +377,7 @@ export class MainRouter {
     mount(app, '/api/admin', tierLimiters.api, def(adminMod));
     mount(app, '/api/admin/monitoring', tierLimiters.api, def(adminMonitoringMod));
     mount(app, '/api/admin/system', tierLimiters.api, def(adminSystemMod));
-    mount(app, '/api/admin/billing', tierLimiters.api, def(adminBillingMod));
+    mountOr503(app, 'admin-billing', '/api/admin/billing', tierLimiters.api, def(adminBillingMod));
     mount(app, '/api/admin/seo', tierLimiters.api, def(seoMod));
 
     app.get('/api/system/status', async (req, res) => {
@@ -462,7 +484,7 @@ export class MainRouter {
     mount(app, '/api', tierLimiters.api, def(publishMod));
     mount(app, '/api', tierLimiters.api, def(sshInfoMod));
     mount(app, '/api', tierLimiters.api, def(automationsMod));
-    mount(app, '/api/payments', tierLimiters.api, def(paymentsMod));
+    mountOr503(app, 'payments', '/api/payments', tierLimiters.api, def(paymentsMod));
 
     mount(app, '/api/openhands', tierLimiters.api, def(openhandsMod));
     mount(app, '/api/goose', tierLimiters.api, def(gooseMod));
