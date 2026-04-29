@@ -174,6 +174,8 @@ export interface IStorage {
   updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string; googleId: string; appleId: string; twitterId: string; replitId: string; isBanned: boolean; bannedAt: Date | null; banReason: string | null }>): Promise<User | undefined>;
   getUserPreferences(userId: string): Promise<UserPreferences>;
   updateUserPreferences(userId: string, prefs: Partial<UserPreferencesStored>): Promise<UserPreferences>;
+  getDynamicIntelligenceSettings(userId: string): Promise<Record<string, any>>;
+  updateDynamicIntelligenceSettings(userId: string, patch: Record<string, any>): Promise<Record<string, any>>;
   getKeyboardShortcuts(userId: string): Promise<Record<string, string | null>>;
   updateKeyboardShortcuts(userId: string, shortcuts: Record<string, string | null>): Promise<Record<string, string | null>>;
   getPaneLayout(userId: string, projectId: string): Promise<Record<string, unknown> | null>;
@@ -804,6 +806,38 @@ export class DatabaseStorage implements IStorage {
   async updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string; googleId: string; appleId: string; twitterId: string; replitId: string; isBanned: boolean; bannedAt: Date | null; banReason: string | null }>): Promise<User | undefined> {
     const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return user;
+  }
+
+  /**
+   * Per-user "dynamic intelligence" settings (extendedThinking, highPowerMode,
+   * preferredModel, etc.) — stored on users.preferences JSON under the
+   * `dynamicIntelligence` key. Used by the agent-preferences router and the
+   * sync router. Returns sensible defaults when the row or sub-key is absent.
+   */
+  async getDynamicIntelligenceSettings(userId: string): Promise<Record<string, any>> {
+    const [user] = await db.select({ preferences: users.preferences }).from(users).where(eq(users.id, String(userId))).limit(1);
+    const stored = (user?.preferences as any)?.dynamicIntelligence ?? {};
+    return {
+      extendedThinking: false,
+      highPowerMode: false,
+      autoWebSearch: true,
+      preferredModel: "claude-sonnet-4-6",
+      customInstructions: null,
+      improvePromptEnabled: false,
+      progressTabEnabled: false,
+      pauseResumeEnabled: false,
+      autoCheckpoints: true,
+      ...stored,
+    };
+  }
+
+  async updateDynamicIntelligenceSettings(userId: string, patch: Record<string, any>): Promise<Record<string, any>> {
+    const [user] = await db.select({ preferences: users.preferences }).from(users).where(eq(users.id, String(userId))).limit(1);
+    const prevPrefs = (user?.preferences as any) || {};
+    const prevDI = prevPrefs.dynamicIntelligence || {};
+    const nextDI = { ...prevDI, ...patch };
+    await db.update(users).set({ preferences: { ...prevPrefs, dynamicIntelligence: nextDI } as any }).where(eq(users.id, String(userId)));
+    return this.getDynamicIntelligenceSettings(userId);
   }
 
   async banUser(id: string, reason: string): Promise<User | undefined> {

@@ -219,82 +219,60 @@ export class StatusPageService {
           return fs.existsSync('./project-workspaces');
         
         case 'Database':
-          // Check database connectivity
+          // Hit the actual pool — `ps aux | grep postgres` only worked when
+          // Postgres ran locally; we're on Neon serverless now, so the old
+          // check threw on every minute.
           try {
-            const dbUrl = process.env.DATABASE_URL;
-            if (!dbUrl) return false;
-            // Check if postgres process is running
-            const psOutput = execSync('ps aux | grep postgres | grep -v grep', { encoding: 'utf8' });
-            return psOutput.length > 0;
-          } catch (err: any) { console.error("[catch]", err?.message || err);
+            if (!process.env.DATABASE_URL) return false;
+            const { pool } = await import('../db');
+            const result = await pool.query('SELECT 1 AS ok');
+            return result.rows[0]?.ok === 1;
+          } catch {
             return false;
           }
-        
+
         case 'Authentication':
-          // Check if auth endpoints respond
+          // Check if auth endpoints respond on the same process. Use the
+          // configured PORT instead of the hard-coded 5000 (production runs
+          // behind the platform proxy and dev runs on a configurable port).
           try {
-            const response = await fetch('http://localhost:5000/api/user', { timeout: 2000 });
-            return response.status === 401 || response.status === 200; // Either authenticated or not
-          } catch (err: any) { console.error("[catch]", err?.message || err);
+            const port = process.env.PORT || '5000';
+            const response = await fetch(`http://localhost:${port}/api/auth/me`);
+            return response.status === 401 || response.status === 200;
+          } catch {
             return false;
           }
-        
+
         case 'Terminal/Shell':
-          // Check if WebSocket server is available
           try {
-            const ws = new WebSocket('ws://localhost:5000/terminal?projectId=test');
+            const port = process.env.PORT || '5000';
+            const ws = new WebSocket(`ws://localhost:${port}/terminal?projectId=test`);
             return new Promise((resolve) => {
               let timeout: NodeJS.Timeout;
-              
-              ws.on('open', () => {
-                if (timeout) clearTimeout(timeout);
-                ws.close();
-                resolve(true);
-              });
-              ws.on('error', () => {
-                if (timeout) clearTimeout(timeout);
-                resolve(false);
-              });
-              
-              // Use a proper timeout that can be cleared
-              timeout = setTimeout(() => {
-                ws.close();
-                resolve(false);
-              }, 2000);
+              ws.on('open', () => { if (timeout) clearTimeout(timeout); ws.close(); resolve(true); });
+              ws.on('error', () => { if (timeout) clearTimeout(timeout); resolve(false); });
+              timeout = setTimeout(() => { ws.close(); resolve(false); }, 2000);
             });
-          } catch (err: any) { console.error("[catch]", err?.message || err);
+          } catch {
             return false;
           }
-        
+
         case 'File Storage':
           // Check file system availability
           const diskSpace = os.freemem() > 1024 * 1024 * 100; // At least 100MB free
           return diskSpace;
-        
+
         case 'Collaboration':
-          // Check WebSocket collaboration endpoint
           try {
-            const ws = new WebSocket('ws://localhost:5000/ws/collaboration');
+            const port = process.env.PORT || '5000';
+            const ws = new WebSocket(`ws://localhost:${port}/ws/collaboration`);
             return new Promise((resolve) => {
               let timeout: NodeJS.Timeout;
-              
-              ws.on('open', () => {
-                if (timeout) clearTimeout(timeout);
-                ws.close();
-                resolve(true);
-              });
-              ws.on('error', () => {
-                if (timeout) clearTimeout(timeout);
-                resolve(false);
-              });
-              
-              // Use a proper timeout that can be cleared
-              timeout = setTimeout(() => {
-                ws.close();
-                resolve(false);
-              }, 2000);
+              ws.on('open', () => { if (timeout) clearTimeout(timeout); ws.close(); resolve(true); });
+              ws.on('error', () => { if (timeout) clearTimeout(timeout); resolve(false); });
+              timeout = setTimeout(() => { ws.close(); resolve(false); }, 2000);
             });
-          } catch (err: any) { console.error("[catch]", err?.message || err);
+          } catch {
             return false;
           }
         

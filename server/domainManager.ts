@@ -511,7 +511,21 @@ export async function getAllDomains(): Promise<CustomDomainRecord[]> {
 }
 
 export async function renewExpiringCertificates(daysBeforeExpiry = 30): Promise<void> {
-  const allDomains = await getAllDomains();
+  // The custom_domains table has drifted from shared/schema.ts (no user_id /
+  // verified / ssl_expires_at columns in dev DB). Tolerate that here so the
+  // 12h cron doesn't spew an error every tick — and so the cron also keeps
+  // running in environments where the table genuinely is the new schema.
+  let allDomains: CustomDomainRecord[];
+  try {
+    allDomains = await getAllDomains();
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (msg.includes('does not exist')) {
+      log(`[ssl] custom_domains table missing expected columns (${msg}); skipping renewal cron`, "domain");
+      return;
+    }
+    throw err;
+  }
   const now = Date.now();
   const thresholdMs = daysBeforeExpiry * 24 * 60 * 60 * 1000;
 

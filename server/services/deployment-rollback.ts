@@ -1771,22 +1771,13 @@ export class DeploymentRollbackService extends EventEmitter {
   }
 
   private async cleanupOldSnapshots(): Promise<void> {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - this.snapshotRetentionDays);
-    
-    try {
-      await db
-        .update(deploymentSnapshots)
-        .set({ status: 'archived' })
-        .where(
-          and(
-            eq(deploymentSnapshots.status, 'active'),
-            lte(deploymentSnapshots.createdAt, cutoffDate)
-          )
-        );
-    } catch (error) {
-      logger.error('Failed to cleanup old snapshots', { error });
-    }
+    // The deployment_snapshots table in shared/schema.ts has no `status`
+    // column, and never has — this method was always referencing a field
+    // that doesn't exist. The check ran every cleanup tick and filled the
+    // log with PG syntax errors (42601). Until the snapshot lifecycle is
+    // actually modelled (status: active / archived / retained), this is a
+    // no-op. Snapshots remain in the table; they are not pruned by date.
+    return;
   }
 
   async performAtomicRollback(

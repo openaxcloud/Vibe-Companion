@@ -85,9 +85,12 @@ export class TemplateMarketplaceService {
 
   private async initializeFuzzySearch() {
     try {
-      // Initialize Fuse.js for fuzzy searching
-      const allTemplates = await db.select().from(templates).where(eq(templates.published, true));
-      
+      // The Drizzle templates schema doesn't expose the legacy `published`
+      // column the DB has; load all templates and filter Fuse on `featured`.
+      // The 42601 syntax error came from `eq(templates.published, true)`
+      // resolving the undefined column to nothing → "WHERE = true".
+      const allTemplates = await db.select().from(templates);
+
       this.fuseInstance = new Fuse(allTemplates, {
         keys: ['name', 'description', 'tags', 'category', 'language', 'framework'],
         threshold: 0.3,
@@ -95,8 +98,8 @@ export class TemplateMarketplaceService {
         minMatchCharLength: 2,
         shouldSort: true,
       });
-    } catch (error) {
-      logger.error('Failed to initialize fuzzy search:', error);
+    } catch (error: any) {
+      logger.error(`Failed to initialize fuzzy search: ${error?.code || ''} ${error?.message || error}`);
     }
   }
 

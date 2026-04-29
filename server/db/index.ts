@@ -80,12 +80,24 @@ export class DatabasePool {
         client.query('SET idle_in_transaction_session_timeout = 60000'); // 60 seconds
       });
 
-      this.pool.on('error', (err, client) => {
-        logger.error('Database pool error:', err);
+      this.pool.on('error', (err) => {
+        // Only log the relevant fields — the default `pg` Client object
+        // contains the SSL session, the parsed type table, and a circular
+        // socket graph, all of which serialize to ~80 KB of noise per
+        // event. Idle Neon connections normally die with code 57P01 when
+        // the serverless backend recycles, so this is expected.
+        const code = (err as any)?.code;
+        const expectedRecycle = code === '57P01' || code === '57P02';
+        const summary = `${err.name || 'PgError'}${code ? ` [${code}]` : ''}: ${err.message}`;
+        if (expectedRecycle) {
+          logger.warn(`Database pool: ${summary} (idle client recycled by server, will reconnect)`);
+        } else {
+          logger.error(`Database pool error — ${summary}`);
+        }
         this.performanceMetrics.totalErrors++;
-        
+
         // Attempt reconnection for critical errors
-        if (err.message.includes('Connection terminated') || 
+        if (err.message.includes('Connection terminated') ||
             err.message.includes('ECONNREFUSED')) {
           this.reconnect();
         }
