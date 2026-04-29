@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json, real, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, bigint, boolean, uniqueIndex, index, json, jsonb, numeric, real, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -132,6 +132,14 @@ export const DEFAULT_KEYBOARD_SHORTCUTS = [
   { action: "Version Control", keys: ["Ctrl", "Shift", "G"] },
 ];
 
+// LOAD-BEARING DRIFT — the live `users` table has 72 columns; only the
+// surface used by the application is declared here. The DB column for
+// `id` is `integer` with `nextval('users_id_seq')`, NOT varchar(36).
+// Declared as varchar so call sites can keep using `String(userId)` /
+// `eq(users.id, String(userId))` (the convention adopted by the
+// 2026-04-27 audit's 213 coercion sites). Drizzle omits the column from
+// inserts when no id is provided, so the DB sequence wins at runtime.
+// Do NOT change to integer without coordinating the coercion sweep.
 export const users = pgTable("users", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
@@ -172,6 +180,13 @@ export type OutputType = typeof OUTPUT_TYPES[number];
 export const ARTIFACT_TYPES = ["web-app", "mobile-app", "slides", "animation", "data-viz", "3d-game", "document", "spreadsheet", "design", "automation"] as const;
 export type ArtifactType = typeof ARTIFACT_TYPES[number];
 
+// LOAD-BEARING DRIFT — the live `projects` table has 46 columns; the
+// DB `id` is `integer` with `nextval('projects_id_seq')`, NOT varchar(36).
+// Same convention as `users.id`: declared as varchar so the runtime
+// `String(projectId)` coercion the system already relies on keeps
+// working. The DB *also* has both `owner_id integer` (legacy, FK to
+// users.id) and `user_id varchar(36) NOT NULL` (modern). The schema
+// only declares `userId` because that's what storage.ts writes to.
 export const projects = pgTable("projects", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id", { length: 36 }).notNull(),
@@ -406,17 +421,44 @@ export const insertFrameworkUpdateSchema = createInsertSchema(frameworkUpdates).
 export type InsertFrameworkUpdate = z.infer<typeof insertFrameworkUpdateSchema>;
 export type FrameworkUpdate = typeof frameworkUpdates.$inferSelect;
 
+// Aligned 2026-04-29 against the live `files` table via DB introspection.
+// DB has 16 columns; the schema previously declared only 8 — code that
+// reads `files.path` / `files.name` / `files.isDirectory` / `files.createdAt`
+// was emitting `WHERE undefined = $1` SQL silently.
+//
+// The DB carries both legacy (`name`, `is_folder`, `is_directory`, `path`,
+// `type`, `size`, `parent_id`, `created_at`) and modern (`filename`,
+// `is_binary`, `mime_type`, `artifact_id`) column families because the
+// consolidation migration that was supposed to drop the legacy set never
+// landed. Both are declared so Drizzle emits valid SQL either way.
+//
+// `id` and `projectId` are declared as `varchar(36)` even though the live
+// DB columns are `integer` — this is the same documented lie the system
+// relies on for `users.id` / `projects.id`. The 2026-04-27 audit added 213
+// `String(...)` coercion sites to make the runtime work despite the schema
+// type. Changing this here would ripple across hundreds of call sites; do
+// not adjust without a coordinated DB-side migration.
 export const files = pgTable("files", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).notNull(),
   artifactId: varchar("artifact_id", { length: 36 }),
-  filename: text("filename").notNull(),
-  content: text("content").notNull().default(""),
+  // Modern column family
+  filename: text("filename").notNull().default(""),
+  content: text("content").default(""),
   isBinary: boolean("is_binary").notNull().default(false),
   mimeType: text("mime_type"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Legacy column family — referenced by autonomy-task-executor,
+  // agent-tool-framework, agent-file-operations, files.router, analytics.router
+  name: text("name"),
+  path: varchar("path", { length: 1024 }).default("/"),
+  isFolder: boolean("is_folder").notNull().default(false),
+  isDirectory: boolean("is_directory").default(false),
+  parentId: integer("parent_id"),
+  type: text("type").default("text"),
+  size: integer("size").default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
-  index("files_project_id_idx").on(table.projectId),
   index("files_artifact_id_idx").on(table.artifactId),
 ]);
 
@@ -3345,25 +3387,45 @@ export const insertBountySubmissionSchema = z.object({
   demoUrl: z.string().optional(),
 });
 
+// Aligned 2026-04-29 against the live agent_plans table via DB introspection.
+// Previous Drizzle definition (6 cols) silently dropped 8 of the 14 actual
+// columns on every insert. Column order, nullability, and types below match
+// information_schema.columns exactly:
+//   id varchar PK default (gen_random_uuid())::text
+//   session_id varchar NOT NULL
+//   project_id integer NOT NULL  ← was varchar in the schema, integer in DB
+//   plan_id text NOT NULL UNIQUE
+//   goal text NOT NULL
+//   tasks jsonb NOT NULL          ← was json, DB is jsonb
+//   estimated_time text           ← was integer, DB is text
+//   status text NOT NULL DEFAULT 'pending'
+//   total_tokens integer DEFAULT 0
+//   total_cost numeric DEFAULT 0  ← was text, DB is numeric
+//   created_at timestamp DEFAULT CURRENT_TIMESTAMP
+//   completed_at timestamp
+//   updated_at timestamp DEFAULT CURRENT_TIMESTAMP   ← was missing
+//   metadata jsonb                ← was json
 export const agentPlans = pgTable("agent_plans", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  // Drizzle definition was 6 cols, the live agent_plans table has 14 — every
-  // insert from agent-plan-store silently dropped goal/tasks/metadata/etc.
-  // because Drizzle only emits columns it knows about. Aligned here with the
-  // call sites in services/agent-plan-store.service.ts.
-  sessionId: varchar("session_id"),
-  projectId: varchar("project_id").notNull(),
-  planId: varchar("plan_id").notNull(),
-  goal: text("goal"),
-  tasks: json("tasks").$type<any[]>().default([]),
-  estimatedTime: integer("estimated_time"),
-  status: text("status").notNull().default("draft"),
-  totalTokens: integer("total_tokens").notNull().default(0),
-  totalCost: text("total_cost").default("0"),
-  metadata: json("metadata").$type<Record<string, any>>().default({}),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  id: varchar("id").primaryKey().default(sql`(gen_random_uuid())::text`),
+  sessionId: varchar("session_id").notNull(),
+  projectId: integer("project_id").notNull(),
+  planId: text("plan_id").notNull().unique(),
+  goal: text("goal").notNull(),
+  tasks: jsonb("tasks").$type<any[]>().notNull(),
+  estimatedTime: text("estimated_time"),
+  status: text("status").notNull().default("pending"),
+  totalTokens: integer("total_tokens").default(0),
+  totalCost: numeric("total_cost").default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
   completedAt: timestamp("completed_at"),
-});
+  updatedAt: timestamp("updated_at").defaultNow(),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+}, (table) => [
+  index("agent_plans_session_id_idx").on(table.sessionId),
+  index("agent_plans_project_id_idx").on(table.projectId),
+  index("agent_plans_plan_id_idx").on(table.planId),
+  index("agent_plans_status_idx").on(table.status),
+]);
 export type AgentPlan = typeof agentPlans.$inferSelect;
 export type InsertAgentPlan = typeof agentPlans.$inferInsert;
 
