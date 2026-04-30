@@ -1,126 +1,161 @@
 # Container Runtime Design — Vibe-Companion
 
-> Status: PROPOSED · Date: 2026-04-27 · Author: Claude
+> Status: DESIGN DRAFT — 2026-04-30  
+> Deferred from `docs/AUDIT-CRITICAL-PATH-2026-04-27.md` (hors-scope item)
+
+---
 
 ## 1. Trade-off Table
 
-| Criterion | Docker (runc) | Firecracker microVM | gVisor (runsc) | Current (bare process) |
+| | **Docker** | **Firecracker** | **gVisor (runsc)** | **Nix jail (current)** |
 |---|---|---|---|---|
-| **Cold-start** | 300–800 ms | 100–150 ms | 150–300 ms | ~10 ms |
-| **Isolation strength** | Kernel shared, namespace + seccomp | Full VM boundary, separate KVM guest | User-space syscall filter (ptrace/KVM), shared kernel visible | None — shared PID namespace |
-| **Host kernel req.** | Any Linux ≥ 3.10 + cgroups v2 | KVM enabled (`/dev/kvm`), Linux ≥ 5.10 | Linux ≥ 4.14, optionally KVM for platform=kvm | Any |
-| **Ops complexity** | Low — standard toolchain, broad docs | High — custom VMM, no standard registry integration | Medium — Drop-in OCI runtime, but debugging harder | Near-zero |
-| **Image/FS model** | OCI layers + overlay2 | Custom rootfs (ext4 snapshot), no OCI natively | OCI via containerd shim | Host FS + project-workspaces/ dir |
-| **Network namespacing** | Full veth + bridge, easy CNI | Full virtio-net, TAP device per VM | Full veth (same as Docker) | Host network, no isolation |
-| **Memory overhead** | ~5 MB per container | ~3 MB per microVM + 64 MB RAM floor for kernel | ~10 MB per sandbox | 0 |
-| **Ecosystem / tooling** | Enormous — Compose, BuildKit, registries | AWS Lambda / Fly.io / Cloudflare Workers pattern; no Compose | Google Cloud Run, containerd native | N/A |
-| **Multi-tenant safety** | Good with seccomp + capabilities drop | Excellent — exploits must escape VM hypervisor | Good — reduced attack surface vs Docker | Unsafe |
-| **Replit parity** | Closest OSS equivalent to Replit's model | Closest to modern FaaS | Middle ground | Current state |
+| **Cold start** | 1–3 s | ~125 ms | 200–400 ms | ~0 ms |
+| **Isolation strength** | Namespace + cgroups (shared kernel) | Full microVM, separate guest kernel | User-space syscall interception | None |
+| **Host kernel req.** | Any Linux w/ cgroups v2 | `/dev/kvm` (bare-metal or nested-virt VM) | Any Linux ≥ 4.14 | Any |
+| **Ops complexity** | Low — Docker daemon, well-known tooling | High — Jailer binary, Firecracker API, image layer management | Medium — runsc drop-in for Docker/containerd | None |
+| **seccomp / caps** | Standard Docker seccomp profile | Guest kernel owns syscalls; host fully isolated | Sentry intercepts all syscalls; strong by default | None |
+| **Multi-tenant safety** | Acceptable with hardened profiles | Excellent (VM-grade boundary) | Good (kernel CVEs don't reach host) | Unsafe |
+| **Port forwarding** | `docker run -p` or overlay network | TAP device + virtio-net; needs separate proxy | Same as Docker (CNI or host-net) | Localhost only |
+| **File I/O overhead** | ~5 % via overlayfs | ~10 % via virtio-fs | ~15–30 % (syscall round-trips) | Zero |
+| **Ecosystem / images** | Massive (Docker Hub, Buildkit) | Custom rootfs or OCI via `docker2firecracker` | OCI-compatible; standard runtime | N/A |
+| **Replit/Fly precedent** | Standard industry default | AWS Lambda, Fly.io, Replit post-2022 | Google gVisor on GKE Sandbox | Replit pre-2022 |
 
-## 2. Recommendation — Docker (runc) for v1
+---
 
-**Pick Docker with a hardened seccomp profile and cgroups v2 resource limits.**
+## 2. Recommendation — Docker (v1)
+
+**Pick Docker with cgroups-v2 + hardened seccomp for v1.**
 
 Rationale:
-- Replit itself ships its environment as OCI containers (nix layers → OCI). Our existing `project-workspaces/<id>/` model maps directly to a bind-mounted volume — zero change to file materialisation logic.
-- Firecracker is the correct long-term answer for hostile multi-tenant workloads (think untrusted user code running crypto miners). But it requires KVM on the host, a custom VMM integration, and a non-OCI image pipeline. For v1, that is 6–8 weeks of infra work with no user-visible feature delta.
-- gVisor's syscall interception breaks Node.js `io_uring`, Python's `ctypes`, and several native addons silently — unacceptable for a general code runner.
-- Docker's cold-start (300–800 ms) is acceptable: user interaction (type → run) dominates; the terminal `spawn()` path already has a ~50 ms shell init delay.
-- Migration path from Docker → Firecracker is straightforward: replace the OCI runtime shim, keep the rest of the API contract.
+- The codebase already has `server/docker-executor.ts` with a working skeleton (images, resource limits, port pool 3000–4000, non-root UID 1000). This is weeks of bootstrapping that exists.
+- `server/runnerClient.ts` already proves the split between orchestrator and runner; Docker is a local runner that doesn't require an external service.
+- Firecracker requires `/dev/kvm` — unavailable on most VPS/cloud VMs without nested virtualisation. Provisioning bare-metal is a separate ops project.
+- gVisor's syscall interception imposes 15–30 % I/O overhead and breaks some Node.js internals (`io_uring`, `AF_NETLINK`); debugging PTY failures inside gVisor is painful.
+- Docker on a hardened Debian/Ubuntu host with cgroups v2, a custom seccomp profile (based on Docker's default minus 15 calls), and `--cap-drop ALL --cap-add NET_BIND_SERVICE` is sufficient isolation for a hosted IDE. CVE surface is the Linux kernel, same as gVisor, but ops burden is far lower.
+
+**Firecracker is the right v2 target** when the team has a bare-metal fleet or AWS EC2 metal instances and needs VM-grade multi-tenancy guarantees.
+
+---
 
 ## 3. Security Model
 
-**Network namespace strategy**
-- Each project container gets its own network namespace with a `veth` pair bridged to a per-tenant Docker network (`vibe-tenant-<userId>`).
-- Egress: an `iptables`/nftables allow-list on the bridge permits `443/tcp` to curated registries (npm, PyPI, pkg.go.dev, apt mirrors) plus `53/udp` to the host DNS resolver. All other egress is DROPped by default.
-- No inter-container routing within the same user tenant unless explicitly enabled (future "team network" feature).
-- Inbound: only the preview proxy (§5) may reach the container's dev-server port; no public inbound.
+### Network namespace
+- Each container runs with `--network none` by default.
+- Projects that declare a `port` in `package.json` / `pyproject.toml` get a dedicated bridge network (`vibe-proj-<projectId>`) joined by both the container and a per-project Caddy reverse-proxy sidecar.
+- **Egress allowlist (bridge mode)**: iptables OUTPUT chain on the bridge drops all traffic except: `ESTABLISHED,RELATED`, DNS on `127.0.0.11:53` (Docker embedded DNS), and an operator-configured CIDR allowlist (`CONTAINER_EGRESS_ALLOWLIST`, default empty — no outbound internet). Free-tier: no egress. Pro/Team: opt-in allowlist per project.
 
-**seccomp profile**
-- Base: Docker's `default.json` profile minus `ptrace`, `process_vm_readv`, `process_vm_writev`, `keyctl`, `add_key`, `request_key`.
-- Add block: `mount`, `unshare`, `clone` with `CLONE_NEWUSER` flag, `pivot_root`, `chroot`, `perf_event_open`.
-- Profile stored at `server/container/seccomp-profile.json`, loaded via `--security-opt seccomp=`.
+### seccomp
+- Use Docker's default seccomp profile as base, additionally block: `add_key`, `bpf`, `clone` (with CLONE_NEWUSER), `keyctl`, `mount`, `pivot_root`, `ptrace`, `reboot`, `setns`, `syslog`, `unshare`, `userfaultfd`.
+- Ship the profile as `infra/seccomp/container-default.json`; loaded via `--security-opt seccomp=...`.
 
-**Linux capabilities to drop**
-`CAP_NET_ADMIN`, `CAP_NET_RAW`, `CAP_SYS_ADMIN`, `CAP_SYS_PTRACE`, `CAP_SYS_MODULE`, `CAP_MKNOD`, `CAP_AUDIT_WRITE`, `CAP_SETUID`, `CAP_SETGID` (run as uid 1000 non-root inside container).
+### Capabilities
+```
+--cap-drop ALL
+--cap-add CHOWN DAC_OVERRIDE FOWNER SETGID SETUID NET_BIND_SERVICE
+```
+No `SYS_ADMIN`, `SYS_PTRACE`, `NET_ADMIN`, `NET_RAW`.
 
-**AppArmor / no-new-privileges**
-`--security-opt no-new-privileges:true` on every `docker run` invocation.
+### User / filesystem
+- Containers run as UID/GID 1000 (non-root). Host bind-mount is `chown`-ed to 1000:1000 before `docker run`.
+- `--read-only` root filesystem + explicit `--tmpfs /tmp:size=64m,exec` + writable overlay for the project workspace only (see §4).
+- `--no-new-privileges` always set.
 
-## 4. File-System Mounting
+---
 
-Current state: `terminal.ts` materialises DB files to `./project-workspaces/<projectId>/` via `syncFilesToDisk()`. `preview-service.ts` independently writes to `/tmp/preview-<projectId>/`.
+## 4. File-system Mounting
 
-Container model:
-1. **tmpfs workspace volume** — at container start, create a named Docker volume (tmpfs-backed for free tier, device-mapper thin-provisioned for pro/team) and mount it at `/workspace` inside the container.
-2. **Materialisation at start** — `server/container/workspace-init.ts` (new) replaces the inline `syncFilesToDisk()` logic: reads project files from Postgres `files` table, writes them into the volume via `docker cp` or a pre-start init container.
-3. **Live sync** — write operations from the editor continue to hit the existing REST `POST /api/projects/:id/files` route; the container-side `/workspace` is the single source of truth for the running process. A lightweight inotify watcher in the container can push changed files back to Postgres on save (replacing the current `terminal.ts` in-process file-watcher).
-4. **terminal.ts workspace dir mapping** — `WORKSPACE_DIR` env var injected into the container points to `/workspace`; the PTY bash shell CDs there on start. No change to the PTY protocol itself.
-5. **Preview artefact separation** — `/tmp/preview-<id>` moves inside the container to `/workspace/.vibe-preview/`; no longer a host path. `preview-service.ts` references this via the container FS API.
+**Current state:** `terminal.ts` calls `materializeProjectFiles()` which writes rows from the `files` Postgres table to `project-workspaces/<projectId>/` on the host disk.
 
-Disk quota enforced at the volume level (see §6).
+**Container strategy — overlay on tmpfs:**
+
+```
+host tmpfs: /run/vibe/workspaces/<projectId>/   (upper layer, rw, 512 MB quota)
+base image:  node:20-alpine or python:3.11-alpine (lower layer, ro)
+overlay:     merged at /workspace inside container
+```
+
+1. On container start, `materializeProjectFiles()` writes files into the host tmpfs dir (unchanged logic, just a different base path: `/run/vibe/workspaces/<projectId>/` instead of `project-workspaces/<projectId>/`).
+2. Docker bind-mount: `--mount type=bind,source=/run/vibe/workspaces/<projectId>,target=/workspace`.
+3. File saves (via `/api/files`) write to the tmpfs dir; a background debounced flush (500 ms) syncs dirty inodes back to Postgres.
+4. On container stop / idle eviction, the tmpfs dir is unmounted and freed; a final DB sync runs first.
+
+**Why tmpfs over ext4 volume?** Terminal I/O is latency-sensitive; tmpfs avoids fsync to disk. DB is the persistent store — disk is ephemeral by design.
+
+---
 
 ## 5. Port Forwarding
 
-Current: `localWorkspaceManager` allocates a host port in `10000–20000`, `preview-service.ts` allocates `20000–29999`. `/api/preview/projects/:id/preview` HTTP-proxies to `localhost:<port>`.
+**Current state:** `localWorkspaceManager.ts` allocates a host port (10 000–20 000) per project process. `preview.ts` proxies `/api/preview/projects/:id/preview` → `http://localhost:<port>`.
 
-Container model:
-- Each container exposes **one fixed internal port** (`8080` by convention; overridden by `PORT` env var).
-- **No host port binding** — containers join the bridge network only.
-- A **single shared reverse-proxy** (Caddy or `http-proxy` middleware, already used in `preview-service.ts`) routes by project ID:
-  - Route: `GET /api/preview/projects/:id/*` → resolved container IP + port `8080` via Docker network DNS (`container-<id>.vibe-tenant-<userId>`).
-  - WebSocket upgrades pass through unchanged.
-- Port pool management (`localWorkspaceManager.allocatePort()`, `preview-service.ts` pool) is eliminated — replaced by container DNS lookup.
-- For the external-runner path (`runnerClient.ts`), the preview proxy URL pattern `/preview/{workspaceId}/{port}` is already abstracted; swap the base URL to the container network endpoint.
+**Container state:** the project's dev server binds to port 3000 inside the container. The host must expose it without conflicting with other containers.
+
+**Strategy — shared Caddy edge proxy:**
+
+```
+Browser → HTTPS :443 (Caddy) → /preview/<projectId>/* → http://127.0.0.1:<hostPort>
+                                                           ↑
+                                              docker run -p 127.0.0.1:<hostPort>:3000
+```
+
+1. `ContainerManager` (new, wraps `docker-executor.ts`) allocates a host port from pool 20 000–30 000 (larger than the existing 10 000–20 000 to avoid collisions during migration).
+2. On container start, it registers a Caddy admin-API route: `POST /config/apps/http/servers/srv0/routes` adding a `handle` that matches `Host: preview-<projectId>.vibe.run` or path prefix `/preview/<projectId>/`.
+3. `preview.ts` route delegates to `ContainerManager.getPreviewUrl(projectId)` instead of `localWorkspaceManager.getPort()`.
+4. WebSocket preview upgrades: Caddy natively proxies `Upgrade: websocket` — no change to `preview-websocket.ts` client-side protocol.
+
+No per-container Caddy sidecar needed for v1 — one shared Caddy instance is simpler and handles TLS termination.
+
+---
 
 ## 6. Resource Limits
 
-Limits enforced via Docker `--cgroups` flags at container creation time.
-
-| Resource | Free | Pro | Team |
+| | **Free** | **Pro** | **Team** |
 |---|---|---|---|
 | CPU shares (`--cpu-shares`) | 256 (¼ core) | 512 (½ core) | 1024 (1 core) |
 | CPU hard cap (`--cpus`) | 0.5 | 1.0 | 2.0 |
-| RAM (`--memory`) | 256 MB | 512 MB | 1 GB |
-| Swap (`--memory-swap`) | = RAM (no swap) | = RAM | 2× RAM |
+| Memory (`--memory`) | 256 MB | 512 MB | 1 GB |
+| Memory + swap | 256 MB (swap=0) | 512 MB | 1 GB |
 | PIDs (`--pids-limit`) | 64 | 128 | 256 |
-| Disk (volume quota) | 512 MB | 2 GB | 10 GB |
-| Network egress (tc) | 1 Mbps | 5 Mbps | 20 Mbps |
+| Disk (tmpfs quota) | 256 MB | 512 MB | 2 GB |
+| Egress internet | None | Opt-in allowlist | Opt-in allowlist |
+| Concurrent containers / user | 1 | 3 | 10 |
 
-OOM kill: Docker default (`--oom-kill-disable=false`). OOM event emitted as `container:oom` to the project WebSocket to show a user-visible banner.
+Limits applied via `ContainerManager.buildRunArgs(plan: 'free'|'pro'|'team')`. Plan resolved from `users.plan` column (already in schema).
+
+---
 
 ## 7. Cleanup
 
 | Trigger | Action |
 |---|---|
-| Idle TTL: **20 min** no terminal/preview activity | `docker stop --time 5 <id>` + volume detach |
-| Project close (WebSocket disconnect) | Immediate `docker stop --time 10` |
-| Preview idle: **10 min** no HTTP hits | Stop only the dev-server process inside container (SIGTERM to PID 1); container stays warm for terminal use |
-| Container stop | Volume preserved for 24 h (so files survive a re-open) |
-| Volume GC | Nightly cron: delete volumes whose last-modified project `updated_at` > 24 h and no running container |
-| Orphan GC | On server boot: `docker ps -a` diff against `project_containers` table; kill stale entries |
-| Hard cap | Max 200 containers per host; above that, reject new starts with 503 and queue |
+| No WS client for **15 min** (free) / **30 min** (pro/team) | `docker stop --time 5 <id>` + final DB sync + tmpfs unmount |
+| User closes project tab | WS disconnect → debounced 30 s stop (allows quick re-open) |
+| `POST /api/runtime/:id/stop` | Immediate stop |
+| Process exits (crash) | Docker `--restart no`; container enters `Exited` state; status pushed via WS to UI |
+| Server restart | On boot, `ContainerManager.reconcile()` lists all `Exited`/`Dead` containers matching label `vibe.projectId=*` and removes them with `docker rm` |
+| Orphan GC (cron, every 5 min) | `docker ps --filter label=vibe.projectId --filter status=exited -q \| xargs docker rm` |
 
-Container lifecycle state stored in a new Postgres table `project_containers(project_id, container_id, status, started_at, last_activity_at)`.
+Idle TTL env vars: `CONTAINER_IDLE_TTL_FREE_MS` (default 900 000), `CONTAINER_IDLE_TTL_PRO_MS` (default 1 800 000).
+
+---
 
 ## 8. Migration Plan
 
 | File | Change required | Est. days |
 |---|---|---|
-| `server/terminal.ts` | Replace `spawn("bash")` + `project-workspaces/` path with `docker exec -it <container_id> bash`; delegate `syncFilesToDisk()` to new `workspace-init.ts`; remove host-path workspace dir logic | 3 d |
-| `server/localWorkspaceManager.ts` | Replace `spawn("sh", ["-c", cmd])` + port-pool with `docker run` + container-DNS preview URL; keep idle-timeout logic, wire to `docker stop` | 3 d |
-| `server/runnerClient.ts` | Swap `RUNNER_BASE_URL` target from remote HTTP to container-network endpoint; remove `execLocal()` fallback (now handled by container exec) | 1 d |
-| `server/preview/preview-service.ts` | Remove host `/tmp/preview-*` dirs and port pool (20000–29999); proxy to container:8080 via Docker network DNS; keep framework-detection and health-check logic intact | 4 d |
-| `server/preview/preview-websocket.ts` | Update proxy target resolution from host-port to container-network address | 0.5 d |
-| New: `server/container/manager.ts` | Docker SDK wrapper — create/start/stop/exec/inspect; lifecycle state in Postgres; GC cron | 4 d |
-| New: `server/container/workspace-init.ts` | File materialisation from Postgres → volume; replaces scattered `syncFilesToDisk()` calls | 2 d |
-| New: `server/container/seccomp-profile.json` | Hardened seccomp JSON (see §3) | 0.5 d |
-| Infra: host Docker setup | `dockerd` + cgroups v2 on Replit deploy host; iptables egress rules; Caddy or nginx for preview proxy | 2 d |
+| `server/docker-executor.ts` | Promote to `server/container/ContainerManager.ts`; add plan-based limits, Caddy registration, label scheme, reconcile() | 3 |
+| `server/localWorkspaceManager.ts` | Deprecate process-based runner; replace `startWorkspace()` with `ContainerManager.start()`; keep as thin shim during transition | 1 |
+| `server/terminal.ts` | Replace `spawnTerminal()` (spawns bash on host) with `docker exec -it <containerId> bash`; PTY piped via dockerode `container.attach()` | 2 |
+| `server/terminal/pty-terminal-service.ts` | Update to call `ContainerManager.getContainerId(projectId)` before attaching | 0.5 |
+| `server/runnerClient.ts` | Keep as-is for remote-runner fallback; no changes needed in v1 | 0 |
+| `server/preview/preview-service.ts` | Replace `localWorkspaceManager.getPort()` lookup with `ContainerManager.getPreviewUrl()` | 0.5 |
+| `server/preview/preview-websocket.ts` | Port proxy target changes; no protocol change | 0.5 |
+| `server/routes/preview.ts` | Delegate to new `ContainerManager` method; remove direct port construction | 0.5 |
+| `server/routes/legacy-workspace-runner.ts` | Remove process-spawn logic; proxy to ContainerManager | 1 |
+| `server/routes/shell.ts` / `shell.router.ts` | Shell attach → `docker exec` | 0.5 |
+| `infra/seccomp/container-default.json` | **New file** — hardened seccomp profile | 0.5 |
+| `infra/caddy/Caddyfile` | **New file** — base Caddy config with admin API enabled | 0.5 |
+| `server/container/ContainerManager.ts` | **New file** — core abstraction (start, stop, exec, reconcile, getPreviewUrl) | 3 |
 
-**Total estimate: ~20 person-days ≈ 4 man-weeks** (single backend engineer, not counting QA and load testing).
+**Total estimate: ~14 days (≈ 3 man-weeks including testing and staged rollout).**
 
-**Suggested sequencing:**
-1. Week 1 — `container/manager.ts` + `workspace-init.ts` + infra setup; smoke-test container boot in isolation.
-2. Week 2 — `terminal.ts` migration; run both paths behind `CONTAINER_RUNTIME=docker` feature flag.
-3. Week 3 — `localWorkspaceManager.ts` + `preview-service.ts`; validate preview proxy.
-4. Week 4 — `runnerClient.ts` cleanup; GC cron; load/security testing; cut-over.
+Staged rollout: gate on `CONTAINER_RUNTIME=docker` env var (default `local` for dev, `docker` in production). `localWorkspaceManager` remains the fallback when Docker socket is unavailable.
