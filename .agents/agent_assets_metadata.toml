@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "YVxP_f1GhoMQNU108lhqw"
+uri = "file://.local/dashboard-export.tar.gz"
+type = "unspecified"
+title = "Dashboard — Code complet (à extraire dans le projet cible)"
