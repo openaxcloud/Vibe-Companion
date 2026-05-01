@@ -89,6 +89,10 @@ externalPort = 6000
 localPort = 27578
 externalPort = 8008
 
+[[ports]]
+localPort = 27606
+externalPort = 9000
+
 [deployment]
 deploymentTarget = "autoscale"
 run = ["sh", "-c", "NODE_ENV=production node dist/index.cjs"]
