@@ -5233,8 +5233,14 @@ Based on the search results above, provide a comprehensive answer to the user's 
 
     /**
      * GET /api/preview/url?projectId=X
-     * Returns the preview status and URL for the PreviewPanel component.
+     * DISABLED: superseded by server/routes/preview.ts which is the single source
+     * of truth for preview URL/status/start/stop. Keeping the body for reference
+     * but never registering the route, so the modular router wins. Without this,
+     * /preview/start would land here and start a `localWS` workspace whose state
+     * is invisible to the modular `previewService`, causing the Preview tab to
+     * report "stopped" forever.
      */
+    if (false) {
     app.get("/api/preview/url", requireAuth, async (req: Request, res: Response) => {
       const projectId = qstr(req.query.projectId);
       if (!projectId) return res.status(400).json({ message: "projectId required" });
@@ -5388,11 +5394,14 @@ Based on the search results above, provide a comprehensive answer to the user's 
       }
       return res.json({ logs: localWS.getLocalWorkspaceLogs(project.id) });
     });
+    } // end if(false) — disabled legacy preview routes superseded by server/routes/preview.ts
 
     /**
      * GET /api/preview/:projectId/
      * GET /api/preview/:projectId/*path
-     * Reverse proxy to the local dev server.
+     * Reverse proxy to the local dev server. These intentionally guard against
+     * `:projectId === 'projects'` so the modular `/api/preview/projects/...`
+     * routes in server/routes/preview.ts are never shadowed.
      */
     app.get("/api/preview/:projectId", requireAuth, async (req: Request, res: Response, next) => {
       if (req.params.projectId === 'projects') return next();

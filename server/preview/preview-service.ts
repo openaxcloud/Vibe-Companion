@@ -457,7 +457,23 @@ export class PreviewService {
 
       for (const file of files) {
         if (file.isDirectory || file.isFolder) continue;
-        const relPath = file.path || file.filename || file.name;
+        // DB schema stores `path` as the parent directory (often "/" for root)
+        // and `filename` as the actual file name. Older callers may pass the
+        // full path in `file.path`. Combine them safely:
+        //   - if `filename` exists, treat `path` as a directory and join
+        //   - otherwise fall back to `path` as the full path
+        const filename = file.filename || file.name || '';
+        const dir = file.path || '';
+        let relPath: string;
+        if (filename) {
+          // Treat `path` as a directory; strip leading slashes so path.join
+          // produces a clean relative path under previewPath.
+          const cleanDir = dir === '/' ? '' : dir.replace(/^\/+/, '');
+          relPath = cleanDir ? path.posix.join(cleanDir, filename) : filename;
+        } else {
+          relPath = dir.replace(/^\/+/, '');
+        }
+        if (!relPath || relPath.endsWith('/')) continue; // skip directory entries
         currentPaths.add(relPath);
         const content = file.content || '';
         const hash = contentHash(content);
