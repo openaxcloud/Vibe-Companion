@@ -604,6 +604,53 @@ export const importTools: AgentTool[] = [
 ];
 
 /**
+ * SSH Key Management Tools
+ * Allows the AI agent to list, add, and revoke SSH keys on behalf of the user.
+ */
+export const sshTools: AgentTool[] = [
+  {
+    name: 'list_ssh_keys',
+    description: 'List all SSH public keys registered to the current user account. Returns id, label, fingerprint, keyType, createdAt, and lastUsed for each key.',
+    parameters: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
+    name: 'add_ssh_key',
+    description: 'Add a new SSH public key to the current user account. Accepts standard OpenSSH public key formats (ssh-ed25519, ssh-rsa, ecdsa-sha2-nistp256, and sk- hardware-key variants). Returns the stored key record including its fingerprint.',
+    parameters: {
+      type: 'object',
+      properties: {
+        label: {
+          type: 'string',
+          description: 'Human-readable label for the key (e.g. "MacBook Pro" or "GitHub Actions")'
+        },
+        public_key: {
+          type: 'string',
+          description: 'Full OpenSSH public key string, e.g. "ssh-ed25519 AAAA... user@host"'
+        }
+      },
+      required: ['label', 'public_key']
+    }
+  },
+  {
+    name: 'revoke_ssh_key',
+    description: 'Delete (revoke) an SSH key by its ID. The key will immediately stop granting SSH access. Use list_ssh_keys first to obtain the key ID.',
+    parameters: {
+      type: 'object',
+      properties: {
+        key_id: {
+          type: 'string',
+          description: 'UUID of the SSH key to revoke, as returned by list_ssh_keys or add_ssh_key'
+        }
+      },
+      required: ['key_id']
+    }
+  }
+];
+
+/**
  * All Tools Combined
  */
 export const allTools: AgentTool[] = [
@@ -613,7 +660,8 @@ export const allTools: AgentTool[] = [
   ...contextTools,
   ...testingTools,
   ...portTools,
-  ...importTools
+  ...importTools,
+  ...sshTools
 ];
 
 /**

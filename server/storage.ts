@@ -681,6 +681,8 @@ export interface IStorage {
   listSshKeysByUser(userId: string): Promise<SshKey[]>;
   deleteSshKey(id: string, userId: string): Promise<boolean>;
   findSshKeyByFingerprint(fingerprint: string): Promise<SshKey | undefined>;
+  /** Scoped lookup: fingerprint + userId. Use in auth paths to avoid cross-user ambiguity. */
+  findSshKeyByFingerprintAndUser(fingerprint: string, userId: string): Promise<SshKey | undefined>;
 
   getArtifactTemplates(outputType?: string): Promise<ArtifactTemplate[]>;
   getArtifactTemplate(id: string): Promise<ArtifactTemplate | undefined>;
@@ -4381,6 +4383,15 @@ export class DatabaseStorage implements IStorage {
 
   async findSshKeyByFingerprint(fingerprint: string): Promise<SshKey | undefined> {
     const [key] = await db.select().from(sshKeys).where(eq(sshKeys.fingerprint, fingerprint)).limit(1);
+    return key;
+  }
+
+  async findSshKeyByFingerprintAndUser(fingerprint: string, userId: string): Promise<SshKey | undefined> {
+    const [key] = await db
+      .select()
+      .from(sshKeys)
+      .where(and(eq(sshKeys.fingerprint, fingerprint), eq(sshKeys.userId, userId)))
+      .limit(1);
     return key;
   }
 

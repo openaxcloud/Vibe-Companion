@@ -257,6 +257,18 @@ export class ToolExecutor {
           result = await this.getWorkflowLogs(parameters);
           break;
 
+        case 'list_ssh_keys':
+          result = await this.listSshKeys();
+          break;
+
+        case 'add_ssh_key':
+          result = await this.addSshKey(parameters);
+          break;
+
+        case 'revoke_ssh_key':
+          result = await this.revokeSshKey(parameters);
+          break;
+
         default:
           result = {
             success: false,
@@ -1255,6 +1267,64 @@ export class ToolExecutor {
       };
     } catch (err: any) {
       return { success: false, error: `Failed to get workflow logs: ${err.message}` };
+    }
+  }
+
+  // ── SSH Key Tools ─────────────────────────────────────────────────────────
+  // These methods delegate to server/ssh/ssh-key-service.ts — the single
+  // canonical module shared with ssh-info.router.ts.  The tool executor
+  // calls the service functions directly (no HTTP round-trip) because it
+  // runs in the same Node.js process.  The /api/ssh-keys/agent/* HTTP routes
+  // exist for external REST callers (other services, scripts, the agent harness).
+  // Both surfaces go through identical validation and storage logic.
+
+  private async listSshKeys(): Promise<ToolExecutionResult> {
+    if (!this.userId) return { success: false, error: 'User context required to list SSH keys' };
+    try {
+      const { listSshKeys } = await import('../ssh/ssh-key-service');
+      const keys = await listSshKeys(this.userId);
+      return { success: true, output: { keys, count: keys.length } };
+    } catch (err: any) {
+      return { success: false, error: `Failed to list SSH keys: ${err.message}` };
+    }
+  }
+
+  private async addSshKey(params: { label?: string; public_key?: string }): Promise<ToolExecutionResult> {
+    if (!this.userId) return { success: false, error: 'User context required to add SSH key' };
+    const { label, public_key: publicKey } = params;
+    if (!label || typeof label !== 'string' || !label.trim()) {
+      return { success: false, error: 'label is required' };
+    }
+    if (!publicKey || typeof publicKey !== 'string') {
+      return { success: false, error: 'public_key is required' };
+    }
+    try {
+      const { addSshKey } = await import('../ssh/ssh-key-service');
+      const result = await addSshKey(this.userId, label, publicKey);
+      if (!result.ok) {
+        return { success: false, error: result.message };
+      }
+      return { success: true, output: result.key };
+    } catch (err: any) {
+      return { success: false, error: `Failed to add SSH key: ${err.message}` };
+    }
+  }
+
+  private async revokeSshKey(params: { key_id?: string }): Promise<ToolExecutionResult> {
+    if (!this.userId) return { success: false, error: 'User context required to revoke SSH key' };
+    const { key_id: keyId } = params;
+    if (!keyId || typeof keyId !== 'string') {
+      return { success: false, error: 'key_id is required' };
+    }
+    try {
+      const { deleteSshKey } = await import('../ssh/ssh-key-service');
+      const deleted = await deleteSshKey(keyId, this.userId);
+      if (!deleted) {
+        return { success: false, error: `SSH key not found or not owned by you: ${keyId}` };
+      }
+      return { success: true, output: { deleted: true, keyId } };
+    } catch (err: any) {
+      return { success: false, error: `Failed to revoke SSH key: ${err.message}` };
     }
   }
 }

@@ -10,6 +10,7 @@ const { Server: SshServer, utils: sshUtils } = ssh2pkg as any;
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
+import { spawn } from "child_process";
 import { storage } from "./storage";
 import { createTerminalSession, materializeProjectFiles, getProjectWorkspaceDir } from "./terminal";
 import { log } from "./index";
@@ -61,24 +62,27 @@ export function startSSHServer(port: number = 2222): SshServer {
             const keyData = pubKeyCtx.key.data;
             const fingerprint = computeFingerprint(keyData);
 
-            const sshKey = await storage.findSshKeyByFingerprint(fingerprint);
-            if (!sshKey) {
-              log(`SSH auth rejected: unknown key fingerprint ${fingerprint}`, "ssh");
+            requestedProjectId = ctx.username;
+
+            // Resolve project first so we know which user to scope the key
+            // lookup to.  Using a user-scoped fingerprint lookup (not global)
+            // ensures deterministic auth when multiple users share a public key.
+            if (!requestedProjectId) {
+              log(`SSH auth rejected: empty username (must be a project ID)`, "ssh");
               return ctx.reject();
             }
 
-            requestedProjectId = ctx.username;
+            const project = await storage.getProject(requestedProjectId);
+            if (!project) {
+              log(`SSH auth rejected: project ${requestedProjectId} not found`, "ssh");
+              return ctx.reject();
+            }
 
-            if (requestedProjectId) {
-              const project = await storage.getProject(requestedProjectId);
-              if (!project) {
-                log(`SSH auth rejected: project ${requestedProjectId} not found`, "ssh");
-                return ctx.reject();
-              }
-              if (project.userId !== sshKey.userId) {
-                log(`SSH auth rejected: user ${sshKey.userId} does not own project ${requestedProjectId}`, "ssh");
-                return ctx.reject();
-              }
+            // Look up the key scoped to the project owner — not globally.
+            const sshKey = await storage.findSshKeyByFingerprintAndUser(fingerprint, project.userId);
+            if (!sshKey) {
+              log(`SSH auth rejected: fingerprint ${fingerprint} not registered for project owner`, "ssh");
+              return ctx.reject();
             }
 
             if (!pubKeyCtx.signature) {
@@ -126,6 +130,36 @@ export function startSSHServer(port: number = 2222): SshServer {
           session.on("pty", (accept, _reject, info) => {
             ptyInfo = { cols: info.cols, rows: info.rows };
             if (accept) accept();
+          });
+
+          // exec channel: run a single non-interactive command and return its output.
+          session.on("exec", (accept, _reject, info) => {
+            if (!authenticatedUserId || !requestedProjectId) return;
+
+            const channel = accept();
+            const wsDir = getProjectWorkspaceDir(requestedProjectId);
+            try { fs.mkdirSync(wsDir, { recursive: true }); } catch {}
+
+            const proc = spawn("bash", ["-c", info.command], {
+              cwd: wsDir,
+              env: { ...process.env, HOME: wsDir, USER: requestedProjectId },
+            });
+
+            proc.stdout.on("data", (d: Buffer) => { try { channel.write(d); } catch {} });
+            proc.stderr.on("data", (d: Buffer) => { try { channel.stderr.write(d); } catch {} });
+            proc.on("close", (code: number | null) => {
+              try { channel.exit(code ?? 0); channel.end(); } catch {}
+              log(`SSH exec closed: user=${authenticatedUserId} code=${code}`, "ssh");
+            });
+            proc.on("error", (err: Error) => {
+              try { channel.stderr.write(`exec error: ${err.message}\n`); channel.exit(1); channel.end(); } catch {}
+            });
+
+            channel.on("close", () => {
+              try { proc.kill(); } catch {}
+            });
+
+            log(`SSH exec started: user=${authenticatedUserId} cmd=${info.command}`, "ssh");
           });
 
           session.on("shell", (accept) => {

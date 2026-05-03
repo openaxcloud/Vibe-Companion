@@ -6,18 +6,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Terminal, X, Plus, Trash2, Key, Copy, Check, ChevronDown, ChevronRight,
-  Loader2, ExternalLink, Monitor,
+  Loader2, ExternalLink, Monitor, AlertTriangle, Wifi,
 } from "lucide-react";
 
 interface SshKey {
   id: string;
   label: string;
   fingerprint: string;
+  keyType: string;
   createdAt: string;
+  lastUsed: string | null;
+}
+
+interface ConnectionInfo {
+  available: boolean;
+  reason?: string;
+  host: string | null;
+  port: number | null;
+  user: string | null;
+  vscodeUrl: string | null;
+  cursorUrl: string | null;
 }
 
 interface SSHPanelProps {
-  projectId: string;
+  projectId?: string;
   onClose: () => void;
 }
 
@@ -31,16 +43,30 @@ export default function SSHPanel({ projectId, onClose }: SSHPanelProps) {
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [copiedConfig, setCopiedConfig] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const hostname = typeof window !== "undefined" ? window.location.hostname : "localhost";
-  const sshPort = 2222;
-  const sshUser = projectId;
-  const sshCommand = `ssh -i ~/.ssh/id_ed25519 -p ${sshPort} ${sshUser}@${hostname}`;
-  const sshConfig = `Host ${hostname}-${projectId.slice(0, 8)}
-  HostName ${hostname}
-  Port ${sshPort}
-  User ${sshUser}
-  IdentityFile ~/.ssh/id_ed25519`;
+  const connInfoQuery = useQuery<ConnectionInfo>({
+    queryKey: ["/api/ssh-keys/connection-info", projectId ?? null],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const res = await fetch(`/api/ssh-keys/connection-info?projectId=${encodeURIComponent(projectId!)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) return { available: false, reason: "Failed to load connection info", host: null, port: null, user: null, vscodeUrl: null, cursorUrl: null };
+      return res.json();
+    },
+  });
+
+  const conn = connInfoQuery.data;
+  const sshAvailable = conn?.available === true;
+
+  const sshCommand = sshAvailable && conn
+    ? `ssh -i ~/.ssh/id_ed25519 -p ${conn.port} ${conn.user}@${conn.host}`
+    : null;
+
+  const sshConfig = sshAvailable && conn
+    ? `Host ${conn.host}-${projectId.slice(0, 8)}\n  HostName ${conn.host}\n  Port ${conn.port}\n  User ${conn.user}\n  IdentityFile ~/.ssh/id_ed25519`
+    : null;
 
   const keysQuery = useQuery<SshKey[]>({
     queryKey: ["/api/ssh-keys"],
@@ -52,10 +78,8 @@ export default function SSHPanel({ projectId, onClose }: SSHPanelProps) {
   });
 
   const addKeyMutation = useMutation({
-    mutationFn: async ({ label, publicKey }: { label: string; publicKey: string }) => {
-      const res = await apiRequest("POST", "/api/ssh-keys", { label, publicKey });
-      return res.json();
-    },
+    mutationFn: ({ label, publicKey }: { label: string; publicKey: string }) =>
+      apiRequest<SshKey>("POST", "/api/ssh-keys", { label, publicKey }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ssh-keys"] });
       setShowAddForm(false);
@@ -74,10 +98,26 @@ export default function SSHPanel({ projectId, onClose }: SSHPanelProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ssh-keys"] });
+      setConfirmDeleteId(null);
       toast({ title: "SSH key deleted" });
     },
     onError: (err: any) => {
       toast({ title: "Failed to delete key", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const testConnectionMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<{ reachable: boolean; message: string }>("POST", "/api/ssh-keys/test-connection"),
+    onSuccess: (data) => {
+      if (data.reachable) {
+        toast({ title: "SSH server reachable", description: data.message });
+      } else {
+        toast({ title: "SSH server not reachable", description: data.message, variant: "destructive" });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: "Connection test failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -171,7 +211,10 @@ export default function SSHPanel({ projectId, onClose }: SSHPanelProps) {
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] text-[var(--ide-text-muted)] font-mono block mb-0.5">Public Key</label>
+                    <label className="text-[9px] text-[var(--ide-text-muted)] font-mono block mb-0.5">
+                      Public Key
+                      <span className="ml-1 opacity-60">(ssh-rsa, ssh-ed25519, ecdsa, sk-*)</span>
+                    </label>
                     <textarea
                       value={publicKey}
                       onChange={(e) => setPublicKey(e.target.value)}
@@ -227,27 +270,63 @@ export default function SSHPanel({ projectId, onClose }: SSHPanelProps) {
                     className="px-3 py-2 hover:bg-[var(--ide-surface)]/30 transition-colors group"
                     data-testid={`ssh-key-${key.id}`}
                   >
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-[#F5A623]/10 flex items-center justify-center shrink-0">
-                        <Key className="w-3.5 h-3.5 text-[#F5A623]" />
+                    {confirmDeleteId === key.id ? (
+                      <div className="rounded-md bg-red-500/10 border border-red-500/20 p-2 space-y-1.5">
+                        <p className="text-[10px] text-red-400 font-medium">Delete "{key.label}"?</p>
+                        <p className="text-[9px] text-[var(--ide-text-muted)]">This action cannot be undone.</p>
+                        <div className="flex gap-1.5">
+                          <Button
+                            className="flex-1 h-6 text-[9px] bg-red-500 hover:bg-red-600 text-white rounded"
+                            onClick={() => deleteKeyMutation.mutate(key.id)}
+                            disabled={deleteKeyMutation.isPending}
+                            data-testid={`button-confirm-delete-ssh-key-${key.id}`}
+                          >
+                            {deleteKeyMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Delete"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="h-6 px-2 text-[9px]"
+                            onClick={() => setConfirmDeleteId(null)}
+                            data-testid={`button-cancel-delete-ssh-key-${key.id}`}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] text-[var(--ide-text)] font-medium truncate">{key.label}</p>
-                        <p className="text-[9px] text-[var(--ide-text-muted)] font-mono truncate" data-testid={`ssh-key-fingerprint-${key.id}`}>
-                          {key.fingerprint}
-                        </p>
-                        <p className="text-[8px] text-[var(--ide-text-muted)] mt-0.5">
-                          Added {new Date(key.createdAt).toLocaleDateString()}
-                        </p>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-[#F5A623]/10 flex items-center justify-center shrink-0">
+                          <Key className="w-3.5 h-3.5 text-[#F5A623]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[11px] text-[var(--ide-text)] font-medium truncate">{key.label}</p>
+                            {key.keyType && (
+                              <span className="shrink-0 text-[8px] font-mono bg-[var(--ide-bg)] border border-[var(--ide-border)] rounded px-1 text-[var(--ide-text-muted)]" data-testid={`ssh-key-type-${key.id}`}>
+                                {key.keyType.replace("ecdsa-sha2-", "").replace("sk-ssh-", "sk-")}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[9px] text-[var(--ide-text-muted)] font-mono truncate" data-testid={`ssh-key-fingerprint-${key.id}`}>
+                            {key.fingerprint}
+                          </p>
+                          <p className="text-[8px] text-[var(--ide-text-muted)] mt-0.5" data-testid={`ssh-key-dates-${key.id}`}>
+                            Added {new Date(key.createdAt).toLocaleDateString()}
+                            {" · "}
+                            {key.lastUsed
+                              ? `Last used ${new Date(key.lastUsed).toLocaleDateString()}`
+                              : "Never used"}
+                          </p>
+                        </div>
+                        <button
+                          className="p-1 text-[var(--ide-text-muted)] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          onClick={() => setConfirmDeleteId(key.id)}
+                          data-testid={`button-delete-ssh-key-${key.id}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </div>
-                      <button
-                        className="p-1 text-[var(--ide-text-muted)] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                        onClick={() => deleteKeyMutation.mutate(key.id)}
-                        data-testid={`button-delete-ssh-key-${key.id}`}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -257,92 +336,158 @@ export default function SSHPanel({ projectId, onClose }: SSHPanelProps) {
 
         {activeTab === "connect" && (
           <div className="px-3 py-3 space-y-4">
-            <div>
-              <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest block mb-2">
-                Quick Launch
-              </span>
-              <div className="space-y-1.5">
-                <Button
-                  className="w-full h-8 text-[11px] bg-[#0079F2] hover:bg-[#0079F2]/80 text-white rounded-md font-medium gap-2 justify-start"
-                  onClick={() => {
-                    window.open(`vscode://vscode-remote/ssh-remote+${sshUser}@${hostname}:${sshPort}/home/runner`, "_blank");
-                  }}
-                  data-testid="button-launch-vscode"
-                >
-                  <Monitor className="w-3.5 h-3.5" />
-                  Launch VS Code
-                  <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
-                </Button>
-                <Button
-                  className="w-full h-8 text-[11px] bg-[#7C65CB] hover:bg-[#7C65CB]/80 text-white rounded-md font-medium gap-2 justify-start"
-                  onClick={() => {
-                    window.open(`cursor://vscode-remote/ssh-remote+${sshUser}@${hostname}:${sshPort}/home/runner`, "_blank");
-                  }}
-                  data-testid="button-launch-cursor"
-                >
-                  <Monitor className="w-3.5 h-3.5" />
-                  Launch Cursor
-                  <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
-                </Button>
-              </div>
-            </div>
-
-            <div>
-              <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest block mb-2">
-                Connect Manually
-              </span>
-              <div className="rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] p-2">
-                <div className="flex items-center gap-1.5">
-                  <code className="flex-1 text-[10px] font-mono text-[var(--ide-text)] break-all" data-testid="text-ssh-command">
-                    {sshCommand}
-                  </code>
-                  <button
-                    className="p-1 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] shrink-0"
-                    onClick={() => copyToClipboard(sshCommand, "cmd")}
-                    data-testid="button-copy-ssh-command"
-                  >
-                    {copiedCmd ? <Check className="w-3 h-3 text-[#0CCE6B]" /> : <Copy className="w-3 h-3" />}
-                  </button>
+            {!projectId ? (
+              <div className="rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] p-3 space-y-2" data-testid="ssh-no-project-notice">
+                <div className="flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-[var(--ide-text-muted)] shrink-0" />
+                  <p className="text-[11px] text-[var(--ide-text)] font-medium">Open from a project to connect</p>
                 </div>
+                <p className="text-[10px] text-[var(--ide-text-muted)]">
+                  Connection details are project-specific. Open the SSH panel from within a project to see the host, port, and username.
+                </p>
+                <p className="text-[10px] text-[var(--ide-text-muted)] opacity-70">
+                  You can still add and manage SSH keys here — they apply to all your projects.
+                </p>
               </div>
-            </div>
-
-            <div>
-              <button
-                className="flex items-center gap-1 text-[10px] font-semibold text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
-                onClick={() => setShowConfig(!showConfig)}
-                data-testid="button-toggle-ssh-config"
-              >
-                {showConfig ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                SSH Config
-              </button>
-              {showConfig && (
-                <div className="mt-2 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] p-2">
-                  <div className="flex items-start justify-between gap-1.5">
-                    <pre className="text-[9px] font-mono text-[var(--ide-text-muted)] whitespace-pre overflow-x-auto flex-1" data-testid="text-ssh-config">
-                      {sshConfig}
-                    </pre>
-                    <button
-                      className="p-1 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] shrink-0"
-                      onClick={() => copyToClipboard(sshConfig, "config")}
-                      data-testid="button-copy-ssh-config"
-                    >
-                      {copiedConfig ? <Check className="w-3 h-3 text-[#0CCE6B]" /> : <Copy className="w-3 h-3" />}
-                    </button>
+            ) : connInfoQuery.isLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-4 h-4 animate-spin text-[var(--ide-text-muted)]" />
+              </div>
+            ) : !sshAvailable ? (
+              <div className="rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] p-3 space-y-2" data-testid="ssh-unavailable-notice">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-[#F5A623] shrink-0" />
+                  <p className="text-[11px] text-[var(--ide-text)] font-medium">SSH not available</p>
+                </div>
+                <p className="text-[10px] text-[var(--ide-text-muted)]">
+                  {conn?.reason ?? "SSH access is not provisioned in this environment."}
+                </p>
+                <p className="text-[10px] text-[var(--ide-text-muted)] opacity-70">
+                  You can still add SSH keys — they will be ready when SSH access becomes available.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest block mb-2">
+                    Connection Details
+                  </span>
+                  <div className="rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] p-2 space-y-1" data-testid="ssh-connection-details">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-[var(--ide-text-muted)] font-mono">Host</span>
+                      <span className="text-[var(--ide-text)] font-mono" data-testid="text-ssh-host">{conn?.host}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-[var(--ide-text-muted)] font-mono">Port</span>
+                      <span className="text-[var(--ide-text)] font-mono" data-testid="text-ssh-port">{conn?.port}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-[var(--ide-text-muted)] font-mono">User</span>
+                      <span className="text-[var(--ide-text)] font-mono" data-testid="text-ssh-user">{conn?.user}</span>
+                    </div>
                   </div>
-                  <p className="text-[9px] text-[var(--ide-text-muted)] mt-2 opacity-60">
-                    Add this to your ~/.ssh/config file
-                  </p>
                 </div>
-              )}
-            </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest block mb-2">
+                    Quick Launch
+                  </span>
+                  <div className="space-y-1.5">
+                    <Button
+                      className="w-full h-8 text-[11px] bg-[#0079F2] hover:bg-[#0079F2]/80 text-white rounded-md font-medium gap-2 justify-start"
+                      onClick={() => { if (conn?.vscodeUrl) window.open(conn.vscodeUrl, "_blank"); }}
+                      data-testid="button-launch-vscode"
+                    >
+                      <Monitor className="w-3.5 h-3.5" />
+                      Launch VS Code
+                      <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
+                    </Button>
+                    <Button
+                      className="w-full h-8 text-[11px] bg-[#7C65CB] hover:bg-[#7C65CB]/80 text-white rounded-md font-medium gap-2 justify-start"
+                      onClick={() => { if (conn?.cursorUrl) window.open(conn.cursorUrl, "_blank"); }}
+                      data-testid="button-launch-cursor"
+                    >
+                      <Monitor className="w-3.5 h-3.5" />
+                      Launch Cursor
+                      <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full h-8 text-[11px] border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] rounded-md font-medium gap-2 justify-start"
+                      onClick={() => testConnectionMutation.mutate()}
+                      disabled={testConnectionMutation.isPending}
+                      data-testid="button-test-ssh-connection"
+                    >
+                      {testConnectionMutation.isPending
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Wifi className="w-3.5 h-3.5" />}
+                      Test Connection
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-[var(--ide-text-muted)] uppercase tracking-widest block mb-2">
+                    Connect Manually
+                  </span>
+                  {sshCommand && (
+                    <div className="rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] p-2">
+                      <div className="flex items-center gap-1.5">
+                        <code className="flex-1 text-[10px] font-mono text-[var(--ide-text)] break-all" data-testid="text-ssh-command">
+                          {sshCommand}
+                        </code>
+                        <button
+                          className="p-1 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] shrink-0"
+                          onClick={() => copyToClipboard(sshCommand, "cmd")}
+                          data-testid="button-copy-ssh-command"
+                        >
+                          {copiedCmd ? <Check className="w-3 h-3 text-[#0CCE6B]" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <button
+                    className="flex items-center gap-1 text-[10px] font-semibold text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] transition-colors"
+                    onClick={() => setShowConfig(!showConfig)}
+                    data-testid="button-toggle-ssh-config"
+                  >
+                    {showConfig ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                    SSH Config
+                  </button>
+                  {showConfig && sshConfig && (
+                    <div className="mt-2 rounded-md bg-[var(--ide-bg)] border border-[var(--ide-border)] p-2">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <pre className="text-[9px] font-mono text-[var(--ide-text-muted)] whitespace-pre overflow-x-auto flex-1" data-testid="text-ssh-config">
+                          {sshConfig}
+                        </pre>
+                        <button
+                          className="p-1 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] shrink-0"
+                          onClick={() => copyToClipboard(sshConfig, "config")}
+                          data-testid="button-copy-ssh-config"
+                        >
+                          {copiedConfig ? <Check className="w-3 h-3 text-[#0CCE6B]" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-[var(--ide-text-muted)] mt-2 opacity-60">
+                        Add this to your ~/.ssh/config file
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             <div className="rounded-md bg-[#F5A623]/5 border border-[#F5A623]/20 p-2.5">
               <p className="text-[10px] text-[#F5A623] font-medium mb-1">Setup Instructions</p>
               <ol className="text-[9px] text-[var(--ide-text-muted)] space-y-1 list-decimal list-inside">
                 <li>Generate a key pair: <code className="text-[8px] bg-[var(--ide-bg)] px-1 py-0.5 rounded">ssh-keygen -t ed25519</code></li>
                 <li>Add your public key in the Keys tab above</li>
-                <li>Connect using the command above or launch your editor</li>
+                {sshAvailable
+                  ? <li>Connect using the command above or launch your editor</li>
+                  : <li>Connect once SSH access is enabled for this environment</li>}
               </ol>
             </div>
           </div>
