@@ -1375,6 +1375,153 @@ export class AgentToolFrameworkService extends EventEmitter {
         };
       }
     });
+
+    // App Storage Tools — canonical object storage + KV store
+    this.registerTool({
+      name: 'storage_list',
+      displayName: 'List Storage Files',
+      description: 'List files in the project\'s canonical object storage. Optional prefix filters results to a subfolder.',
+      capability: 'file_system',
+      inputSchema: z.object({
+        prefix: z.string().optional().describe('Relative path prefix to filter results (e.g. "data/" lists only files under data/)')
+      }),
+      execute: async (input, context) => {
+        const { storageService } = await import('./storage.service');
+        const projectId = String(context.projectId);
+        const storagePrefix = `projects/${projectId}/storage`;
+        const listPrefix = input.prefix
+          ? `${storagePrefix}/${path.posix.normalize(input.prefix).replace(/^\/+/, '')}`
+          : storagePrefix;
+        const files = await storageService.listFiles(listPrefix);
+        return {
+          files: files.map(f => ({
+            key: f.key.replace(`${storagePrefix}/`, ''),
+            size: f.size,
+            contentType: f.contentType,
+            lastModified: f.lastModified,
+          })),
+          count: files.length,
+        };
+      }
+    });
+
+    this.registerTool({
+      name: 'storage_read',
+      displayName: 'Read Storage File',
+      description: 'Download and return a file\'s text content from the project\'s canonical object storage. Max 2 MB.',
+      capability: 'file_system',
+      inputSchema: z.object({
+        path: z.string().describe('Relative file path within the project storage root (e.g. "data/results.json")')
+      }),
+      execute: async (input, context) => {
+        const { storageService } = await import('./storage.service');
+        const projectId = String(context.projectId);
+        const prefix = `projects/${projectId}/storage`;
+        const normalized = path.posix.normalize(input.path).replace(/^\/+/, '');
+        if (normalized.includes('..')) throw new Error('Invalid path: directory traversal is not allowed');
+        const fullPath = `${prefix}/${normalized}`;
+        const buffer = await storageService.downloadFile(fullPath);
+        if (buffer.length > 2 * 1024 * 1024) throw new Error('File too large to read as text (max 2 MB)');
+        return { path: input.path, size: buffer.length, content: buffer.toString('utf-8') };
+      }
+    });
+
+    this.registerTool({
+      name: 'storage_write',
+      displayName: 'Write Storage File',
+      description: 'Write UTF-8 text content to a file in the project\'s canonical object storage.',
+      capability: 'file_system',
+      inputSchema: z.object({
+        path: z.string().describe('Relative file path within the project storage root'),
+        content: z.string().describe('UTF-8 text content to write'),
+        contentType: z.string().optional().default('text/plain').describe('MIME type (default: text/plain)')
+      }),
+      execute: async (input, context) => {
+        const { storageService } = await import('./storage.service');
+        const projectId = String(context.projectId);
+        const prefix = `projects/${projectId}/storage`;
+        const normalized = path.posix.normalize(input.path).replace(/^\/+/, '');
+        if (normalized.includes('..')) throw new Error('Invalid path: directory traversal is not allowed');
+        const fullPath = `${prefix}/${normalized}`;
+        const buffer = Buffer.from(input.content, 'utf-8');
+        const result = await storageService.uploadFile(fullPath, buffer, { contentType: input.contentType });
+        return { path: input.path, size: result.size, contentType: result.contentType, lastModified: result.lastModified };
+      }
+    });
+
+    this.registerTool({
+      name: 'storage_delete',
+      displayName: 'Delete Storage File',
+      description: 'Delete a file from the project\'s canonical object storage.',
+      capability: 'file_system',
+      inputSchema: z.object({
+        path: z.string().describe('Relative file path within the project storage root')
+      }),
+      execute: async (input, context) => {
+        const { storageService } = await import('./storage.service');
+        const projectId = String(context.projectId);
+        const prefix = `projects/${projectId}/storage`;
+        const normalized = path.posix.normalize(input.path).replace(/^\/+/, '');
+        if (normalized.includes('..')) throw new Error('Invalid path: directory traversal is not allowed');
+        await storageService.deleteFile(`${prefix}/${normalized}`);
+        return { deleted: true, path: input.path };
+      }
+    });
+
+    this.registerTool({
+      name: 'storage_signed_url',
+      displayName: 'Get Storage Signed URL',
+      description: 'Generate a time-limited signed download URL for a file in the project\'s canonical object storage.',
+      capability: 'file_system',
+      inputSchema: z.object({
+        path: z.string().describe('Relative file path within the project storage root'),
+        ttl: z.number().optional().default(3600).describe('URL TTL in seconds (60–86400, default 3600)')
+      }),
+      execute: async (input, context) => {
+        const { storageService } = await import('./storage.service');
+        const projectId = String(context.projectId);
+        const prefix = `projects/${projectId}/storage`;
+        const normalized = path.posix.normalize(input.path).replace(/^\/+/, '');
+        if (normalized.includes('..')) throw new Error('Invalid path: directory traversal is not allowed');
+        const ttl = Math.min(Math.max(input.ttl ?? 3600, 60), 86400);
+        const url = await storageService.getSignedUrl(`${prefix}/${normalized}`, ttl, 'read');
+        return { path: input.path, url, expiresIn: ttl };
+      }
+    });
+
+    this.registerTool({
+      name: 'kv_get',
+      displayName: 'Get KV Entry',
+      description: 'Read a value from the project\'s key-value store.',
+      capability: 'database',
+      inputSchema: z.object({
+        key: z.string().describe('The KV key to read')
+      }),
+      execute: async (input, context) => {
+        const { storage: dbStorage } = await import('../storage');
+        const projectId = String(context.projectId);
+        const entry = await dbStorage.getStorageKvEntry(projectId, input.key);
+        if (!entry) throw new Error(`Key not found: ${input.key}`);
+        return { key: entry.key, value: entry.value, updatedAt: entry.updatedAt };
+      }
+    });
+
+    this.registerTool({
+      name: 'kv_set',
+      displayName: 'Set KV Entry',
+      description: 'Write a string value to the project\'s key-value store.',
+      capability: 'database',
+      inputSchema: z.object({
+        key: z.string().describe('The KV key to write'),
+        value: z.string().describe('The string value to store')
+      }),
+      execute: async (input, context) => {
+        const { storage: dbStorage } = await import('../storage');
+        const projectId = String(context.projectId);
+        const entry = await dbStorage.setStorageKvEntry(projectId, input.key, input.value);
+        return { key: entry.key, value: entry.value, updatedAt: entry.updatedAt };
+      }
+    });
   }
 
   // Register a custom tool

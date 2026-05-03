@@ -373,6 +373,38 @@ router.get('/{*path}/url', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/snippets', async (req: Request, res: Response) => {
+  try {
+    const projectId = req.params.projectId;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const isOwner = await verifyProjectOwnership(userId, projectId);
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const filePath = req.query.path ? String(req.query.path) : 'my-file.txt';
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const base = `${baseUrl}/api/projects/${projectId}/storage`;
+
+    const snippets = {
+      nodejs: `// Node.js — Canonical Object Storage\nconst BASE = "${base}";\n\n// List files\nconst { files } = await fetch(\`\${BASE}\`, { credentials: "include" }).then(r => r.json());\n\n// Upload a file\nconst form = new FormData();\nform.append("file", fileBlob, "${filePath}");\nawait fetch(\`\${BASE}/upload\`, { method: "POST", credentials: "include", body: form });\n\n// Download a file\nconst buf = await fetch(\`\${BASE}/${encodeURIComponent(filePath)}/download\`, { credentials: "include" }).then(r => r.arrayBuffer());\n\n// Get a signed URL (time-limited)\nconst { url } = await fetch(\`\${BASE}/${encodeURIComponent(filePath)}/url\`, { credentials: "include" }).then(r => r.json());\n\n// Delete a file\nawait fetch(\`\${BASE}/${encodeURIComponent(filePath)}\`, { method: "DELETE", credentials: "include" });`,
+      python: `# Python — Canonical Object Storage\nimport requests\n\nBASE = "${base}"\nS = requests.Session()  # carry session cookie\n\n# List files\nfiles = S.get(BASE).json()["files"]\n\n# Upload a file\nwith open("${filePath}", "rb") as f:\n    S.post(f"{BASE}/upload", files={"file": f})\n\n# Download a file\ndata = S.get(f"{BASE}/${filePath}/download").content\n\n# Get a signed URL\nurl = S.get(f"{BASE}/${filePath}/url").json()["url"]\n\n# Delete a file\nS.delete(f"{BASE}/${filePath}")`,
+      curl: `# cURL — Canonical Object Storage\nBASE="${base}"\nCOOKIE="connect.sid=<SESSION>"\n\n# List files\ncurl -b "$COOKIE" "$BASE"\n\n# Upload a file\ncurl -b "$COOKIE" -F "file=@${filePath}" "$BASE/upload"\n\n# Download a file\ncurl -b "$COOKIE" -o out.bin "$BASE/${filePath}/download"\n\n# Get a signed URL\ncurl -b "$COOKIE" "$BASE/${filePath}/url"\n\n# Delete a file\ncurl -b "$COOKIE" -X DELETE "$BASE/${filePath}"`,
+      agent: `// AI Agent Storage Tools\n// The agent has built-in tools scoped to this project's storage.\n// Available endpoints (all require auth):\n\n// List files\n// GET /api/agent/tools/storage/${projectId}/list?prefix=optional/subfolder\n\n// Read a text file\n// GET /api/agent/tools/storage/${projectId}/read?path=${encodeURIComponent(filePath)}\n\n// Write a text file\n// POST /api/agent/tools/storage/${projectId}/write\n// Body: { "path": "${filePath}", "content": "...", "contentType": "text/plain" }\n\n// Delete a file\n// DELETE /api/agent/tools/storage/${projectId}/delete?path=${encodeURIComponent(filePath)}\n\n// Get a signed URL\n// GET /api/agent/tools/storage/${projectId}/signed-url?path=${encodeURIComponent(filePath)}&ttl=3600\n\n// KV store\n// GET  /api/agent/tools/storage/${projectId}/kv/:key\n// PUT  /api/agent/tools/storage/${projectId}/kv/:key   body: { "value": "..." }`,
+    };
+
+    res.json({ snippets, projectId, path: filePath });
+  } catch (error: any) {
+    logger.error('Failed to generate storage snippets:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.delete('/{*path}', async (req: Request, res: Response) => {
   try {
     const projectId = req.params.projectId;

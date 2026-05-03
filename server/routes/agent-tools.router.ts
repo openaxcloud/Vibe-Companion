@@ -1097,5 +1097,241 @@ export default function createAgentToolsRouter(): Router {
     }
   });
 
+  // ============================================
+  // APP STORAGE TOOL ENDPOINTS
+  // ============================================
+
+  // Helpers — mirrors storage.router.ts path helpers to keep canonically consistent
+  function agentStoragePrefix(projectId: string): string {
+    return `projects/${projectId}/storage`;
+  }
+
+  function agentValidateStoragePath(projectId: string, userPath: string): string {
+    const path = require('path') as typeof import('path');
+    const prefix = agentStoragePrefix(projectId);
+    const normalized = path.posix.normalize(userPath).replace(/^\/+/, '');
+    if (normalized.includes('..') || normalized.startsWith('/')) {
+      throw new Error('Invalid path: directory traversal is not allowed');
+    }
+    const fullPath = `${prefix}/${normalized}`;
+    if (!fullPath.startsWith(`${prefix}/`)) {
+      throw new Error('Invalid path: escapes project storage boundary');
+    }
+    return fullPath;
+  }
+
+  /**
+   * GET /api/agent/tools/storage/:projectId/list
+   * List files in the project's canonical object storage for the AI agent.
+   * Optionally filter by ?prefix= (relative path prefix within the project's storage).
+   */
+  router.get('/tools/storage/:projectId/list', async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      if (!await checkAgentProjectAccess(req, res, projectId)) return;
+
+      const { storageService } = await import('../services/storage.service');
+      const userPrefix = req.query.prefix ? String(req.query.prefix) : '';
+      const storagePrefix = userPrefix
+        ? agentValidateStoragePath(projectId, userPrefix)
+        : agentStoragePrefix(projectId);
+
+      const files = await storageService.listFiles(storagePrefix);
+      const projectPrefix = agentStoragePrefix(projectId) + '/';
+
+      res.json({
+        files: files.map(f => ({
+          key: f.key.replace(projectPrefix, ''),
+          size: f.size,
+          contentType: f.contentType,
+          lastModified: f.lastModified,
+        })),
+        count: files.length,
+      });
+    } catch (error: any) {
+      logger.error('storage_list error:', error);
+      if (error.message?.includes('traversal') || error.message?.includes('boundary')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Failed to list storage files' });
+    }
+  });
+
+  /**
+   * GET /api/agent/tools/storage/:projectId/read
+   * Read file content as UTF-8 text. Requires ?path= (relative to project storage root).
+   * Only suitable for text-based files; binary files are rejected.
+   */
+  router.get('/tools/storage/:projectId/read', async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      if (!await checkAgentProjectAccess(req, res, projectId)) return;
+
+      const userPath = req.query.path ? String(req.query.path) : '';
+      if (!userPath) return res.status(400).json({ error: 'path query param is required' });
+
+      const fullPath = agentValidateStoragePath(projectId, userPath);
+      const { storageService } = await import('../services/storage.service');
+      const buffer = await storageService.downloadFile(fullPath);
+
+      if (buffer.length > 2 * 1024 * 1024) {
+        return res.status(413).json({ error: 'File too large to read as text (max 2 MB)' });
+      }
+
+      const content = buffer.toString('utf-8');
+      res.json({ path: userPath, size: buffer.length, content });
+    } catch (error: any) {
+      logger.error('storage_read error:', error);
+      if (error.message?.includes('traversal') || error.message?.includes('boundary')) {
+        return res.status(400).json({ error: error.message });
+      }
+      if (error.message?.includes('not found') || error.message?.includes('ENOENT')) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      res.status(500).json({ error: 'Failed to read storage file' });
+    }
+  });
+
+  /**
+   * POST /api/agent/tools/storage/:projectId/write
+   * Write UTF-8 text content to a file in the project's canonical storage.
+   * Body: { path: string, content: string, contentType?: string }
+   */
+  router.post('/tools/storage/:projectId/write', async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      if (!await checkAgentProjectAccess(req, res, projectId)) return;
+
+      const { path: userPath, content, contentType = 'text/plain' } = req.body;
+      if (!userPath || typeof userPath !== 'string') {
+        return res.status(400).json({ error: 'path (string) is required' });
+      }
+      if (typeof content !== 'string') {
+        return res.status(400).json({ error: 'content (string) is required' });
+      }
+
+      const fullPath = agentValidateStoragePath(projectId, userPath);
+      const buffer = Buffer.from(content, 'utf-8');
+
+      const { storageService } = await import('../services/storage.service');
+      const result = await storageService.uploadFile(fullPath, buffer, { contentType });
+
+      res.status(201).json({
+        path: userPath,
+        size: result.size,
+        contentType: result.contentType,
+        lastModified: result.lastModified,
+      });
+    } catch (error: any) {
+      logger.error('storage_write error:', error);
+      if (error.message?.includes('traversal') || error.message?.includes('boundary')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Failed to write storage file' });
+    }
+  });
+
+  /**
+   * DELETE /api/agent/tools/storage/:projectId/delete
+   * Delete a file from the project's canonical storage. Requires ?path=.
+   */
+  router.delete('/tools/storage/:projectId/delete', async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      if (!await checkAgentProjectAccess(req, res, projectId)) return;
+
+      const userPath = req.query.path ? String(req.query.path) : '';
+      if (!userPath) return res.status(400).json({ error: 'path query param is required' });
+
+      const fullPath = agentValidateStoragePath(projectId, userPath);
+      const { storageService } = await import('../services/storage.service');
+      await storageService.deleteFile(fullPath);
+
+      res.json({ deleted: true, path: userPath });
+    } catch (error: any) {
+      logger.error('storage_delete error:', error);
+      if (error.message?.includes('traversal') || error.message?.includes('boundary')) {
+        return res.status(400).json({ error: error.message });
+      }
+      if (error.message?.includes('not found') || error.message?.includes('ENOENT')) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      res.status(500).json({ error: 'Failed to delete storage file' });
+    }
+  });
+
+  /**
+   * GET /api/agent/tools/storage/:projectId/signed-url
+   * Get a time-limited signed download URL for a file. Requires ?path=&ttl=.
+   */
+  router.get('/tools/storage/:projectId/signed-url', async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      if (!await checkAgentProjectAccess(req, res, projectId)) return;
+
+      const userPath = req.query.path ? String(req.query.path) : '';
+      if (!userPath) return res.status(400).json({ error: 'path query param is required' });
+
+      const ttl = Math.min(Math.max(parseInt(String(req.query.ttl || '3600'), 10) || 3600, 60), 86400);
+      const fullPath = agentValidateStoragePath(projectId, userPath);
+
+      const { storageService } = await import('../services/storage.service');
+      const url = await storageService.getSignedUrl(fullPath, ttl, 'read');
+
+      res.json({ path: userPath, url, expiresIn: ttl });
+    } catch (error: any) {
+      logger.error('storage_signed_url error:', error);
+      if (error.message?.includes('traversal') || error.message?.includes('boundary')) {
+        return res.status(400).json({ error: error.message });
+      }
+      if (error.message?.includes('not found') || error.message?.includes('ENOENT')) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      res.status(500).json({ error: 'Failed to generate signed URL' });
+    }
+  });
+
+  /**
+   * GET /api/agent/tools/storage/:projectId/kv/:key
+   * Read a KV entry for the AI agent
+   */
+  router.get('/tools/storage/:projectId/kv/:key', async (req, res) => {
+    try {
+      const { projectId, key } = req.params;
+      if (!await checkAgentProjectAccess(req, res, projectId)) return;
+
+      const { storage: dbStorage } = await import('../storage');
+      const entry = await dbStorage.getStorageKvEntry(projectId, decodeURIComponent(key));
+      if (!entry) return res.status(404).json({ error: 'Key not found' });
+
+      res.json({ key: entry.key, value: entry.value, updatedAt: entry.updatedAt });
+    } catch (error: any) {
+      logger.error('kv_get error:', error);
+      res.status(500).json({ error: 'Failed to get KV entry' });
+    }
+  });
+
+  /**
+   * PUT /api/agent/tools/storage/:projectId/kv/:key
+   * Set a KV entry for the AI agent
+   */
+  router.put('/tools/storage/:projectId/kv/:key', async (req, res) => {
+    try {
+      const { projectId, key } = req.params;
+      if (!await checkAgentProjectAccess(req, res, projectId)) return;
+
+      const { value } = req.body;
+      if (typeof value !== 'string') return res.status(400).json({ error: 'value (string) is required' });
+
+      const { storage: dbStorage } = await import('../storage');
+      const entry = await dbStorage.setStorageKvEntry(projectId, decodeURIComponent(key), value);
+
+      res.json({ key: entry.key, value: entry.value, updatedAt: entry.updatedAt });
+    } catch (error: any) {
+      logger.error('kv_set error:', error);
+      res.status(500).json({ error: 'Failed to set KV entry' });
+    }
+  });
+
   return router;
 }

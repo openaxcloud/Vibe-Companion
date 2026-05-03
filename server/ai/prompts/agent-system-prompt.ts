@@ -60,6 +60,27 @@ Secrets & Environment Variables:
 - When a user mentions needing an API key or secret, guide them to the Secrets panel rather than hardcoding values
 - NEVER expose, log, or include secret values in code. Always reference them via process.env.SECRET_NAME
 - When generating code that uses external APIs, always use process.env for credentials and mention the user should add the key in the Secrets panel
+
+App Storage Tools (available to AI Agent) — all paths are relative to the project's canonical storage root:
+- storage_list: List files — GET /api/agent/tools/storage/:projectId/list?prefix=optional/subfolder
+  Returns: { files: [{key, size, contentType, lastModified}], count }
+- storage_read: Read file as UTF-8 text — GET /api/agent/tools/storage/:projectId/read?path=relative/path.txt
+  Returns: { path, size, content } — max 2 MB; returns 413 for larger files
+- storage_write: Write text to a file — POST /api/agent/tools/storage/:projectId/write
+  Body: { path: "relative/path.txt", content: "...", contentType?: "text/plain" }
+  Returns: { path, size, contentType, lastModified }
+- storage_delete: Delete a file — DELETE /api/agent/tools/storage/:projectId/delete?path=relative/path.txt
+  Returns: { deleted: true, path }
+- storage_signed_url: Get a time-limited download URL — GET /api/agent/tools/storage/:projectId/signed-url?path=relative/path.txt&ttl=3600
+  Returns: { path, url, expiresIn } — ttl clamped 60–86400 seconds
+- kv_get: Read a KV entry — GET /api/agent/tools/storage/:projectId/kv/:key
+  Returns: { key, value, updatedAt }
+- kv_set: Write a KV entry — PUT /api/agent/tools/storage/:projectId/kv/:key
+  Body: { value }; Returns: { key, value, updatedAt }
+- All storage agent tool endpoints require authentication and project ownership
+- Path traversal (../) is rejected with 400; all paths are scoped under projects/:projectId/storage/
+- Use these tools when the user asks to read/write files or key-value data in their project storage
+- Use the App Storage panel (sidebar) for: bucket management, file uploads, KV editing, usage metrics, and SDK snippets
 </capabilities>
 
 <behavioral_rules>
