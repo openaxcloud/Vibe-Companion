@@ -53,6 +53,38 @@ import crypto from "crypto";
 import { centralUpgradeDispatcher } from "../websocket/central-upgrade-dispatcher";
 
 
+// Connection-tracking primitives required by the legacy /ws/project handler.
+// These were originally declared at module scope in server/routes.ts and were
+// silently lost when the websocket section was extracted, causing every
+// /ws/project upgrade to throw `wsConnectionsByIp is not defined` and close
+// the socket with code 1006 immediately after handshake (browser then
+// reconnected ~1/s, spamming the server).
+const wsConnectionsByIp = new Map<string, Set<WebSocket>>();
+const WS_MAX_CONNECTIONS_PER_IP = 5;
+const WS_MESSAGE_RATE_LIMIT = 30;
+const WS_MESSAGE_RATE_WINDOW_MS = 10000;
+
+interface WsMessageTracker {
+  timestamps: number[];
+}
+const wsMessageTrackers = new WeakMap<WebSocket, WsMessageTracker>();
+
+function checkWsMessageRate(ws: WebSocket): boolean {
+  let tracker = wsMessageTrackers.get(ws);
+  if (!tracker) {
+    tracker = { timestamps: [] };
+    wsMessageTrackers.set(ws, tracker);
+  }
+  const now = Date.now();
+  tracker.timestamps = tracker.timestamps.filter(t => now - t < WS_MESSAGE_RATE_WINDOW_MS);
+  if (tracker.timestamps.length >= WS_MESSAGE_RATE_LIMIT) {
+    return false;
+  }
+  tracker.timestamps.push(now);
+  return true;
+}
+
+
 export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<void> {
   const {
     requireAuth, csrfProtection, authLimiter, apiLimiter, aiLimiter, aiGenerateLimiter,
