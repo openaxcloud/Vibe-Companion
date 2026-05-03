@@ -20,6 +20,7 @@ import { agentSessions, aiConversations } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
 import * as path from 'path';
 import { DESIGN_SYSTEM_PROMPT } from '../ai/prompts/design-system';
+import { recordAiStreamEvent } from '../observability/ai-stream-metrics';
 
 // Create logger instance
 const logger = winston.createLogger({
@@ -204,6 +205,11 @@ router.post('/agent/chat/stream', ensureAuthenticated, async (req, res) => {
       logger.warn('[AI Stream] Concurrency cap reached, rejecting request', {
         userId: earlyUserId,
         cap: MAX_CONCURRENT_STREAMS_PER_USER,
+      });
+      recordAiStreamEvent({
+        request_id: (req as any).id || `stream-${Date.now()}`,
+        user_id: earlyUserId,
+        stream_end_reason: 'concurrency_cap',
       });
       return res.status(429).json({
         error: 'Too many concurrent AI streams',
@@ -704,6 +710,19 @@ ${ragContextPrompt}`
       tool_count: enforcedTools ? enforcedTools.length : 0,
       stream_end_reason: 'done',
     });
+    recordAiStreamEvent({
+      request_id: requestId,
+      user_id: userId,
+      project_id: projectId,
+      model: normalizedModel,
+      provider,
+      tokens_input: tokensInput,
+      tokens_output: tokensOutput,
+      latency_ms: latencyMs,
+      agent_mode: agentMode,
+      tool_count: enforcedTools ? enforcedTools.length : 0,
+      stream_end_reason: 'done',
+    });
 
     // ── Release concurrency slot ──────────────────────────────────────────
     safeRelease();
@@ -972,6 +991,18 @@ ${ragContextPrompt}`
     // ── Structured error observability log ────────────────────────────────
     const reqIdErr = (req as any).id || `stream-${Date.now()}`;
     logger.info('[AI Stream] Turn failed', {
+      request_id: reqIdErr,
+      user_id: userId,
+      project_id: projectId,
+      model,
+      provider,
+      latency_ms: Date.now() - requestStartTime,
+      tool_count: enforcedTools ? enforcedTools.length : 0,
+      stream_end_reason: 'error',
+      error_code: errorClassification.code,
+      is_retryable: errorClassification.isRetryable,
+    });
+    recordAiStreamEvent({
       request_id: reqIdErr,
       user_id: userId,
       project_id: projectId,

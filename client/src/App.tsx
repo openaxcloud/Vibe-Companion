@@ -16,6 +16,7 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import Teams from "@/pages/Teams";
 import Admin from "@/pages/Admin";
+import AIMetricsDashboard from "@/pages/admin/AIMetricsDashboard";
 import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
 import VerifyEmail from "@/pages/VerifyEmail";
@@ -283,6 +284,7 @@ function App() {
                 <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
                 <Route path="/user/settings">{() => <ProtectedRoute component={UserSettings} />}</Route>
                 <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
+                <Route path="/admin/ai-metrics">{() => <ProtectedRoute component={AIMetricsDashboard} />}</Route>
                 <Route path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
                 <Route path="/frameworks">{() => <ProtectedRoute component={Frameworks} />}</Route>
                 <Route path="/frameworks/:id">{() => <ProtectedRoute component={Frameworks} />}</Route>

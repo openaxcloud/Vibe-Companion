@@ -167,6 +167,7 @@ export class MainRouter {
       adminMonitoringMod,
       adminSystemMod,
       adminBillingMod,
+      adminAiMetricsMod,
       seoMod,
       aiMod,
       aiStreamingMod,
@@ -267,6 +268,7 @@ export class MainRouter {
       safeImport("admin-monitoring", () => import("./admin-monitoring.router")),
       safeImport("admin-system-metrics", () => import("./admin-system-metrics.router")),
       safeImport("admin-billing", () => import("./admin-billing.router")),
+      safeImport("admin-ai-metrics", () => import("./admin-ai-metrics.router")),
       safeImport("seo", () => import("./seo.router")),
       safeImport("ai", () => import("./ai.router")),
       safeImport("ai-streaming", () => import("../api/ai-streaming")),
@@ -380,6 +382,7 @@ export class MainRouter {
     mount(app, '/api/admin/monitoring', tierLimiters.api, def(adminMonitoringMod));
     mount(app, '/api/admin/system', tierLimiters.api, def(adminSystemMod));
     mountOr503(app, 'admin-billing', '/api/admin/billing', tierLimiters.api, def(adminBillingMod));
+    mount(app, '/api/admin/ai-metrics', tierLimiters.api, def(adminAiMetricsMod));
     mount(app, '/api/admin/seo', tierLimiters.api, def(seoMod));
 
     app.get('/api/system/status', async (req, res) => {
