@@ -7,9 +7,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Database,
   Table,
+  TableProperties,
+  Terminal,
+  Settings,
   RefreshCw,
   ChevronRight,
   ChevronDown,
@@ -224,6 +229,7 @@ function StatusBadge({ status }: { status: 'running' | 'provisioning' | 'stopped
 
 export function DatabasePanel({ projectId }: DatabasePanelProps) {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<DbTab>('data');
   const [dbEnv, setDbEnv] = useState<'dev' | 'prod'>('dev');
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
@@ -774,11 +780,11 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
     a.click(); URL.revokeObjectURL(a.href);
   };
 
-  const TABS: { id: DbTab; label: string }[] = [
-    { id: 'data', label: 'Data' },
-    { id: 'sql', label: 'SQL' },
-    { id: 'backups', label: 'Backups' },
-    { id: 'settings', label: 'Settings' },
+  const TABS: { id: DbTab; label: string; icon: typeof Database }[] = [
+    { id: 'data', label: 'Data', icon: TableProperties },
+    { id: 'sql', label: 'SQL', icon: Terminal },
+    { id: 'backups', label: 'Backups', icon: Archive },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   // ─── Provisioning state rendering ────────────────────────────────────────────
@@ -931,21 +937,28 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
 
       {/* Tab bar */}
       <div className="flex border-b border-[var(--ide-border)] shrink-0">
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            className={cn(
-              'flex-1 text-[10px] py-1.5 font-medium border-b-2 transition-colors',
-              activeTab === tab.id
-                ? 'border-[#0079F2] text-[#0079F2]'
-                : 'border-transparent text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]'
-            )}
-            onClick={() => setActiveTab(tab.id)}
-            data-testid={`tab-db-${tab.id}`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              className={cn(
+                'flex-1 font-medium border-b-2 transition-colors',
+                isMobile
+                  ? 'flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] min-h-[44px]'
+                  : 'text-[10px] py-1.5',
+                activeTab === tab.id
+                  ? 'border-[#0079F2] text-[#0079F2]'
+                  : 'border-transparent text-[var(--ide-text-muted)] hover:text-[var(--ide-text)]'
+              )}
+              onClick={() => setActiveTab(tab.id)}
+              data-testid={`tab-db-${tab.id}`}
+            >
+              {isMobile && <Icon className="w-4 h-4" />}
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Body */}
@@ -999,24 +1012,40 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
 
                 {/* Tables sidebar */}
                 {tables.length > 0 && (
-                  <div className="max-h-[180px] overflow-y-auto shrink-0 border-b border-[var(--ide-border)]">
+                  <div className={cn(
+                      'overflow-y-auto shrink-0 border-b border-[var(--ide-border)]',
+                      isMobile ? 'max-h-[35vh]' : 'max-h-[180px]'
+                    )}>
                     {tables.map(table => (
                       <div key={table}>
-                        <button
-                          className={cn(
-                            'w-full flex items-center gap-1.5 px-3 py-1.5 text-left hover:bg-[var(--ide-surface)]/40 transition-colors',
+                        <div className={cn(
+                            'w-full flex items-center hover:bg-[var(--ide-surface)]/40 transition-colors',
                             selectedTable === table ? 'bg-[var(--ide-surface)]/60' : ''
+                          )}>
+                          <button
+                            className={cn(
+                              'flex-1 flex items-center gap-1.5 px-3 text-left',
+                              isMobile ? 'py-3 min-h-[44px]' : 'py-1.5'
+                            )}
+                            onClick={() => isMobile ? handleToggleExpand(table) : handleTableSelect(table)}
+                            onDoubleClick={() => handleToggleExpand(table)}
+                            data-testid={`table-item-${table}`}
+                          >
+                            {expandedTable === table
+                              ? <ChevronDown className={cn('text-[var(--ide-text-muted)] shrink-0', isMobile ? 'w-4 h-4' : 'w-3 h-3')} />
+                              : <ChevronRight className={cn('text-[var(--ide-text-muted)] shrink-0', isMobile ? 'w-4 h-4' : 'w-3 h-3')} />}
+                            <Table className={cn('text-[#0079F2] shrink-0', isMobile ? 'w-4 h-4' : 'w-3 h-3')} />
+                            <span className={cn('font-mono truncate flex-1', isMobile ? 'text-[13px]' : 'text-[11px]')}>{table}</span>
+                          </button>
+                          {isMobile && selectedTable !== table && (
+                            <button
+                              type="button"
+                              className="text-[11px] text-[#0079F2] px-3 py-3 min-h-[44px] hover:bg-[var(--ide-surface)] shrink-0"
+                              onClick={() => handleTableSelect(table)}
+                              data-testid={`button-open-table-${table}`}
+                            >Open</button>
                           )}
-                          onClick={() => handleTableSelect(table)}
-                          onDoubleClick={() => handleToggleExpand(table)}
-                          data-testid={`table-item-${table}`}
-                        >
-                          {expandedTable === table
-                            ? <ChevronDown className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />
-                            : <ChevronRight className="w-3 h-3 text-[var(--ide-text-muted)] shrink-0" />}
-                          <Table className="w-3 h-3 text-[#0079F2] shrink-0" />
-                          <span className="text-[11px] font-mono truncate">{table}</span>
-                        </button>
+                        </div>
                         {expandedTable === table && expandedColumns[table] && (
                           <div className="pl-8 pr-3 pb-1">
                             {expandedColumns[table].map(col => (
@@ -1042,21 +1071,21 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
                         {tableData && <span className="text-[9px] text-[var(--ide-text-muted)]">{tableData.totalRows} rows</span>}
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="w-5 h-5"
+                        <Button variant="ghost" size="icon" className={isMobile ? 'w-9 h-9' : 'w-5 h-5'}
                           onClick={() => {
                             if (writeProtect) { toast({ title: 'Write-protect enabled', description: 'Toggle off to allow inserts.', variant: 'destructive' }); return; }
                             setShowInsertRow(true); setInsertValues(Object.fromEntries(columns.map(c => [c.name, ''])));
                           }}
                           title={writeProtect ? 'Write-protect enabled' : 'Insert row'} data-testid="button-insert-row">
-                          <Plus className="w-3 h-3" />
+                          <Plus className={isMobile ? 'w-4 h-4' : 'w-3 h-3'} />
                         </Button>
-                        <Button variant="ghost" size="icon" className="w-5 h-5" onClick={exportCsv} title="Export CSV" data-testid="button-export-csv">
-                          <Download className="w-3 h-3" />
+                        <Button variant="ghost" size="icon" className={isMobile ? 'w-9 h-9' : 'w-5 h-5'} onClick={exportCsv} title="Export CSV" data-testid="button-export-csv">
+                          <Download className={isMobile ? 'w-4 h-4' : 'w-3 h-3'} />
                         </Button>
-                        <Button variant="ghost" size="icon" className="w-5 h-5"
+                        <Button variant="ghost" size="icon" className={isMobile ? 'w-9 h-9' : 'w-5 h-5'}
                           onClick={() => queryClient.invalidateQueries({ queryKey: ['db-table-data'] })}
                           data-testid="button-refresh-data">
-                          <RefreshCw className="w-3 h-3" />
+                          <RefreshCw className={isMobile ? 'w-4 h-4' : 'w-3 h-3'} />
                         </Button>
                       </div>
                     </div>
@@ -1078,8 +1107,8 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
                       </div>
                     )}
 
-                    {/* Insert row */}
-                    {showInsertRow && columns.length > 0 && (
+                    {/* Insert row — inline on desktop only (mobile uses bottom sheet below) */}
+                    {showInsertRow && columns.length > 0 && !isMobile && (
                       <div className="px-3 py-2 border-b border-[var(--ide-border)] bg-[var(--ide-surface)]/30 shrink-0">
                         <div className="text-[10px] font-medium mb-1.5">New Row</div>
                         <div className="grid grid-cols-2 gap-1 mb-1.5">
@@ -1116,9 +1145,13 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
                           <table className="w-full text-[10px] font-mono">
                             <thead>
                               <tr className="border-b border-[var(--ide-border)] bg-[var(--ide-surface)]/30 sticky top-0">
-                                {fieldNames.map(col => (
+                                {fieldNames.map((col, ci) => (
                                   <th key={col}
-                                    className="px-2 py-1 text-left font-medium text-[var(--ide-text-muted)] cursor-pointer hover:text-[var(--ide-text)] whitespace-nowrap"
+                                    className={cn(
+                                      'px-2 text-left font-medium text-[var(--ide-text-muted)] cursor-pointer hover:text-[var(--ide-text)] whitespace-nowrap',
+                                      isMobile ? 'py-2' : 'py-1',
+                                      isMobile && ci === 0 && 'sticky left-0 z-10 bg-[var(--ide-bg)] shadow-[1px_0_0_0_var(--ide-border)]'
+                                    )}
                                     onClick={() => handleSort(col)}>
                                     <span className="flex items-center gap-0.5">
                                       {col}
@@ -1132,10 +1165,14 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
                             <tbody>
                               {tableData.rows.map((row, ri) => (
                                 <tr key={ri} className="border-b border-[var(--ide-border)]/50 hover:bg-[var(--ide-surface)]/20">
-                                  {fieldNames.map((col) => {
+                                  {fieldNames.map((col, ci) => {
                                     const val = (row as Record<string, unknown>)[col];
                                     return (
-                                      <td key={col} className="px-2 py-0.5 max-w-[200px] truncate cursor-pointer"
+                                      <td key={col} className={cn(
+                                          'px-2 max-w-[200px] truncate cursor-pointer',
+                                          isMobile ? 'py-1.5' : 'py-0.5',
+                                          isMobile && ci === 0 && 'sticky left-0 z-10 bg-[var(--ide-bg)] shadow-[1px_0_0_0_var(--ide-border)]'
+                                        )}
                                         onDoubleClick={() => { setEditingCell({ row: ri, col }); setEditCellValue(val === null ? '' : String(val)); }}
                                         data-testid={`cell-${ri}-${col}`}>
                                         {editingCell?.row === ri && editingCell?.col === col ? (
@@ -1198,15 +1235,20 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
             {activeTab === 'sql' && (
               <div className="flex-1 flex flex-col min-h-0 p-3 gap-2">
                 <textarea
-                  className="flex-none h-24 p-2 text-[11px] font-mono bg-[var(--ide-surface)] border border-[var(--ide-border)] rounded resize-none text-[var(--ide-text)] outline-none focus:border-[#0079F2]"
+                  className={cn(
+                    'flex-none p-2 font-mono bg-[var(--ide-surface)] border border-[var(--ide-border)] rounded resize-none text-[var(--ide-text)] outline-none focus:border-[#0079F2]',
+                    isMobile ? 'h-40 text-[13px]' : 'h-24 text-[11px]'
+                  )}
                   value={sqlQuery}
                   onChange={e => setSqlQuery(e.target.value)}
                   placeholder="SELECT * FROM my_table LIMIT 10;"
                   spellCheck={false}
+                  autoCapitalize="off"
+                  autoCorrect="off"
                   data-testid="textarea-sql-query"
                 />
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button size="sm" className="text-[10px] h-7 gap-1"
+                <div className={cn('flex shrink-0', isMobile ? 'flex-col gap-1.5 items-stretch' : 'items-center gap-2')}>
+                  <Button size="sm" className={cn('gap-1', isMobile ? 'text-[12px] h-10 w-full' : 'text-[10px] h-7')}
                     onClick={() => {
                       if (writeProtect && WRITE_OPERATION_RE.test(sqlQuery)) {
                         toast({ title: 'Write-protect enabled', description: 'Toggle off to allow write operations.', variant: 'destructive' });
@@ -1630,6 +1672,46 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
           </>
         )}
       </div>
+
+      {/* Mobile Insert Row — bottom sheet */}
+      {isMobile && (
+        <Sheet open={showInsertRow} onOpenChange={(open) => { if (!open) setShowInsertRow(false); }}>
+          <SheetContent side="bottom" className="h-[80vh] p-0 flex flex-col">
+            <SheetHeader className="px-4 py-3 border-b shrink-0">
+              <SheetTitle className="text-sm">Insert Row into {selectedTable}</SheetTitle>
+            </SheetHeader>
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-4 space-y-3">
+                {columns.map(c => (
+                  <div key={c.name} className="space-y-1">
+                    <label className="text-[11px] font-mono text-[var(--ide-text-muted)] flex items-center gap-1">
+                      <span>{c.name}</span>
+                      <span className="text-[9px] uppercase opacity-60">{c.type}</span>
+                      {!c.nullable && !c.hasDefault && <span className="text-red-400">*</span>}
+                    </label>
+                    <Input
+                      className="text-[12px] h-10"
+                      value={insertValues[c.name] || ''}
+                      placeholder={c.hasDefault ? '(default)' : c.nullable ? '(null)' : ''}
+                      onChange={e => setInsertValues(prev => ({ ...prev, [c.name]: e.target.value }))}
+                      data-testid={`input-insert-mobile-${c.name}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+            <div className="border-t p-3 flex gap-2 shrink-0">
+              <Button variant="outline" className="flex-1 h-10" onClick={() => setShowInsertRow(false)}>Cancel</Button>
+              <Button className="flex-1 h-10"
+                onClick={() => insertRowMutation.mutate()}
+                disabled={insertRowMutation.isPending}
+                data-testid="button-confirm-insert-mobile">
+                {insertRowMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Insert'}
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Backup Export Info Dialog */}
       {exportBackupInfo && (
