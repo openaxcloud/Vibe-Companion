@@ -5,11 +5,58 @@ import fs from 'fs/promises';
 import { ensureAuthenticated } from '../middleware/auth';
 import { createLogger } from '../utils/logger';
 import { storage } from '../storage';
+import { githubOAuth } from '../services/github-oauth';
 
 const logger = createLogger('git-project-router');
 const router = Router();
 
 const PROJECTS_BASE = path.join(process.cwd(), 'project-workspaces');
+
+// ---------------------------------------------------------------------------
+// Security: validate file paths to prevent path traversal + option injection
+// ---------------------------------------------------------------------------
+function validateFilePath(filePath: string): { valid: boolean; error?: string } {
+  if (typeof filePath !== 'string' || filePath.length === 0) {
+    return { valid: false, error: 'Invalid file path' };
+  }
+  if (filePath.includes('..')) {
+    return { valid: false, error: 'Path traversal not allowed' };
+  }
+  if (filePath.startsWith('-')) {
+    return { valid: false, error: 'Invalid file path format' };
+  }
+  const dangerousChars = /[;&|`$(){}[\]<>\\'\"!#*?]/;
+  if (dangerousChars.test(filePath)) {
+    return { valid: false, error: 'Invalid characters in file path' };
+  }
+  return { valid: true };
+}
+
+// ---------------------------------------------------------------------------
+// OAuth: inject GitHub credentials into a remote URL for push/pull/fetch
+// ---------------------------------------------------------------------------
+async function getAuthenticatedRemoteUrl(remoteUrl: string, userId: number): Promise<string> {
+  try {
+    const credentials = await githubOAuth.getGitCredentials(userId);
+    if (!credentials) return remoteUrl;
+    try {
+      const url = new URL(remoteUrl);
+      url.username = credentials.username;
+      url.password = credentials.password;
+      return url.toString();
+    } catch {
+      if (remoteUrl.includes('github.com')) {
+        return remoteUrl.replace(
+          'https://github.com/',
+          `https://${credentials.username}:${credentials.password}@github.com/`
+        );
+      }
+      return remoteUrl;
+    }
+  } catch {
+    return remoteUrl;
+  }
+}
 
 async function getProjectDir(projectId: string): Promise<string> {
   const safeId = String(projectId).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -64,6 +111,44 @@ function parseStatusOutput(stdout: string) {
   return { staged, unstaged, untracked };
 }
 
+// =====================================
+// GitHub OAuth proxy routes — per-project prefix only
+// Flat /github/* routes live in git.router (global) which is mounted FIRST,
+// so there is no risk of /:projectId capturing "github" as a project id.
+// =====================================
+
+// Per-project prefix (/:projectId/github/...) for clients that pass projectId:
+router.get('/:projectId/github/status', ensureAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user?.id) return res.json({ connected: false });
+    const status = await githubOAuth.getConnectionStatus(user.id);
+    res.json(status);
+  } catch (error: any) {
+    res.json({ connected: false });
+  }
+});
+
+router.get('/:projectId/github/connect', ensureAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const authUrl = githubOAuth.getAuthorizationUrl('git_connect');
+    res.json({ authUrl });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:projectId/github/disconnect', ensureAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user?.id) return res.status(401).json({ error: 'Not authenticated' });
+    await githubOAuth.disconnectUser(user.id);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /:projectId/status
 router.get('/:projectId/status', ensureAuthenticated, async (req: Request, res: Response) => {
   const { projectId } = req.params;
@@ -82,13 +167,18 @@ router.get('/:projectId/status', ensureAuthenticated, async (req: Request, res: 
     const [ahead = 0, behind = 0] = (aheadBehindRes.stdout || '0\t0').split('\t').map(Number);
     const { staged, unstaged, untracked } = parseStatusOutput(statusRes.stdout || '');
 
+    // Check for merge-in-progress by looking for MERGE_HEAD file
+    const mergeInProgress = await fs.access(path.join(projectDir, '.git', 'MERGE_HEAD'))
+      .then(() => true)
+      .catch(() => false);
+
     const changes = [
       ...staged.map((f: string) => ({ path: f, status: 'staged' as const })),
       ...unstaged.map((f: string) => ({ path: f, status: 'modified' as const })),
       ...untracked.map((f: string) => ({ path: f, status: 'untracked' as const })),
     ];
 
-    res.json({ branch, ahead, behind, staged, unstaged, untracked, changes });
+    res.json({ branch, ahead, behind, staged, unstaged, untracked, changes, mergeInProgress });
   } catch (error: any) {
     logger.error(`[git-project] status error for ${projectId}:`, error);
     res.status(500).json({ error: error.message });
@@ -223,39 +313,144 @@ router.post('/:projectId/commit', ensureAuthenticated, async (req: Request, res:
 // POST /:projectId/push
 router.post('/:projectId/push', ensureAuthenticated, async (req: Request, res: Response) => {
   const { projectId } = req.params;
+  const userId: number | undefined = (req as any).user?.id;
   try {
     const projectDir = await getProjectDir(projectId);
     await ensureGitInitialized(projectDir);
-    const { stdout, stderr } = await execa('git', ['push', 'origin', 'HEAD'], { cwd: projectDir });
-    res.json({ success: true, output: stdout || stderr });
+    const { stdout: remoteOut } = await execa('git', ['remote', 'get-url', 'origin'], { cwd: projectDir, reject: false });
+    const originalUrl = (remoteOut || '').trim();
+    if (!originalUrl) {
+      return res.status(422).json({ error: 'No remote repository configured' });
+    }
+    if (userId) {
+      const authenticatedUrl = await getAuthenticatedRemoteUrl(originalUrl, userId);
+      await execa('git', ['remote', 'set-url', 'origin', authenticatedUrl], { cwd: projectDir });
+      let result: any;
+      try {
+        result = await execa('git', ['push', '-u', 'origin', 'HEAD'], { cwd: projectDir, timeout: 60000, reject: false });
+      } finally {
+        await execa('git', ['remote', 'set-url', 'origin', originalUrl], { cwd: projectDir }).catch((e: any) => {
+          logger.error('[Git] Failed to restore remote URL after push:', e.message);
+        });
+      }
+      const output = result.stdout || result.stderr || '';
+      if (result.exitCode !== 0) {
+        if (output.includes('Authentication failed') || output.includes('could not read Username')) {
+          return res.status(401).json({ error: 'Authentication failed. Please reconnect your GitHub account.', requiresAuth: true });
+        }
+        return res.status(422).json({ error: output || `Push failed (exit ${result.exitCode})` });
+      }
+      res.json({ success: true, output: output || 'Pushed successfully' });
+    } else {
+      const result = await execa('git', ['push', 'origin', 'HEAD'], { cwd: projectDir, timeout: 30000, reject: false });
+      const output = result.stdout || result.stderr || '';
+      if (result.exitCode !== 0) {
+        if (output.includes('Authentication failed') || output.includes('could not read Username')) {
+          return res.status(401).json({ error: 'Authentication required. Please connect your GitHub account in Settings.', requiresAuth: true });
+        }
+        return res.status(422).json({ error: output || `Push failed (exit ${result.exitCode})` });
+      }
+      res.json({ success: true, output });
+    }
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Push failed. Make sure you have a remote configured.' });
+    if (error.timedOut) return res.status(500).json({ error: 'Git push timed out' });
+    res.status(500).json({ error: error.message || 'Push failed' });
   }
 });
 
 // POST /:projectId/pull
 router.post('/:projectId/pull', ensureAuthenticated, async (req: Request, res: Response) => {
   const { projectId } = req.params;
+  const userId: number | undefined = (req as any).user?.id;
   try {
     const projectDir = await getProjectDir(projectId);
     await ensureGitInitialized(projectDir);
-    const { stdout } = await execa('git', ['pull', 'origin', 'HEAD'], { cwd: projectDir });
-    res.json({ success: true, output: stdout });
+    const { stdout: remoteOut } = await execa('git', ['remote', 'get-url', 'origin'], { cwd: projectDir, reject: false });
+    const originalUrl = (remoteOut || '').trim();
+    if (!originalUrl) {
+      return res.status(422).json({ error: 'No remote repository configured' });
+    }
+    if (userId) {
+      const authenticatedUrl = await getAuthenticatedRemoteUrl(originalUrl, userId);
+      await execa('git', ['remote', 'set-url', 'origin', authenticatedUrl], { cwd: projectDir });
+      let result: any;
+      try {
+        result = await execa('git', ['pull', '--rebase=false'], { cwd: projectDir, timeout: 60000, reject: false });
+      } finally {
+        await execa('git', ['remote', 'set-url', 'origin', originalUrl], { cwd: projectDir }).catch((e: any) => {
+          logger.error('[Git] Failed to restore remote URL after pull:', e.message);
+        });
+      }
+      const output = result.stdout || result.stderr || '';
+      if (result.exitCode !== 0) {
+        if (output.includes('Authentication failed') || output.includes('could not read Username')) {
+          return res.status(401).json({ error: 'Authentication failed. Please reconnect your GitHub account.', requiresAuth: true });
+        }
+        return res.status(422).json({ error: output || `Pull failed (exit ${result.exitCode})` });
+      }
+      res.json({ success: true, output: output || 'Pulled successfully' });
+    } else {
+      const result = await execa('git', ['pull'], { cwd: projectDir, timeout: 30000, reject: false });
+      const output = result.stdout || result.stderr || '';
+      if (result.exitCode !== 0) {
+        if (output.includes('Authentication failed') || output.includes('could not read Username')) {
+          return res.status(401).json({ error: 'Authentication required. Please connect your GitHub account in Settings.', requiresAuth: true });
+        }
+        return res.status(422).json({ error: output || `Pull failed (exit ${result.exitCode})` });
+      }
+      res.json({ success: true, output });
+    }
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Pull failed. Make sure you have a remote configured.' });
+    if (error.timedOut) return res.status(500).json({ error: 'Git pull timed out' });
+    res.status(500).json({ error: error.message || 'Pull failed' });
   }
 });
 
 // POST /:projectId/fetch
 router.post('/:projectId/fetch', ensureAuthenticated, async (req: Request, res: Response) => {
   const { projectId } = req.params;
+  const userId: number | undefined = (req as any).user?.id;
   try {
     const projectDir = await getProjectDir(projectId);
     await ensureGitInitialized(projectDir);
-    const { stdout } = await execa('git', ['fetch', '--all'], { cwd: projectDir });
-    res.json({ success: true, output: stdout });
+    const { stdout: remoteOut } = await execa('git', ['remote', 'get-url', 'origin'], { cwd: projectDir, reject: false });
+    const originalUrl = (remoteOut || '').trim();
+    if (!originalUrl) {
+      return res.status(422).json({ error: 'No remote repository configured' });
+    }
+    if (userId) {
+      const authenticatedUrl = await getAuthenticatedRemoteUrl(originalUrl, userId);
+      await execa('git', ['remote', 'set-url', 'origin', authenticatedUrl], { cwd: projectDir });
+      let result: any;
+      try {
+        result = await execa('git', ['fetch', '--all', '--prune'], { cwd: projectDir, timeout: 60000, reject: false });
+      } finally {
+        await execa('git', ['remote', 'set-url', 'origin', originalUrl], { cwd: projectDir }).catch((e: any) => {
+          logger.error('[Git] Failed to restore remote URL after fetch:', e.message);
+        });
+      }
+      const output = result.stdout || result.stderr || '';
+      if (result.exitCode !== 0) {
+        if (output.includes('Authentication failed') || output.includes('could not read Username')) {
+          return res.status(401).json({ error: 'Authentication failed. Please reconnect your GitHub account.', requiresAuth: true });
+        }
+        return res.status(422).json({ error: output || `Fetch failed (exit ${result.exitCode})` });
+      }
+      res.json({ success: true, output: output || 'Fetched successfully' });
+    } else {
+      const result = await execa('git', ['fetch', '--all', '--prune'], { cwd: projectDir, timeout: 30000, reject: false });
+      const output = result.stdout || result.stderr || '';
+      if (result.exitCode !== 0) {
+        if (output.includes('Authentication failed') || output.includes('could not read Username')) {
+          return res.status(401).json({ error: 'Authentication required. Please connect your GitHub account in Settings.', requiresAuth: true });
+        }
+        return res.status(422).json({ error: output || `Fetch failed (exit ${result.exitCode})` });
+      }
+      res.json({ success: true, output: output || 'Fetched successfully' });
+    }
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Fetch failed. Make sure you have a remote configured.' });
+    if (error.timedOut) return res.status(500).json({ error: 'Git fetch timed out' });
+    res.status(500).json({ error: error.message || 'Fetch failed' });
   }
 });
 
@@ -381,6 +576,176 @@ router.get('/:projectId/diff/{*filePath}', ensureAuthenticated, async (req: Requ
       : ['diff', '--', filePath];
     const { stdout } = await execa('git', args, { cwd: projectDir }).catch(() => ({ stdout: '' }));
     res.json({ diff: stdout, filePath });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /:projectId/branch/:branchName
+router.delete('/:projectId/branch/:branchName', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId, branchName } = req.params;
+  const { force } = req.query;
+  if (!branchName) {
+    return res.status(400).json({ error: 'Branch name is required' });
+  }
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await ensureGitInitialized(projectDir);
+    const flag = force === 'true' ? '-D' : '-d';
+    await execa('git', ['branch', flag, branchName], { cwd: projectDir });
+    res.json({ success: true, deleted: branchName, message: `Branch '${branchName}' deleted` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /:projectId/merge
+router.post('/:projectId/merge', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const { branch } = req.body;
+  if (!branch) {
+    return res.status(400).json({ error: 'Branch name is required' });
+  }
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await ensureGitInitialized(projectDir);
+    const result = await execa('git', ['merge', branch], { cwd: projectDir, reject: false });
+    const output = result.stdout || result.stderr || '';
+    // Check exit code: 0 = clean merge, 1 = conflicts, other = hard failure
+    if (result.exitCode === 1) {
+      // Could be conflicts or a genuine failure — check MERGE_HEAD to distinguish
+      const hasConflicts = await fs.access(path.join(projectDir, '.git', 'MERGE_HEAD'))
+        .then(() => true)
+        .catch(() => false);
+      if (hasConflicts || output.includes('CONFLICT')) {
+        return res.status(409).json({ error: 'Merge conflict detected', conflicts: true, output });
+      }
+      return res.status(422).json({ error: output || 'Merge failed', conflicts: false });
+    }
+    if (result.exitCode !== 0) {
+      return res.status(500).json({ error: output || `Merge exited with code ${result.exitCode}` });
+    }
+    res.json({ success: true, output, message: `Merged '${branch}' successfully` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /:projectId/discard — discard changes for specific files (or all)
+router.post('/:projectId/discard', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const { files } = req.body; // array of file paths, or empty for all
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await ensureGitInitialized(projectDir);
+    if (files && Array.isArray(files) && files.length > 0) {
+      // Discard staged changes first, then working dir
+      await execa('git', ['reset', 'HEAD', '--', ...files], { cwd: projectDir, reject: false });
+      await execa('git', ['checkout', '--', ...files], { cwd: projectDir, reject: false });
+      // Clean untracked files from the list
+      const { stdout: untracked } = await execa('git', ['ls-files', '--others', '--exclude-standard', '--', ...files], { cwd: projectDir, reject: false });
+      const untrackedFiles = untracked.split('\n').filter(Boolean);
+      if (untrackedFiles.length > 0) {
+        const fs2 = await import('fs/promises');
+        const pathMod = await import('path');
+        for (const f of untrackedFiles) {
+          const fp = pathMod.join(projectDir, f);
+          await fs2.unlink(fp).catch(() => {});
+        }
+      }
+    } else {
+      // Discard all changes
+      await execa('git', ['reset', 'HEAD', '--'], { cwd: projectDir, reject: false });
+      await execa('git', ['checkout', '--', '.'], { cwd: projectDir, reject: false });
+      await execa('git', ['clean', '-fd'], { cwd: projectDir, reject: false });
+    }
+    res.json({ success: true, message: 'Changes discarded' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /:projectId/file-history/*filePath — commit history for a specific file
+router.get('/:projectId/file-history/{*filePath}', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId, filePath } = req.params;
+  const limit = parseInt(req.query.limit as string || '30', 10);
+  if (!filePath) {
+    return res.status(400).json({ error: 'File path is required' });
+  }
+  const pathCheck = validateFilePath(filePath);
+  if (!pathCheck.valid) {
+    return res.status(400).json({ error: pathCheck.error });
+  }
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await ensureGitInitialized(projectDir);
+    const { stdout } = await execa(
+      'git', ['log', `--max-count=${limit}`, '--format=%H|%h|%s|%an|%aI', '--follow', '--', filePath],
+      { cwd: projectDir, reject: false }
+    );
+    const commits = (stdout || '').split('\n').filter(Boolean).map((line: string) => {
+      const [hash, shortHash, message, author, date] = line.split('|');
+      return { hash, shortHash, message, author, date };
+    });
+    res.json(commits);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /:projectId/blame/*filePath — git blame for a file in project dir
+router.get('/:projectId/blame/{*filePath}', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { projectId, filePath } = req.params;
+  if (!filePath) {
+    return res.status(400).json({ error: 'File path is required' });
+  }
+  const pathCheck = validateFilePath(filePath);
+  if (!pathCheck.valid) {
+    return res.status(400).json({ error: pathCheck.error });
+  }
+  try {
+    const projectDir = await getProjectDir(projectId);
+    await ensureGitInitialized(projectDir);
+    const { stdout } = await execa('git', ['blame', '--porcelain', filePath], {
+      cwd: projectDir,
+      reject: false
+    });
+    if (!stdout) {
+      return res.json({ blame: [] });
+    }
+    const lines = stdout.split('\n');
+    const blameData: any[] = [];
+    let currentCommit: any = {};
+    let lineNumber = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^[0-9a-f]{40}/.test(line)) {
+        const parts = line.split(' ');
+        currentCommit = { hash: parts[0], shortHash: parts[0].substring(0, 7) };
+        lineNumber = parseInt(parts[2], 10);
+      } else if (line.startsWith('author ')) {
+        currentCommit.author = line.substring(7);
+      } else if (line.startsWith('author-time ')) {
+        currentCommit.date = new Date(parseInt(line.substring(12), 10) * 1000).toISOString();
+      } else if (line.startsWith('summary ')) {
+        currentCommit.message = line.substring(8);
+      } else if (line.startsWith('\t')) {
+        if (currentCommit.hash && lineNumber > 0) {
+          blameData.push({
+            line: lineNumber,
+            commit: {
+              hash: currentCommit.hash,
+              shortHash: currentCommit.shortHash,
+              message: currentCommit.message || '',
+              author: currentCommit.author || 'Unknown',
+              date: currentCommit.date || new Date().toISOString()
+            }
+          });
+        }
+        currentCommit = {};
+      }
+    }
+    res.json({ blame: blameData });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -516,13 +881,24 @@ router.post('/:projectId/backup', ensureAuthenticated, async (req: Request, res:
 // POST /:projectId/backup/restore
 router.post('/:projectId/backup/restore', ensureAuthenticated, async (req: Request, res: Response) => {
   const { projectId } = req.params;
-  const { version } = req.body; // or id
+  const { version, id } = req.body; // 'id' is the tag name, 'version' is legacy fallback
+  const requestedTag = id || version; // prefer explicit tag id
   try {
     const projectDir = await getProjectDir(projectId);
-    // Find latest tag if no version specified
     const { stdout } = await execa('git', ['tag', '-l', 'backup-*', '--sort=-creatordate'], { cwd: projectDir });
-    const tags = stdout.split('\\n').filter(Boolean);
-    const targetTag = tags[0]; 
+    const tags = (stdout || '').split('\n').filter(Boolean);
+    
+    let targetTag: string | undefined;
+    if (requestedTag) {
+      // Validate the requested tag actually exists
+      targetTag = tags.find(t => t === requestedTag);
+      if (!targetTag) {
+        return res.status(404).json({ error: `Backup '${requestedTag}' not found` });
+      }
+    } else {
+      targetTag = tags[0]; // Fall back to latest if no version specified
+    }
+
     if (targetTag) {
       await execa('git', ['checkout', targetTag], { cwd: projectDir });
       res.json({ success: true, restoredTo: targetTag });

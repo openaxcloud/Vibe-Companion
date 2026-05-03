@@ -440,8 +440,14 @@ export class MainRouter {
     mount(app, '/api/mobile', tierLimiters.api, def(mobileBuildsMod));
     if (expoSnackMod) mount(app, '/api/expo-snack', tierLimiters.api, (expoSnackMod as any).expoSnackRouter);
 
-    mount(app, '/api/git', tierLimiters.api, def(gitProjectMod));
+    // git.router (global, flat routes) must be mounted FIRST so concrete paths like
+    // /github/status, /status, /branches etc. resolve before the per-project
+    // /:projectId/* wildcard in git-project.router can capture them.
     if (gitMod) mount(app, '/api/git', tierLimiters.api, (gitMod as any).GitRouter);
+    // git-project.router (per-project routes) mounts second; all its routes are
+    // scoped under /:projectId/ so they only match two-segment+ paths that the
+    // global router above left unhandled.
+    mount(app, '/api/git', tierLimiters.api, def(gitProjectMod));
     mount(app, '/api/debug', tierLimiters.api, def(debugMod));
     const dbR = def(databaseMod);
     if (dbR) {

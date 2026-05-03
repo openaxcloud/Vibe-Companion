@@ -283,7 +283,10 @@ export function GitBlameDecorator({
     const fetchBlameData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/git/blame/${encodeURIComponent(filePath)}`, {
+        const blameUrl = projectId
+          ? `/api/git/${projectId}/blame/${encodeURIComponent(filePath)}`
+          : `/api/git/blame/${encodeURIComponent(filePath)}`;
+        const response = await fetch(blameUrl, {
           credentials: 'include'
         });
 
