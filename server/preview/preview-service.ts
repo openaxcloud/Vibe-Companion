@@ -4,6 +4,7 @@ import * as path from 'path';
 import { storage } from '../storage';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import { spawn } from 'child_process';
 import { createHash } from 'crypto';
 import { createLogger } from '../utils/logger';
@@ -763,16 +764,25 @@ export class PreviewService {
   private async startModernFramework(preview: PreviewInstance, frameworkInfo: any, previewPath: string, files: any[], projectEnvVars: Record<string, string> = {}) {
     const port = preview.primaryPort;
     preview.logs.push(`Starting ${frameworkInfo.type} application...`);
-    
+
+    await this.sanitizePackageJson(previewPath);
     try {
-      await this.runCommand('npm', ['install', '--ignore-scripts'], previewPath);
+      await this.runCommand('npm', ['install', '--no-audit', '--no-fund', '--ignore-scripts'], previewPath);
     } catch (installErr: any) {
-      preview.logs.push(`[WARN] npm install had warnings: ${installErr.message} — continuing anyway`);
+      preview.logs.push(`[WARN] npm install failed: ${installErr.message} — attempting targeted recovery`);
     }
-    
+
     let startCommand: string[] = [];
-    if (frameworkInfo.hasVite) {
-      startCommand = ['npx', 'vite', '--port', port.toString(), '--host', '0.0.0.0'];
+    if (frameworkInfo.hasVite || frameworkInfo.type === 'react' || frameworkInfo.type === 'vue') {
+      // Guarantee vite + the right plugin are physically present in node_modules
+      const need = ['vite'];
+      if (frameworkInfo.type === 'react') need.push('@vitejs/plugin-react');
+      if (frameworkInfo.type === 'vue') need.push('@vitejs/plugin-vue');
+      const stillMissing = await this.ensureNodeModule(previewPath, need);
+      if (stillMissing.length > 0) {
+        preview.logs.push(`[WARN] Could not install: ${stillMissing.join(', ')} — preview may fail`);
+      }
+      startCommand = ['npx', '--no-install', 'vite', '--port', port.toString(), '--host', '0.0.0.0'];
     } else if (frameworkInfo.packageJson.scripts?.dev) {
       startCommand = ['npm', 'run', 'dev'];
     } else if (frameworkInfo.packageJson.scripts?.start) {
@@ -1040,10 +1050,64 @@ http.createServer((req, res) => {
   private async runCommand(command: string, args: string[], cwd: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const proc = spawn(command, args, { cwd });
+      let stderr = '';
+      let stdout = '';
+      proc.stderr?.on('data', (d) => { stderr += d.toString(); });
+      proc.stdout?.on('data', (d) => { stdout += d.toString(); });
+      proc.on('error', (err) => reject(err));
       proc.on('exit', (code) => {
         if (code === 0) resolve();
-        else reject(new Error(`Command failed with code ${code}`));
+        else {
+          const tail = (stderr || stdout).split('\n').slice(-8).join(' | ').slice(0, 600);
+          reject(new Error(`${command} ${args.join(' ')} failed (code=${code}): ${tail}`));
+        }
       });
+    });
+  }
+
+  // Sanitize a package.json's deps to remove invalid ranges that break npm install
+  private async sanitizePackageJson(previewPath: string): Promise<void> {
+    const pkgPath = path.join(previewPath, 'package.json');
+    try {
+      const raw = await fs.readFile(pkgPath, 'utf-8');
+      const pkg = JSON.parse(raw);
+      let changed = false;
+      const fixDeps = (deps?: Record<string, string>) => {
+        if (!deps) return;
+        for (const [name, ver] of Object.entries(deps)) {
+          // ^0.0.0 / ~0.0.0 / 0.0.0 match nothing on registry
+          if (/^[\^~]?0\.0\.0$/.test(ver)) {
+            deps[name] = 'latest';
+            changed = true;
+          }
+        }
+      };
+      fixDeps(pkg.dependencies);
+      fixDeps(pkg.devDependencies);
+      if (changed) {
+        await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2));
+      }
+    } catch {
+      // best-effort; if package.json is unreadable, the caller will surface it
+    }
+  }
+
+  // Ensure critical deps are physically present in node_modules. Used as a
+  // fallback when the project's own package.json install failed silently.
+  private async ensureNodeModule(previewPath: string, modules: string[]): Promise<string[]> {
+    const missing = modules.filter(m => {
+      try { fsSync.accessSync(path.join(previewPath, 'node_modules', m)); return false; }
+      catch { return true; }
+    });
+    if (missing.length === 0) return [];
+    try {
+      await this.runCommand('npm', ['install', '--no-save', '--no-audit', '--no-fund', '--ignore-scripts', ...missing], previewPath);
+    } catch {
+      // surface to caller via the still-missing list
+    }
+    return modules.filter(m => {
+      try { fsSync.accessSync(path.join(previewPath, 'node_modules', m)); return false; }
+      catch { return true; }
     });
   }
 }
