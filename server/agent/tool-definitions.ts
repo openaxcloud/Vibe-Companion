@@ -456,6 +456,107 @@ export const testingTools: AgentTool[] = [
 ];
 
 /**
+ * Port Management Tools
+ */
+export const portTools: AgentTool[] = [
+  {
+    name: 'list_ports',
+    description: 'List all configured ports for the current project, including their internal/external mapping, public/private status, and whether they are currently listening.',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'The project ID to list ports for'
+        }
+      },
+      required: ['project_id']
+    }
+  },
+  {
+    name: 'add_port',
+    description: 'Add a new port configuration to the project. Allocates a real external port and registers the internal-to-external mapping.',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'The project ID'
+        },
+        port: {
+          type: 'number',
+          description: 'The internal port number your app listens on (e.g. 3000, 5000, 8080)'
+        },
+        label: {
+          type: 'string',
+          description: 'Human-readable label for this port (e.g. "Web Server", "API")'
+        },
+        protocol: {
+          type: 'string',
+          enum: ['http', 'https', 'ws', 'tcp'],
+          description: 'Protocol for this port (default: http)'
+        }
+      },
+      required: ['project_id', 'port']
+    }
+  },
+  {
+    name: 'set_port_visibility',
+    description: 'Toggle a port between public (accessible to anyone with the URL) and private (only accessible to authenticated users).',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'The project ID'
+        },
+        port_id: {
+          type: 'string',
+          description: 'The port configuration ID (from list_ports)'
+        },
+        is_public: {
+          type: 'boolean',
+          description: 'True to make the port public, false to make it private'
+        }
+      },
+      required: ['project_id', 'port_id', 'is_public']
+    }
+  },
+  {
+    name: 'remove_port',
+    description: 'Remove a port configuration from the project, freeing the external port allocation.',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'The project ID'
+        },
+        port_id: {
+          type: 'string',
+          description: 'The port configuration ID to remove (from list_ports)'
+        }
+      },
+      required: ['project_id', 'port_id']
+    }
+  },
+  {
+    name: 'scan_ports',
+    description: 'Scan for ports currently listening on the project\'s host. Returns a list of ports and whether each is actively listening.',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'The project ID to scan ports for'
+        }
+      },
+      required: ['project_id']
+    }
+  }
+];
+
+/**
  * All Tools Combined
  */
 export const allTools: AgentTool[] = [
@@ -463,7 +564,8 @@ export const allTools: AgentTool[] = [
   ...commandTools,
   ...searchTools,
   ...contextTools,
-  ...testingTools
+  ...testingTools,
+  ...portTools
 ];
 
 /**

@@ -212,10 +212,10 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
   };
 
   function getSslBadge(status: string) {
-    if (status === "self-signed") {
+    if (status === "not-provisioned" || status === "self-signed") {
       return (
-        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 flex items-center gap-0.5">
-          <AlertTriangle className="w-2.5 h-2.5" /> Self-Signed
+        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 flex items-center gap-0.5" data-testid="ssl-badge-not-provisioned">
+          <AlertTriangle className="w-2.5 h-2.5" /> SSL not provisioned
         </span>
       );
     }
@@ -268,10 +268,21 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
               data-testid="toggle-dev-url-private"
             />
           </div>
-          <div className="mt-1 mb-1">
-            <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-1 rounded text-blue-400 block truncate" data-testid="text-dev-url">
-              {projectId}.dev.e-code.ai
+          <div className="mt-1 mb-1 flex items-center gap-1">
+            <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-1 rounded text-blue-400 block truncate flex-1" data-testid="text-dev-url">
+              {window.location.origin}/preview/{projectId}
             </code>
+            <Button
+              variant="ghost" size="icon" className="w-5 h-5 shrink-0"
+              onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/preview/${projectId}`); toast({ title: "Dev URL copied" }); }}
+              data-testid="copy-dev-url"
+              title="Copy dev URL"
+            >
+              <Copy className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" />
+            </Button>
+            <a href={`/preview/${projectId}`} target="_blank" rel="noreferrer" className="shrink-0" data-testid="open-dev-url">
+              <ExternalLink className="w-3 h-3 text-blue-400" />
+            </a>
           </div>
         </div>
 
@@ -318,76 +329,89 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
               ) : ports.length === 0 && !addPortMode ? (
                 <p className="text-[11px] text-[var(--ide-text-muted)] text-center py-3">No ports configured</p>
               ) : (
-                ports.map((p) => (
-                  <div key={p.id} className="bg-[var(--ide-surface)] rounded-lg p-2.5 border border-[var(--ide-border)]" data-testid={`port-${p.id}`}>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <div className="w-6 h-6 rounded flex items-center justify-center bg-[var(--ide-bg)] text-[10px] font-mono font-bold text-blue-400">{p.internalPort}</div>
-                        <ArrowRightLeft className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
-                        <div className="w-6 h-6 rounded flex items-center justify-center bg-[var(--ide-bg)] text-[10px] font-mono font-bold text-green-400">{p.externalPort === 80 ? "80" : p.externalPort}</div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[11px] text-[var(--ide-text)] block truncate">{p.label || `Port ${p.internalPort}`}</span>
-                        <span className="text-[9px] text-[var(--ide-text-muted)] flex items-center gap-1">
-                          {p.protocol.toUpperCase()}
-                          {p.isPublic ? <Unlock className="w-2.5 h-2.5 text-green-400" /> : <Lock className="w-2.5 h-2.5" />}
-                          {p.isPublic ? "Public" : "Private"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1" data-testid={`port-status-${p.id}`}>
-                        <Circle className={`w-2 h-2 ${p.listening ? "fill-green-400 text-green-400" : "fill-red-400 text-red-400"}`} />
-                        <span className={`text-[9px] ${p.listening ? "text-green-400" : "text-red-400"}`}>
-                          {p.listening ? (p.localhostOnly ? "Localhost" : "Listening") : "Inactive"}
-                        </span>
-                      </div>
-                      <Switch checked={p.isPublic} onCheckedChange={(checked) => togglePortMutation.mutate({ id: p.id, isPublic: checked })} className="scale-75" data-testid={`toggle-port-${p.id}`} />
-                      <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-red-400" onClick={() => deletePortMutation.mutate(p.id)} data-testid={`delete-port-${p.id}`}>
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="mt-1.5 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-[9px] text-[var(--ide-text-muted)]">
-                        <span>Expose localhost:</span>
-                        <Switch checked={p.exposeLocalhost} onCheckedChange={(checked) => toggleExposeMutation.mutate({ id: p.id, exposeLocalhost: checked })} className="scale-[0.6]" data-testid={`toggle-expose-${p.id}`} />
-                      </div>
-                      <span className="text-[9px] font-mono text-[var(--ide-text-muted)]">
-                        :{p.internalPort} → :{p.externalPort}
-                      </span>
-                    </div>
-                    {p.externalUrl && (
-                      <div className="mt-1 flex items-center gap-1.5">
-                        <Globe className="w-2.5 h-2.5 text-green-400 shrink-0" />
-                        <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-0.5 rounded text-green-400 flex-1 truncate" data-testid={`external-url-${p.id}`}>
-                          {p.externalUrl}
-                        </code>
-                        <Button
-                          variant="ghost" size="icon" className="w-4 h-4"
-                          onClick={() => { navigator.clipboard.writeText(p.externalUrl); toast({ title: "External URL copied" }); }}
-                          data-testid={`copy-external-url-${p.id}`}
-                        >
-                          <Copy className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" />
+                ports.map((p, idx) => {
+                  const isPrimary = idx === 0;
+                  return (
+                    <div key={p.id} className={`bg-[var(--ide-surface)] rounded-lg p-2.5 border ${isPrimary ? "border-blue-500/40" : "border-[var(--ide-border)]"}`} data-testid={`port-${p.id}`}>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <div className="w-6 h-6 rounded flex items-center justify-center bg-[var(--ide-bg)] text-[10px] font-mono font-bold text-blue-400">{p.internalPort}</div>
+                          <ArrowRightLeft className="w-2.5 h-2.5 text-[var(--ide-text-muted)] shrink-0" />
+                          <div className="w-6 h-6 rounded flex items-center justify-center bg-[var(--ide-bg)] text-[10px] font-mono font-bold text-green-400">{p.externalPort === 80 ? "80" : p.externalPort}</div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[11px] text-[var(--ide-text)] truncate">{p.label || `Port ${p.internalPort}`}</span>
+                            {isPrimary && (
+                              <span className="text-[8px] px-1 py-0.5 rounded bg-blue-500/15 text-blue-400 shrink-0" data-testid={`badge-primary-${p.id}`}>Primary</span>
+                            )}
+                          </div>
+                          <span className="text-[9px] text-[var(--ide-text-muted)] flex items-center gap-1">
+                            {p.protocol.toUpperCase()}
+                            {p.isPublic ? <Unlock className="w-2.5 h-2.5 text-green-400" /> : <Lock className="w-2.5 h-2.5" />}
+                            {p.isPublic ? "Public" : "Private"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1" data-testid={`port-status-${p.id}`}>
+                          <Circle className={`w-2 h-2 ${p.listening ? "fill-green-400 text-green-400" : "fill-red-400 text-red-400"}`} />
+                          <span className={`text-[9px] ${p.listening ? "text-green-400" : "text-red-400"}`}>
+                            {p.listening ? (p.localhostOnly ? "Localhost" : "Listening") : "Inactive"}
+                          </span>
+                        </div>
+                        <Switch checked={p.isPublic} onCheckedChange={(checked) => togglePortMutation.mutate({ id: p.id, isPublic: checked })} className="scale-75" data-testid={`toggle-port-${p.id}`} />
+                        <Button variant="ghost" size="icon" className="w-5 h-5 text-[var(--ide-text-muted)] hover:text-red-400" onClick={() => deletePortMutation.mutate(p.id)} data-testid={`delete-port-${p.id}`}>
+                          <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>
-                    )}
-                    {p.proxyUrl && (
-                      <div className="mt-1 flex items-center gap-1.5">
-                        <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-0.5 rounded text-blue-400 flex-1 truncate" data-testid={`proxy-url-${p.id}`}>
-                          {window.location.origin}{p.proxyUrl}
-                        </code>
-                        <Button
-                          variant="ghost" size="icon" className="w-4 h-4"
-                          onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${p.proxyUrl}`); toast({ title: "URL copied" }); }}
-                          data-testid={`copy-proxy-url-${p.id}`}
-                        >
-                          <Copy className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" />
-                        </Button>
-                        <a href={p.proxyUrl} target="_blank" rel="noreferrer" className="shrink-0" data-testid={`open-proxy-${p.id}`}>
-                          <ExternalLink className="w-3 h-3 text-blue-400" />
-                        </a>
+                      <div className="mt-1.5 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-[9px] text-[var(--ide-text-muted)]">
+                          <span>Expose localhost:</span>
+                          <Switch checked={p.exposeLocalhost} onCheckedChange={(checked) => toggleExposeMutation.mutate({ id: p.id, exposeLocalhost: checked })} className="scale-[0.6]" data-testid={`toggle-expose-${p.id}`} />
+                        </div>
+                        <span className="text-[9px] font-mono text-[var(--ide-text-muted)]">
+                          :{p.internalPort} → :{p.externalPort}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                ))
+                      {p.externalUrl && (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <Globe className="w-2.5 h-2.5 text-green-400 shrink-0" />
+                          <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-0.5 rounded text-green-400 flex-1 truncate" data-testid={`external-url-${p.id}`}>
+                            {p.externalUrl}
+                          </code>
+                          <Button
+                            variant="ghost" size="icon" className="w-4 h-4"
+                            onClick={() => { navigator.clipboard.writeText(p.externalUrl); toast({ title: "External URL copied" }); }}
+                            data-testid={`copy-external-url-${p.id}`}
+                            title="Copy external URL"
+                          >
+                            <Copy className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" />
+                          </Button>
+                          <a href={p.externalUrl} target="_blank" rel="noreferrer" className="shrink-0" data-testid={`open-external-url-${p.id}`} title="Open external URL">
+                            <ExternalLink className="w-3 h-3 text-green-400" />
+                          </a>
+                        </div>
+                      )}
+                      {p.proxyUrl && (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <code className="text-[9px] font-mono bg-[var(--ide-bg)] px-2 py-0.5 rounded text-blue-400 flex-1 truncate" data-testid={`proxy-url-${p.id}`}>
+                            {window.location.origin}{p.proxyUrl}
+                          </code>
+                          <Button
+                            variant="ghost" size="icon" className="w-4 h-4"
+                            onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${p.proxyUrl}`); toast({ title: "URL copied" }); }}
+                            data-testid={`copy-proxy-url-${p.id}`}
+                            title="Copy proxy URL"
+                          >
+                            <Copy className="w-2.5 h-2.5 text-[var(--ide-text-muted)]" />
+                          </Button>
+                          <a href={p.proxyUrl} target="_blank" rel="noreferrer" className="shrink-0" data-testid={`open-proxy-${p.id}`} title="Open in new tab">
+                            <ExternalLink className="w-3 h-3 text-blue-400" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           )}
@@ -461,9 +485,9 @@ export default function NetworkingPanel({ projectId, onClose }: { projectId: str
                             Visit <ExternalLink className="w-2.5 h-2.5" />
                           </a>
                         </div>
-                        {d.sslStatus === "self-signed" && (
+                        {(d.sslStatus === "not-provisioned" || d.sslStatus === "self-signed") && (
                           <p className="text-[8px] text-yellow-400/70 mt-1" data-testid={`ssl-note-${d.id}`}>
-                            Development verification only — not suitable for production. For production HTTPS, configure external TLS termination (e.g. Cloudflare, load balancer, or reverse proxy with Let's Encrypt).
+                            Domain ownership verified. SSL is not yet provisioned — for HTTPS, configure TLS at your DNS provider (e.g. Cloudflare proxy) or a reverse proxy with Let's Encrypt.
                           </p>
                         )}
                       </div>

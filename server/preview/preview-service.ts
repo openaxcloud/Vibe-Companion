@@ -243,8 +243,77 @@ export class PreviewService {
     }
   }
 
+  /**
+   * Unified port auth gate for /preview/:projectId/:port/ routes.
+   * - Public ports: allow unauthenticated access (no session required).
+   * - Private ports: require valid session; return 401 otherwise.
+   * - Port not registered: fall back to standard session auth.
+   *
+   * Called as the first (and only) auth middleware on port preview routes
+   * so that a single middleware handles the full public/private decision.
+   */
+  private async portPreviewAuthGate(req: any, res: any, next: any) {
+    try {
+      const projectId = req.params.projectId;
+      const port = parseInt(req.params.port, 10);
+      if (isNaN(port)) return next(); // let route handler produce the 400
+
+      // Look up port visibility from DB regardless of whether projectId is
+      // numeric or a string/UUID — cast to int only when numeric, else skip.
+      const { db } = await import('../db');
+      const { networkingPorts } = await import('../../shared/schema');
+      const { eq, and } = await import('drizzle-orm');
+
+      const numericProjectId = parseInt(projectId, 10);
+      let portRecord: any = null;
+
+      if (!isNaN(numericProjectId)) {
+        const rows = await db.select()
+          .from(networkingPorts)
+          .where(and(
+            eq(networkingPorts.projectId, numericProjectId),
+            eq(networkingPorts.internalPort, port)
+          ));
+        portRecord = rows[0] ?? null;
+      }
+      // String/UUID project IDs: networkingPorts.projectId is integer, so we
+      // cannot look up by string directly. Fall through to standard auth below.
+
+      if (portRecord) {
+        req._portIsPublic = !!portRecord.isPublic;
+
+        if (portRecord.isPublic) {
+          // Public port: allow through without any authentication
+          return next();
+        }
+
+        // Private port: require session auth
+        const sessionUserId = req.session?.userId;
+        const passportAuthed = typeof req.isAuthenticated === 'function' && req.isAuthenticated();
+        if (!sessionUserId && !passportAuthed) {
+          return res.status(401).json({
+            error: 'This port is private. Authentication required.',
+            isPublic: false,
+          });
+        }
+
+        // Authed user accessing private port — verify project ownership
+        return this.ensureProjectAccess(req, res, next);
+      }
+
+      // Port not found in DB (unregistered port or string project ID):
+      // fall back to standard preview auth (requires login + project access)
+      this.ensurePreviewAuth(req, res, () => this.ensureProjectAccess(req, res, next));
+    } catch (err: any) {
+      logger.warn('portPreviewAuthGate error (falling back to standard auth):', err.message);
+      this.ensurePreviewAuth(req, res, () => this.ensureProjectAccess(req, res, next));
+    }
+  }
+
   registerRoutes(app: express.Application) {
-    app.use('/preview/:projectId/:port/{*proxyPath}', this.ensurePreviewAuth, this.ensureProjectAccess.bind(this), async (req, res, next) => {
+    // Port-specific proxy with public/private enforcement.
+    // portPreviewAuthGate handles all auth decisions for port preview routes.
+    app.use('/preview/:projectId/:port/{*proxyPath}', this.portPreviewAuthGate.bind(this), async (req, res, next) => {
       const projectId = req.params.projectId;
       const port = parseInt(req.params.port);
       const preview = this.previews.get(projectId);

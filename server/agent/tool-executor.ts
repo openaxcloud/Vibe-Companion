@@ -208,7 +208,27 @@ export class ToolExecutor {
         case 'get_diagnostics':
           result = await this.getDiagnostics(parameters);
           break;
-        
+
+        case 'list_ports':
+          result = await this.listPorts(parameters);
+          break;
+
+        case 'add_port':
+          result = await this.addPort(parameters);
+          break;
+
+        case 'set_port_visibility':
+          result = await this.setPortVisibility(parameters);
+          break;
+
+        case 'remove_port':
+          result = await this.removePort(parameters);
+          break;
+
+        case 'scan_ports':
+          result = await this.scanPorts(parameters);
+          break;
+
         default:
           result = {
             success: false,
@@ -956,6 +976,121 @@ export class ToolExecutor {
         success: false,
         error: `Failed to run diagnostics: ${err.message}`
       };
+    }
+  }
+
+  // ==========================================
+  // Port Management Tools
+  // ==========================================
+
+  private async listPorts(params: { project_id: string }): Promise<ToolExecutionResult> {
+    try {
+      const { listPortsWithLiveness } = await import('../services/port-management-service');
+      const projectId = parseInt(params.project_id, 10);
+      if (isNaN(projectId)) return { success: false, error: `Invalid project_id: ${params.project_id}` };
+
+      const ports = await listPortsWithLiveness(projectId);
+      return {
+        success: true,
+        output: {
+          message: `Found ${ports.length} port configuration(s)`,
+          ports: ports.map((p) => ({
+            id: p.id,
+            internalPort: p.internalPort,
+            externalPort: p.externalPort,
+            label: p.label,
+            protocol: p.protocol,
+            isPublic: p.isPublic,
+            listening: p.listening,
+          })),
+        }
+      };
+    } catch (err: any) {
+      return { success: false, error: `Failed to list ports: ${err.message}` };
+    }
+  }
+
+  private async addPort(params: { project_id: string; port: number; label?: string; protocol?: string }): Promise<ToolExecutionResult> {
+    try {
+      const { createPort } = await import('../services/port-management-service');
+      const projectId = parseInt(params.project_id, 10);
+      if (isNaN(projectId)) return { success: false, error: `Invalid project_id: ${params.project_id}` };
+
+      const result = await createPort(projectId, params.port, params.label, params.protocol);
+      if (!result.ok) return { success: false, error: result.error };
+
+      const p = result.port;
+      return {
+        success: true,
+        output: {
+          message: `Port ${p.internalPort} configured with external port ${p.externalPort}.`,
+          port: { id: p.id, internalPort: p.internalPort, externalPort: p.externalPort, isPublic: p.isPublic },
+        }
+      };
+    } catch (err: any) {
+      return { success: false, error: `Failed to add port: ${err.message}` };
+    }
+  }
+
+  private async setPortVisibility(params: { project_id: string; port_id: string; is_public: boolean }): Promise<ToolExecutionResult> {
+    try {
+      const { updatePort } = await import('../services/port-management-service');
+      const projectId = parseInt(params.project_id, 10);
+      const portId = parseInt(params.port_id, 10);
+      if (isNaN(projectId)) return { success: false, error: `Invalid project_id: ${params.project_id}` };
+      if (isNaN(portId)) return { success: false, error: `Invalid port_id: ${params.port_id}` };
+
+      const result = await updatePort(projectId, portId, { isPublic: params.is_public });
+      if (!result.ok) return { success: false, error: result.error };
+
+      const p = result.port;
+      return {
+        success: true,
+        output: {
+          message: `Port ${p.internalPort} is now ${params.is_public ? 'public' : 'private'}.`,
+          port: { id: p.id, internalPort: p.internalPort, isPublic: p.isPublic },
+        }
+      };
+    } catch (err: any) {
+      return { success: false, error: `Failed to set port visibility: ${err.message}` };
+    }
+  }
+
+  private async removePort(params: { project_id: string; port_id: string }): Promise<ToolExecutionResult> {
+    try {
+      const { deletePort } = await import('../services/port-management-service');
+      const projectId = parseInt(params.project_id, 10);
+      const portId = parseInt(params.port_id, 10);
+      if (isNaN(projectId)) return { success: false, error: `Invalid project_id: ${params.project_id}` };
+      if (isNaN(portId)) return { success: false, error: `Invalid port_id: ${params.port_id}` };
+
+      const result = await deletePort(projectId, portId);
+      if (!result.ok) return { success: false, error: result.error };
+
+      return { success: true, output: { message: `Port ${portId} removed successfully.` } };
+    } catch (err: any) {
+      return { success: false, error: `Failed to remove port: ${err.message}` };
+    }
+  }
+
+  private async scanPorts(params: { project_id: string }): Promise<ToolExecutionResult> {
+    try {
+      const { scanPorts } = await import('../services/port-management-service');
+      const results = await scanPorts(params.project_id);
+
+      const listening = results.filter((r) => r.listening);
+      const method = results.length > 0 ? results[0].source : 'tcp-probe';
+
+      return {
+        success: true,
+        output: {
+          message: `Scan complete — ${listening.length} port(s) listening (method: ${method}).`,
+          ports: results,
+          listeningPorts: listening.map((r) => r.port),
+        }
+      };
+    } catch (err: any) {
+      return { success: false, error: `Failed to scan ports: ${err.message}` };
     }
   }
 }
