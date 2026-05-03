@@ -239,6 +239,7 @@ class CentralUpgradeDispatcher {
       '/terminal',             // Disabled (410 Gone) — no auth needed before 410
       '/shell',                // Disabled (410 Gone) — no auth needed before 410
       '/api/terminal/ws',      // PTYTerminalService enforces cookie/JWT auth + 1008 on every connection
+      '/ws/preview',           // PreviewWebSocket handles auth at subscribe level (not upgrade)
     ];
     const publicPaths = [
       '/health', '/api/health',

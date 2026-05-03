@@ -599,12 +599,26 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
     name: string;
     icon: string;
   }
-  const [openTabs, setOpenTabs] = useState<OpenTab[]>([
+  // Allow ?tab=<id> URL param to pre-open a tool tab (used by e2e tests)
+  const _initialTab = (() => {
+    try { return new URLSearchParams(window.location.search).get('tab') || 'preview'; } catch { return 'preview'; }
+  })();
+  const _tabDisplayNames: Record<string, string> = {
+    console: 'Console', database: 'Database', git: 'Git', secrets: 'Secrets',
+    terminal: 'Shell', workflows: 'Workflows', packages: 'Packages', history: 'History',
+    monitoring: 'Monitoring', 'security-scanner': 'Scanner', checkpoints: 'Checkpoints',
+  };
+  const _builtInTabIds = new Set(['preview', 'agent', 'deploy']);
+  const _baseTabs: OpenTab[] = [
     { id: 'preview', name: 'Preview', icon: 'preview' },
     { id: 'agent', name: 'Agent', icon: 'agent' },
     { id: 'deploy', name: 'Deploy', icon: 'deploy' },
-  ]);
-  const [activeOpenTabId, setActiveOpenTabId] = useState('preview');
+  ];
+  const _initialTabs: OpenTab[] = _builtInTabIds.has(_initialTab)
+    ? _baseTabs
+    : [..._baseTabs, { id: _initialTab, name: (_tabDisplayNames[_initialTab] || _initialTab), icon: _initialTab }];
+  const [openTabs, setOpenTabs] = useState<OpenTab[]>(_initialTabs);
+  const [activeOpenTabId, setActiveOpenTabId] = useState(_initialTab);
 
   const toolNameMap: Record<string, string> = {
     agent: 'Agent', preview: 'Preview', deploy: 'Deploy', console: 'Console',
@@ -836,7 +850,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       case 'visual-editor':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><VisualEditorPanel projectId={projectId} /></Suspense>;
       case 'console':
-        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitConsolePanel projectId={projectId} isRunning={isRunning} logs={logs} onStop={handleRunStop} onAskAI={(text) => { setPendingAIMessage(text); }} activeFileName={activeFileName || undefined} currentConsoleRunId={currentConsoleRunId} /></Suspense>;
+        return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitConsolePanel projectId={projectId} isRunning={isRunning} onAskAgent={(context) => { setPendingAIMessage(context || ''); }} /></Suspense>;
       case 'resources':
         return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ResourcesPanel projectId={projectId} /></Suspense>;
       case 'logs':
@@ -931,7 +945,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ResponsiveWebPreview projectId={projectId} /></Suspense>;
     }
     if (currentTab.id === 'console') {
-      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitConsolePanel projectId={projectId} isRunning={isRunning} logs={logs} onStop={handleRunStop} onAskAI={(text) => { setPendingAIMessage(text); setIsSidebarCollapsed(false); setLeftPanelTab('agent'); }} activeFileName={activeFileName || undefined} currentConsoleRunId={currentConsoleRunId} /></Suspense>;
+      return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ReplitConsolePanel projectId={projectId} isRunning={isRunning} onAskAgent={(context) => { setPendingAIMessage(context || ''); setIsSidebarCollapsed(false); setLeftPanelTab('agent'); }} /></Suspense>;
     }
     if (currentTab.id === 'shell') {
       return <Suspense fallback={<div className="flex items-center justify-center h-full"><ECodeLoading size="md" /></div>}><ShellPanel projectId={projectId} /></Suspense>;
@@ -981,7 +995,7 @@ function UnifiedIDELayout({ projectId, className }: UnifiedIDELayoutProps) {
           <ResizablePanel defaultSize={30} minSize={10} collapsible collapsedSize={4}>
             <div className="h-full flex flex-col border-t border-[var(--ide-border)]">
               <Suspense fallback={<div className="flex items-center justify-center h-full text-xs text-[var(--ide-text-muted)]">Loading...</div>}>
-                <ReplitConsolePanel projectId={projectId} isRunning={isRunning} logs={logs} onStop={handleRunStop} onAskAI={(text) => { setPendingAIMessage(text); setIsSidebarCollapsed(false); setLeftPanelTab('agent'); }} activeFileName={activeFileName || undefined} currentConsoleRunId={currentConsoleRunId} />
+                <ReplitConsolePanel projectId={projectId} isRunning={isRunning} onAskAgent={(context) => { setPendingAIMessage(context || ''); setIsSidebarCollapsed(false); setLeftPanelTab('agent'); }} />
               </Suspense>
             </div>
           </ResizablePanel>

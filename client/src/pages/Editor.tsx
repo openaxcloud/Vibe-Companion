@@ -11,7 +11,7 @@ import { ReplitFileSidebar } from "@/components/editor/ReplitFileSidebar";
 import { ReplitAgentPanelV3 } from "@/components/ai/ReplitAgentPanelV3";
 import { AgentPanelErrorBoundary } from "@/components/ai/AgentPanelErrorBoundary";
 import { WebPreview } from "@/components/WebPreview";
-import { ConsolePanel } from "@/components/ide/ConsolePanel";
+import { ReplitConsolePanel } from "@/components/ide/ReplitConsolePanel";
 import { ReplitDB } from "@/components/ReplitDB";
 import { PackageManager } from "@/components/PackageManager";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
@@ -561,7 +561,7 @@ export default function Editor(props: EditorProps = {}) {
   }, [project, activeProjectId, activeFile, selectedCode, isProjectRunning, initialAgentPrompt]);
 
   const bottomPanel = activeProjectId ? (
-    <ConsolePanel
+    <ReplitConsolePanel
       projectId={activeProjectId as any}
       isRunning={isProjectRunning}
       executionId={executionId}

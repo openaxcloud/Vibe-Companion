@@ -51,6 +51,7 @@ import { addCollaborator, removeCollaborator, getCollaborators, updateActiveFile
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { centralUpgradeDispatcher } from "../websocket/central-upgrade-dispatcher";
+import { previewWebSocketService } from "../preview/preview-websocket";
 
 
 // Connection-tracking primitives required by the legacy /ws/project handler.
@@ -106,6 +107,7 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
   // register(), ensures the dispatcher routes upgrades for every
   // path it knows about.
   centralUpgradeDispatcher.initialize(httpServer);
+  previewWebSocketService.initialize(httpServer);
 
   // Must run after centralUpgradeDispatcher.initialize() so the /api/terminal/ws
   // handler is attached before the first client upgrade request arrives.

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { IncomingMessage } from 'http';
@@ -6,8 +5,10 @@ import { previewService } from './preview-service';
 import { EventEmitter } from 'events';
 import { parse as parseCookie } from 'cookie';
 import { storage } from '../storage';
+import { pool as dbPool } from '../db';
 import { centralUpgradeDispatcher } from '../websocket/central-upgrade-dispatcher';
 import { markSocketAsHandled } from '../websocket/upgrade-guard';
+import * as ptyManager from './pty-session-manager';
 
 // Event emitter for preview updates
 // NOTE: File changes are emitted by files.router.ts when files are mutated via REST API
@@ -39,29 +40,18 @@ class PreviewWebSocketService {
     centralUpgradeDispatcher.register('/ws/preview', async (request: IncomingMessage, socket: any, head: Buffer) => {
       markSocketAsHandled(request, socket);
 
+      // Resolve userId from session cookie (may be null for unauthenticated connections).
+      // Auth is enforced at the subscribe message level, not at the WS upgrade level,
+      // so that protocol-level messages (resize, ping) work without a session.
       const cookies = parseCookie(request.headers.cookie || '');
       const sessionId = cookies['ecode.sid'] || cookies['connect.sid'];
-      
-      if (!sessionId) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-
-      let userId: number | null;
-      try {
-        userId = await this.getUserIdFromSession(sessionId);
-      } catch (error) {
-        console.error('Session validation error:', error);
-        socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-      
-      if (!userId) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        return;
+      let userId: number | null = null;
+      if (sessionId) {
+        try {
+          userId = await this.getUserIdFromSession(sessionId);
+        } catch (error) {
+          console.error('Session validation error:', error);
+        }
       }
 
       try {
@@ -115,45 +105,40 @@ class PreviewWebSocketService {
   private cleanupClient(clientId: string) {
     const client = this.clients.get(clientId);
     if (!client) return;
-    
+
+    // Detach from any PTY session to prevent memory leaks.
+    if (client.projectId) {
+      ptyManager.detachSubscriber(String(client.projectId), client.ws);
+    }
+
     // Remove all event listeners to prevent memory leaks
     for (const [eventName, listener] of client.eventListeners.entries()) {
       previewEvents.off(eventName, listener);
     }
     client.eventListeners.clear();
-    
+
     try {
       if (client.ws.readyState === WebSocket.OPEN) {
         client.ws.close(1000, 'Cleanup');
       }
     } catch (e: any) { console.error('[catch]', e?.message || e); }
-    
+
     this.clients.delete(clientId);
   }
 
   private async getUserIdFromSession(sessionId: string): Promise<number | null> {
     try {
-      // Parse the session ID (remove signature if present)
-      const cleanSessionId = sessionId.split('.')[0].replace('s:', '');
-      
-      // Query session store
-      const sessionStore = (global as any).sessionStore;
-      if (!sessionStore) {
-        console.error('Session store not available');
-        return null;
-      }
-
-      return new Promise((resolve) => {
-        sessionStore.get(cleanSessionId, (err: any, session: any) => {
-          if (err || !session || !session.passport?.user) {
-            resolve(null);
-          } else {
-            resolve(session.passport.user);
-          }
-        });
-      });
-    } catch (error) {
-      console.error('Error getting userId from session:', error);
+      // Strip express-session signature: "s:SID.HMAC" → "SID"
+      const cleanSid = sessionId.split('.')[0].replace(/^s:/, '');
+      const { rows } = await dbPool.query<{ sess: any }>(
+        'SELECT sess FROM user_sessions WHERE sid = $1 AND expire > NOW()',
+        [cleanSid]
+      );
+      if (!rows.length) return null;
+      const sess = typeof rows[0].sess === 'string' ? JSON.parse(rows[0].sess) : rows[0].sess;
+      const uid = sess?.passport?.user ?? sess?.user ?? null;
+      return uid != null ? Number(uid) : null;
+    } catch {
       return null;
     }
   }
@@ -269,14 +254,18 @@ class PreviewWebSocketService {
         }
 
         client.projectId = projectId;
-        
+
         // NOTE: File watching is handled via REST API mutations in files.router.ts
         // which emits preview:file-change events when files are created/updated/deleted
         // No filesystem watcher needed since files are stored in the database
-        
+
+        // Attach to any live PTY session so this subscriber gets pty:data frames.
+        ptyManager.attachSubscriber(String(projectId), client.ws);
+
         client.ws.send(JSON.stringify({
           type: 'subscribed',
-          projectId: projectId
+          projectId: projectId,
+          hasPtySession: ptyManager.hasPtySession(String(projectId)),
         }));
         
         // Send current preview status
@@ -294,6 +283,9 @@ class PreviewWebSocketService {
         break;
 
       case 'unsubscribe':
+        if (client.projectId) {
+          ptyManager.detachSubscriber(String(client.projectId), client.ws);
+        }
         client.projectId = undefined;
         client.ws.send(JSON.stringify({
           type: 'unsubscribed'
@@ -303,6 +295,114 @@ class PreviewWebSocketService {
       case 'ping':
         client.ws.send(JSON.stringify({ type: 'pong' }));
         break;
+
+      case 'pty:start': {
+        if (!client.projectId) {
+          client.ws.send(JSON.stringify({ type: 'error', message: 'Not subscribed to a project' }));
+          break;
+        }
+        const pid = String(client.projectId);
+        const { workflowId, cols: ptyC = 80, rows: ptyR = 24 } = data;
+
+        // Server-authoritative: the client provides only a workflowId — no executables
+        // or command strings are accepted from the client.  The server resolves the
+        // command from the project's workflow steps stored in the database.
+        if (!workflowId || typeof workflowId !== 'string') {
+          client.ws.send(JSON.stringify({ type: 'error', message: 'pty:start requires workflowId' }));
+          break;
+        }
+
+        try {
+          const workflow = await storage.getWorkflow(workflowId);
+          if (!workflow || String(workflow.projectId) !== pid) {
+            client.ws.send(JSON.stringify({ type: 'error', message: 'Workflow not found or access denied' }));
+            break;
+          }
+
+          const steps = await storage.getWorkflowSteps(workflowId);
+          const step = steps.sort((a: any, b: any) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))[0];
+          if (!step?.command) {
+            client.ws.send(JSON.stringify({ type: 'error', message: 'Workflow has no executable step' }));
+            break;
+          }
+
+          const session = ptyManager.spawnPtySession(
+            pid,
+            'bash',
+            ['-c', step.command],
+            { cols: Number(ptyC) || 80, rows: Number(ptyR) || 24 },
+            // onData: PTY bytes are already broadcast as `pty:data` frames by
+            // broadcastToPtySubscribers inside pty-session-manager — do NOT
+            // re-emit them as `preview:log` here or the client will receive
+            // both and show duplicate output.
+            (_rawData: string) => { /* pty:data handled by pty-session-manager */ },
+            (exitCode: number) => {
+              previewEvents.emit('preview:stop', { projectId: pid, exitCode });
+            }
+          );
+          session.subscribers.add(client.ws);
+          client.ws.send(JSON.stringify({ type: 'pty:started', projectId: pid, workflowId, cols: ptyC, rows: ptyR }));
+        } catch (err: any) {
+          client.ws.send(JSON.stringify({ type: 'error', message: `PTY spawn failed: ${err?.message}` }));
+        }
+        break;
+      }
+
+      case 'stdin': {
+        // Forward raw stdin data to the running process — PTY first, then child_process fallback.
+        if (!client.projectId) {
+          client.ws.send(JSON.stringify({ type: 'error', message: 'Not subscribed to a project' }));
+          break;
+        }
+        const { data: stdinData } = data;
+        if (typeof stdinData !== 'string') break;
+        const pid2 = String(client.projectId);
+        // Try PTY session first (preferred — real tty semantics).
+        const ptyOk = ptyManager.writeToPtySession(pid2, stdinData);
+        if (ptyOk) break;
+        // Fallback: legacy child_process stdin pipe.
+        const ok = previewService.writeStdin(pid2, stdinData);
+        if (!ok) {
+          client.ws.send(JSON.stringify({
+            type: 'error',
+            message: 'No running process to receive stdin'
+          }));
+        }
+        break;
+      }
+
+      case 'resize': {
+        // PTY resize — apply to active PTY session, then ack.
+        const { cols, rows } = data;
+        if (client.projectId) {
+          ptyManager.resizePtySession(String(client.projectId), Number(cols) || 80, Number(rows) || 24);
+        }
+        client.ws.send(JSON.stringify({ type: 'resize:ack', cols, rows }));
+        break;
+      }
+
+      case 'signal': {
+        // Send a Unix signal to the running process — PTY first, then child_process fallback.
+        if (!client.projectId) {
+          client.ws.send(JSON.stringify({ type: 'error', message: 'Not subscribed to a project' }));
+          break;
+        }
+        const sig = data.signal as 'SIGTERM' | 'SIGINT' | 'SIGKILL';
+        if (!['SIGTERM', 'SIGINT', 'SIGKILL'].includes(sig)) {
+          client.ws.send(JSON.stringify({ type: 'error', message: `Unknown signal: ${sig}` }));
+          break;
+        }
+        const pid3 = String(client.projectId);
+        // For WS `signal` messages the user wants to send a specific signal to
+        // the running process — NOT to tear it down via killPtySession().
+        // signalPtySession() delivers the requested signal without removing the
+        // session from the map or scheduling SIGKILL fallback.
+        const ptyKilled = ptyManager.signalPtySession(pid3, sig as NodeJS.Signals);
+        // Also signal legacy child_process preview if one exists.
+        const sent = previewService.signalPreview(pid3, sig) || ptyKilled;
+        client.ws.send(JSON.stringify({ type: 'signal:ack', signal: sig, sent }));
+        break;
+      }
 
       default:
         console.warn(`Unknown WebSocket message type: ${data.type}`);

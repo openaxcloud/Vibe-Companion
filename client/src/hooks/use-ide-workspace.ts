@@ -72,8 +72,15 @@ export function useIDEWorkspace(projectId: string) {
   // ═══════════════════════════════════════════════
   // CORE STATE
   // ═══════════════════════════════════════════════
-  const [openTabs, setOpenTabs] = useState<string[]>(['preview']);
-  const [activeFileId, setActiveFileId] = useState<string | null>('preview');
+  // Allow ?tab=<id> URL param to pre-open a specific tool tab (used by e2e tests)
+  const _urlTab = (() => { try { return new URLSearchParams(window.location.search).get('tab'); } catch { return null; } })();
+  const _validToolTabs = new Set(['preview', 'console', 'terminal', 'git', 'packages', 'secrets', 'database',
+    'deployment', 'deploy', 'search', 'debugger', 'settings', 'history', 'tasks', 'checkpoints', 'workflows',
+    'extensions', 'collaboration', 'security', 'shell', 'resources', 'logs', 'visual-editor', 'monitoring',
+    'security-scanner', 'backup', 'mcp', 'ssh', 'integrations']);
+  const _initialTab = (_urlTab && _validToolTabs.has(_urlTab)) ? _urlTab : 'preview';
+  const [openTabs, setOpenTabs] = useState<string[]>(_initialTab === 'preview' ? ['preview'] : ['preview', _initialTab]);
+  const [activeFileId, setActiveFileId] = useState<string | null>(_initialTab);
   const [fileContents, setFileContents] = useState<Record<string, string>>({});
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set());
   const [isRunning, setIsRunning] = useState(false);

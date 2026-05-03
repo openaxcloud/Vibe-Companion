@@ -1,6 +1,5 @@
-// @ts-nocheck
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -42,6 +41,11 @@ import { useServerLogs, ServerLogEntry } from '@/hooks/useServerLogs';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { Terminal as XTerm } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import '@xterm/xterm/css/xterm.css';
 
 interface ConsoleLog {
   id: string;
@@ -74,16 +78,13 @@ interface ReplitConsolePanelProps {
   className?: string;
   onRunWorkflow?: (workflow: Workflow) => void;
   onStopWorkflow?: (workflowId: string) => void;
-  onAskAgent?: () => void;
+  onAskAgent?: (context?: string) => void;
   onManageWorkflows?: () => void;
   onCloseTab?: () => void;
 }
 
-const DEFAULT_WORKFLOWS: Workflow[] = [
-  { id: 'run-command', name: 'Run .replit run command', command: '.replit run', isSystem: true },
-  { id: 'project', name: 'Project', command: 'npm run dev', isDefault: true, isSystem: true },
-  { id: 'start-application', name: 'Start application', command: 'npm run dev', isSystem: true },
-];
+// No DEFAULT_WORKFLOWS hardcoded on the client — workflows are loaded exclusively from
+// GET /api/workflows?projectId=... so they reflect the project's actual .replit / backend config.
 
 export function ReplitConsolePanel({ 
   projectId, 
@@ -107,8 +108,17 @@ export function ReplitConsolePanel({
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [runningWorkflowIds, setRunningWorkflowIds] = useState<Set<string>>(new Set());
   
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const autoScrollRef = useRef(true);
+  // xterm.js terminal renderer
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const xtermRef = useRef<XTerm | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
+  // SIGINT→SIGKILL grace-period timer
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Total log count — drives empty-state display
+  const [logCount, setLogCount] = useState(0);
+  // Stable ref so re-render effects can read the latest logs without adding them to deps
+  const logsRef = useRef<ConsoleLog[]>([]);
 
   const { data: customWorkflows } = useQuery<Workflow[]>({
     queryKey: ['/api/workflows', projectId],
@@ -123,13 +133,12 @@ export function ReplitConsolePanel({
     enabled: !!projectId
   });
 
-  const allWorkflows = [...DEFAULT_WORKFLOWS, ...(customWorkflows || [])];
+  const allWorkflows = customWorkflows || [];
 
   const runWorkflowMutation = useMutation({
     mutationFn: async (workflow: Workflow) => {
       return apiRequest('POST', `/api/preview/projects/${projectId}/preview/start`, {
-        workflow: workflow.id,
-        command: workflow.command
+        workflowId: workflow.id,
       });
     },
     onMutate: (workflow) => {
@@ -137,6 +146,19 @@ export function ReplitConsolePanel({
       setLatestRunStartIndex(logs.length);
     },
     onSuccess: (_, workflow) => {
+      // Spawn a server-side PTY session so the console receives raw terminal
+      // bytes for this execution.  Only the workflowId is sent — the server
+      // resolves the command from the project's workflow steps in the database.
+      const ws = previewWsRef.current;
+      const term = xtermRef.current;
+      if (ws?.readyState === WebSocket.OPEN && workflow.id) {
+        ws.send(JSON.stringify({
+          type: 'pty:start',
+          workflowId: workflow.id,
+          cols: term?.cols ?? 80,
+          rows: term?.rows ?? 24,
+        }));
+      }
       toast({ title: `Running: ${workflow.name}` });
       onRunWorkflow?.(workflow);
     },
@@ -150,25 +172,53 @@ export function ReplitConsolePanel({
     }
   });
 
+  // Stop the active project execution — the server kills the PTY session and the preview
+  // service process.  No workflow ID is needed here because PTY sessions are per-project.
   const stopWorkflowMutation = useMutation({
-    mutationFn: async (workflowId: string) => {
-      return apiRequest('POST', `/api/preview/projects/${projectId}/preview/stop`, {
-        workflow: workflowId
-      });
+    mutationFn: async () => {
+      return apiRequest('POST', `/api/preview/projects/${projectId}/preview/stop`, {});
     },
-    onSuccess: (_, workflowId) => {
-      setRunningWorkflowIds(prev => {
-        const next = new Set(prev);
-        next.delete(workflowId);
-        return next;
-      });
-      toast({ title: 'Workflow stopped' });
-      onStopWorkflow?.(workflowId);
+    onMutate: () => {
+      if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+    },
+    onSuccess: () => {
+      if (stopTimerRef.current) { clearTimeout(stopTimerRef.current); stopTimerRef.current = null; }
+      setRunningWorkflowIds(new Set());
+      toast({ title: 'Stopped' });
+      onStopWorkflow?.('');
     },
     onError: (error: Error) => {
-      toast({ title: 'Failed to stop workflow', description: error.message, variant: 'destructive' });
+      if (stopTimerRef.current) { clearTimeout(stopTimerRef.current); stopTimerRef.current = null; }
+      toast({ title: 'Failed to stop', description: error.message, variant: 'destructive' });
     }
   });
+
+  // Write a formatted log line to the xterm.js terminal with ANSI colours.
+  // This is the sole visual renderer — React state (logs[]) is kept only for
+  // copy / download / agent-context purposes.
+  const writeToTerminal = useCallback((type: ConsoleLog['type'], message: string, timestamp: Date) => {
+    const term = xtermRef.current;
+    if (!term) return;
+    const RESET = '\x1b[0m';
+    const DIM   = '\x1b[2m';
+    const colorMap: Record<string, string> = {
+      error:  '\x1b[31m',
+      stderr: '\x1b[31m',
+      warn:   '\x1b[33m',
+      info:   '\x1b[36m',
+      system: '\x1b[35m',
+      debug:  DIM,
+      http:   '\x1b[34m',
+      exit:   '\x1b[32m',
+      stdout: RESET,
+      log:    RESET,
+    };
+    const color = colorMap[type] ?? RESET;
+    const timeStr = timestamp.toLocaleTimeString();
+    // xterm needs \r\n; convertEol handles bare \n automatically but explicit is safer
+    const text = message.replace(/\r?\n/g, '\r\n');
+    term.writeln(`${DIM}[${timeStr}]${RESET} ${color}${text}${RESET}`);
+  }, []);
 
   const handleLog = useCallback((log: RuntimeLogEntry) => {
     const consoleLog: ConsoleLog = {
@@ -190,13 +240,9 @@ export function ReplitConsolePanel({
     }
     
     setLogs(prev => [...prev, consoleLog]);
-    
-    if (autoScrollRef.current && scrollRef.current) {
-      setTimeout(() => {
-        scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 10);
-    }
-  }, []);
+    setLogCount(prev => prev + 1);
+    writeToTerminal(consoleLog.type, consoleLog.message, consoleLog.timestamp);
+  }, [writeToTerminal]);
 
   const handleServerLog = useCallback((log: ServerLogEntry) => {
     const formatLogMessage = (log: ServerLogEntry): string => {
@@ -220,13 +266,9 @@ export function ReplitConsolePanel({
       }
       return newLogs;
     });
-    
-    if (autoScrollRef.current && scrollRef.current) {
-      setTimeout(() => {
-        scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 10);
-    }
-  }, []);
+    setLogCount(prev => prev + 1);
+    writeToTerminal(consoleLog.type, consoleLog.message, consoleLog.timestamp);
+  }, [writeToTerminal]);
 
   const { isConnected, isComplete, exitCode, connect, disconnect, clearLogs: clearWsLogs } = useRuntimeLogs({
     projectId,
@@ -279,7 +321,14 @@ export function ReplitConsolePanel({
           const data = JSON.parse(event.data);
           if (data.type === 'ping') { ws.send(JSON.stringify({ type: 'pong' })); return; }
           if (String(data.projectId) !== String(projectId)) return;
-          if (data.type === 'preview:log' && data.log) {
+          if (data.type === 'pty:data') {
+            // Raw PTY bytes — write directly to xterm without any prefix to
+            // preserve cursor sequences, colours, and ANSI control codes exactly
+            // as the process emitted them. This is the canonical terminal stream.
+            xtermRef.current?.write(data.data);
+          } else if (data.type === 'pty:exit') {
+            addPreviewLog({ type: 'system', content: `Process exited with code ${data.exitCode ?? 0}`, timestamp: Date.now() });
+          } else if (data.type === 'preview:log' && data.log) {
             const isErr = data.log.includes('ERROR') || data.log.includes('Error');
             addPreviewLog({ type: isErr ? 'stderr' : 'stdout', content: data.log.trim(), timestamp: Date.now() });
           } else if (data.type === 'preview:start') {
@@ -325,41 +374,165 @@ export function ReplitConsolePanel({
     }
   }, [isRunning, executionId, connect, disconnect]);
 
+  // ── xterm.js initialisation ────────────────────────────────────────────────
+  // Mount once; the terminal div is always present in the DOM so FitAddon can
+  // measure it immediately when logs start arriving.
+  useEffect(() => {
+    if (!terminalRef.current || xtermRef.current) return;
+    const term = new XTerm({
+      convertEol: true,     // auto-convert \n → \r\n
+      cursorBlink: true,
+      disableStdin: false,  // Accept input and forward to running process via /ws/preview
+      scrollback: 5000,
+      fontSize: 11,
+      fontFamily: '"JetBrains Mono", "Fira Code", Menlo, Consolas, monospace',
+      allowTransparency: true,
+      theme: {
+        background: '#00000000',   // transparent — parent bg shows through
+        foreground: '#e2e8f0',
+        black:   '#1e1e2e',
+        red:     '#ef4444',
+        green:   '#22c55e',
+        yellow:  '#eab308',
+        blue:    '#3b82f6',
+        magenta: '#a855f7',
+        cyan:    '#06b6d4',
+        white:   '#e2e8f0',
+        brightBlack:   '#64748b',
+        brightRed:     '#f87171',
+        brightGreen:   '#4ade80',
+        brightYellow:  '#facc15',
+        brightBlue:    '#60a5fa',
+        brightMagenta: '#c084fc',
+        brightCyan:    '#22d3ee',
+        brightWhite:   '#f1f5f9',
+      },
+    });
+    const fitAddon = new FitAddon();
+    const searchAddon = new SearchAddon();
+    const webLinksAddon = new WebLinksAddon();
+    term.loadAddon(fitAddon);
+    term.loadAddon(searchAddon);
+    term.loadAddon(webLinksAddon);
+    term.open(terminalRef.current);
+    try { fitAddon.fit(); } catch {}
+    searchAddonRef.current = searchAddon;
+    // Forward user keystrokes to the running process via the /ws/preview channel.
+    // This enables interactive stdin (e.g. answering prompts, Ctrl+C, Ctrl+D).
+    const stdinDisposable = term.onData((data) => {
+      const ws = previewWsRef.current;
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'stdin', data, projectId: String(projectId) }));
+      }
+    });
+    xtermRef.current = term;
+    fitAddonRef.current = fitAddon;
+    return () => {
+      stdinDisposable.dispose();
+      if (stopTimerRef.current) { clearTimeout(stopTimerRef.current); stopTimerRef.current = null; }
+      term.dispose();
+      xtermRef.current = null;
+      fitAddonRef.current = null;
+      searchAddonRef.current = null;
+    };
+  }, [projectId]);
+
+  // ── FitAddon resize — also forwards new dimensions to the server PTY ─────
+  useEffect(() => {
+    const el = terminalRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      try {
+        fitAddonRef.current?.fit();
+        const term = xtermRef.current;
+        const ws = previewWsRef.current;
+        if (term && ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+        }
+      } catch (_) {}
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Keep logsRef in sync so the effects below can read current logs without
+  // including the array in deps (which would cause O(n²) terminal rewrites).
+  useEffect(() => { logsRef.current = logs; }, [logs]);
+
+  // ── Re-render terminal when showOnlyLatest filter toggles ─────────────────
+  // Also fires when latestRunStartIndex changes so that if the filter is
+  // already ON and a new run starts, the terminal resets to show only the new run.
+  // `logs` is read via logsRef to avoid adding it as a dep.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const term = xtermRef.current;
+    if (!term) return;
+    term.reset();
+    const all = logsRef.current;
+    const logsToShow = showOnlyLatest ? all.slice(latestRunStartIndex) : all;
+    logsToShow.forEach(log => writeToTerminal(log.type, log.message, log.timestamp));
+  }, [showOnlyLatest, latestRunStartIndex]);
+
   const displayedLogs = showOnlyLatest 
     ? logs.slice(latestRunStartIndex) 
     : logs;
 
   const errorCount = displayedLogs.filter(log => log.type === 'error' || log.type === 'stderr').length;
 
-  const clearLogs = () => {
+  const clearLogs = async () => {
     setLogs([]);
+    setLogCount(0);
     setLatestRunStartIndex(0);
+    xtermRef.current?.reset();
     clearWsLogs();
     clearServerLogs();
+    // Also clear server-side stored console runs so they don't reappear on reconnect.
+    // Use apiRequest so the DELETE carries the X-CSRF-Token header required by csrfProtection.
+    try {
+      await apiRequest('DELETE', `/api/projects/${projectId}/console-runs`);
+    } catch {
+      // best-effort: client buffer and terminal are already cleared
+    }
   };
 
   const clearPastRuns = () => {
-    // Keep only the current run's logs, clear all previous runs
-    setLogs(prev => prev.slice(latestRunStartIndex));
+    const remaining = logs.slice(latestRunStartIndex);
+    setLogs(remaining);
+    setLogCount(remaining.length);
     setLatestRunStartIndex(0);
-    // Also notify backend to clear history
+    // Rewrite terminal with only the remaining (current-run) logs
+    xtermRef.current?.reset();
+    remaining.forEach(log => writeToTerminal(log.type, log.message, log.timestamp));
     clearWsLogs();
+    // Delete server-side past console runs so they don't reappear on reconnect.
+    apiRequest('DELETE', `/api/projects/${projectId}/console-runs`).catch(() => {});
     toast({ title: 'Past runs cleared' });
   };
 
+  // Read exact visible output from the xterm buffer and strip ANSI escape sequences.
+  // This is the canonical source for copy/download — it matches what the user sees,
+  // including PTY-rendered output, cursor movements, and colour sequences.
+  const getTerminalText = (): string => {
+    const term = xtermRef.current;
+    if (!term) return '';
+    const buf = term.buffer.active;
+    const lines: string[] = [];
+    for (let i = 0; i < buf.length; i++) {
+      const line = buf.getLine(i);
+      if (line) lines.push(line.translateToString(true));
+    }
+    // Strip ANSI colour/cursor escape sequences for plain-text export.
+    return lines.join('\n').replace(/\x1b\[[0-9;]*[mGKHFJABCDsuhl]/g, '').trimEnd();
+  };
+
   const copyLogs = () => {
-    const text = displayedLogs
-      .map(log => `[${log.timestamp.toLocaleTimeString()}] ${log.type.toUpperCase()}: ${log.message}`)
-      .join('\n');
-    navigator.clipboard.writeText(text);
+    const text = getTerminalText();
+    navigator.clipboard.writeText(text || displayedLogs.map(l => `[${l.timestamp.toLocaleTimeString()}] ${l.type.toUpperCase()}: ${l.message}`).join('\n'));
     toast({ title: 'Copied to clipboard' });
   };
 
   const downloadLogs = () => {
-    const text = displayedLogs
-      .map(log => `[${log.timestamp.toISOString()}] ${log.type.toUpperCase()}: ${log.message}${log.stack ? '\n' + log.stack : ''}`)
-      .join('\n\n');
-    
+    const text = getTerminalText() || displayedLogs.map(l => `[${l.timestamp.toISOString()}] ${l.type.toUpperCase()}: ${l.message}${l.stack ? '\n' + l.stack : ''}`).join('\n\n');
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -367,38 +540,6 @@ export function ReplitConsolePanel({
     a.download = `console-logs-${projectId}-${new Date().toISOString()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const getLogColor = (type: ConsoleLog['type']) => {
-    switch (type) {
-      case 'error':
-      case 'stderr':
-        return 'text-destructive';
-      case 'warn': 
-        return 'text-[hsl(var(--chart-4))]';
-      case 'info':
-      case 'system':
-        return 'text-primary';
-      case 'debug': 
-        return 'text-muted-foreground';
-      case 'http':
-        return 'text-blue-500';
-      case 'stdout':
-      case 'log':
-        return 'text-foreground';
-      case 'exit':
-        return 'text-[hsl(var(--chart-2))]';
-      default: 
-        return 'text-foreground';
-    }
-  };
-
-  const getHttpStatusColor = (status?: number) => {
-    if (!status) return 'text-muted-foreground';
-    if (status >= 200 && status < 300) return 'text-green-500';
-    if (status >= 400 && status < 500) return 'text-yellow-500';
-    if (status >= 500) return 'text-red-500';
-    return 'text-muted-foreground';
   };
 
   const hasAnyRunning = isRunning || runningWorkflowIds.size > 0;
@@ -504,7 +645,7 @@ export function ReplitConsolePanel({
                     )}
                     onClick={() => {
                       if (isWorkflowRunning) {
-                        stopWorkflowMutation.mutate(workflow.id);
+                        stopWorkflowMutation.mutate();
                       } else {
                         runWorkflowMutation.mutate(workflow);
                       }
@@ -559,7 +700,14 @@ export function ReplitConsolePanel({
           variant="ghost"
           size="sm"
           className="h-7 text-[11px] gap-1 text-primary shrink-0"
-          onClick={onAskAgent}
+          onClick={() => {
+            // Attach last ~20 log lines (prioritise errors) as context for the agent
+            const recentLogs = displayedLogs.slice(-20);
+            const context = recentLogs
+              .map(l => `[${l.timestamp.toLocaleTimeString()}] ${l.type.toUpperCase()}: ${l.message}`)
+              .join('\n');
+            onAskAgent?.(context || undefined);
+          }}
           data-testid="ask-agent"
         >
           <Sparkles className="h-3 w-3" />
@@ -571,9 +719,7 @@ export function ReplitConsolePanel({
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
-            onClick={() => {
-              runningWorkflowIds.forEach(id => stopWorkflowMutation.mutate(id));
-            }}
+            onClick={() => { stopWorkflowMutation.mutate(); }}
             disabled={stopWorkflowMutation.isPending}
             data-testid="stop-all-button"
           >
@@ -582,49 +728,28 @@ export function ReplitConsolePanel({
         )}
       </div>
 
-      <ScrollArea 
-        className="flex-1 font-mono text-[11px]"
-        onScroll={(e) => {
-          const target = e.target as HTMLElement;
-          const isAtBottom = target.scrollHeight - target.scrollTop === target.clientHeight;
-          autoScrollRef.current = isAtBottom;
-        }}
-      >
-        <div className="p-2 space-y-0.5">
-          {displayedLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 px-4" data-testid="console-empty">
-              {isRunning ? (
-                <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Waiting for output...</span>
-                </div>
-              ) : (
-                <>
-                  <Terminal className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                  <p className="text-muted-foreground text-[13px] text-center mb-6">
-                    Results of your code will appear here when you run
-                  </p>
-                  
+      {/* ── Terminal output area ─────────────────────────────────────── */}
+      {/* The xterm.js div is always mounted so FitAddon can measure it.      */}
+      {/* The empty-state overlay sits on top when no logs have arrived yet.  */}
+      <div className="flex-1 relative overflow-hidden" data-testid="console-output">
+        {logCount === 0 && (
+          <div
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center py-12 px-4 bg-[var(--ecode-surface)]"
+            data-testid="console-empty"
+          >
+            {isRunning ? (
+              <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Waiting for output...</span>
+              </div>
+            ) : (
+              <>
+                <Terminal className="h-12 w-12 text-muted-foreground/30 mb-4" />
+                <p className="text-muted-foreground text-[13px] text-center mb-6">
+                  Results of your code will appear here when you run
+                </p>
+                {allWorkflows.length > 0 ? (
                   <div className="w-full max-w-sm space-y-4">
-                    <div>
-                      <h4 className="text-[11px] font-medium text-muted-foreground mb-2">Default</h4>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start gap-2 h-10"
-                        onClick={() => {
-                          const defaultWorkflow = allWorkflows.find(w => w.isDefault) || allWorkflows[0];
-                          if (defaultWorkflow) runWorkflowMutation.mutate(defaultWorkflow);
-                        }}
-                        disabled={runWorkflowMutation.isPending}
-                        data-testid="run-default-workflow"
-                      >
-                        <div className="h-6 w-6 rounded bg-green-500 flex items-center justify-center">
-                          <Play className="h-3 w-3 text-white fill-current" />
-                        </div>
-                        <span className="text-[13px]">Project</span>
-                      </Button>
-                    </div>
-                    
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
                         <Settings className="h-3 w-3 text-muted-foreground" />
@@ -649,59 +774,25 @@ export function ReplitConsolePanel({
                       </div>
                     </div>
                   </div>
-                </>
-              )}
-            </div>
-          ) : (
-            <>
-              {displayedLogs.map((log) => (
-                <div key={log.id} className="group hover:bg-muted/50 px-2 py-0.5 rounded" data-testid={`console-log-${log.id}`}>
-                  {log.type === 'http' ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground shrink-0">
-                        [{log.timestamp.toLocaleTimeString()}]
-                      </span>
-                      <Badge variant="outline" className={cn("text-[10px] font-mono", getLogColor(log.type))}>
-                        {log.method}
-                      </Badge>
-                      <span className="text-foreground">{log.path}</span>
-                      {log.status && (
-                        <Badge 
-                          variant="outline" 
-                          className={cn("text-[10px]", getHttpStatusColor(log.status))}
-                        >
-                          {log.status}
-                        </Badge>
-                      )}
-                      {log.duration && (
-                        <span className="text-muted-foreground text-[10px]">{log.duration}ms</span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-2">
-                      <span className="text-muted-foreground shrink-0">
-                        [{log.timestamp.toLocaleTimeString()}]
-                      </span>
-                      <span className={cn("font-semibold uppercase text-[10px]", getLogColor(log.type))}>
-                        {log.type}
-                      </span>
-                      <span className="break-all whitespace-pre-wrap">{log.message}</span>
-                    </div>
-                  )}
-                  {log.stack && (
-                    <pre className="ml-16 mt-1 text-muted-foreground text-[10px] whitespace-pre-wrap">
-                      {log.stack}
-                    </pre>
-                  )}
-                </div>
-              ))}
-              <div ref={scrollRef} />
-            </>
-          )}
-        </div>
-      </ScrollArea>
+                ) : (
+                  <p className="text-muted-foreground text-[12px] text-center">
+                    No workflows configured. Use the Workflows panel to add one.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+        {/* xterm.js terminal — ANSI colours, scrollback 5000 lines, read-only */}
+        <div
+          ref={terminalRef}
+          className="h-full w-full"
+          style={{ padding: '4px' }}
+          data-testid="console-terminal"
+        />
+      </div>
 
-      {displayedLogs.length > 0 && (
+      {logCount > 0 && (
         <div className="h-7 flex items-center justify-between px-2 border-t bg-muted/30 text-[11px] text-muted-foreground">
           <div className="flex items-center gap-2">
             <span>{displayedLogs.length} entries</span>
@@ -752,7 +843,11 @@ export function ReplitConsolePanel({
               variant="ghost"
               className="w-full justify-start gap-3 h-12"
               onClick={() => {
-                onAskAgent?.();
+                const recentLogs = displayedLogs.slice(-20);
+                const context = recentLogs
+                  .map(l => `[${l.timestamp.toLocaleTimeString()}] ${l.type.toUpperCase()}: ${l.message}`)
+                  .join('\n');
+                onAskAgent?.(context || undefined);
                 setMobileMenuOpen(false);
               }}
               data-testid="mobile-ask-agent"

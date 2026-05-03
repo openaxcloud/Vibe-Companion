@@ -700,12 +700,26 @@ function UnifiedIDELayout({
     name: string;
     icon: string;
   }
-  const [openTabs, setOpenTabs] = useState<OpenTab[]>([
+  // Allow ?tab=<id> URL param to pre-open a tool tab (used by e2e tests)
+  const urlTab = (() => {
+    try { return new URLSearchParams(window.location.search).get('tab') || 'preview'; } catch { return 'preview'; }
+  })();
+  const toolTabNames: Record<string, string> = {
+    console: 'Console', database: 'Database', git: 'Git', secrets: 'Secrets',
+    terminal: 'Shell', workflows: 'Workflows', packages: 'Packages', history: 'History',
+    monitoring: 'Monitoring', 'security-scanner': 'Scanner', checkpoints: 'Checkpoints',
+  };
+  const builtInTabIds = new Set(['preview', 'agent', 'deploy']);
+  const baseTabs: OpenTab[] = [
     { id: 'preview', name: 'Preview', icon: 'preview' },
     { id: 'agent', name: 'Agent', icon: 'agent' },
     { id: 'deploy', name: 'Deploy', icon: 'deploy' },
-  ]);
-  const [activeOpenTabId, setActiveOpenTabId] = useState('preview');
+  ];
+  const initialTabs: OpenTab[] = builtInTabIds.has(urlTab)
+    ? baseTabs
+    : [...baseTabs, { id: urlTab, name: (toolTabNames[urlTab] || urlTab), icon: urlTab }];
+  const [openTabs, setOpenTabs] = useState<OpenTab[]>(initialTabs);
+  const [activeOpenTabId, setActiveOpenTabId] = useState(urlTab);
   
   // Mobile agent input handlers - exposed from ReplitAgentPanelV3 to ReplitMobileInputBar
   const [mobileAgentHandlers, setMobileAgentHandlers] = useState<ExternalInputHandlers | null>(null);
@@ -1096,7 +1110,7 @@ function UnifiedIDELayout({
       case 'terminal':
         return (
           <Suspense fallback={<TerminalSkeleton />}>
-            <MobileTerminal projectId={projectId} className="h-full" />
+            <ReplitConsolePanel projectId={projectId} className="h-full" />
           </Suspense>
         );
       case 'code':
@@ -1336,7 +1350,7 @@ function UnifiedIDELayout({
       case 'terminal':
         return (
           <Suspense fallback={<TerminalSkeleton />}>
-            <ReplitTerminalPanel projectId={projectId} />
+            <ReplitConsolePanel projectId={projectId} />
           </Suspense>
         );
       case 'preview':

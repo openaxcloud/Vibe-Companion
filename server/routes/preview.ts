@@ -700,8 +700,17 @@ router.get('/projects/:id/preview/status', requireAuth, ensureProjectAccess, asy
 // If no port is supplied, auto-detect the framework from DB files and spawn the server.
 router.post('/projects/:id/preview/start', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
-    const { runId, port } = req.body;
+    const { runId, port, workflowId } = req.body;
     const userId = req.session?.userId ? String(req.session.userId) : '';
+
+    // Validate workflowId ownership when supplied.
+    if (workflowId) {
+      const workflow = await storage.getWorkflow(String(workflowId));
+      if (!workflow || String(workflow.projectId) !== String(req.params.id)) {
+        return res.status(400).json({ error: 'Invalid workflowId for this project' });
+      }
+    }
+
     const { actionStart } = await import('../preview/preview-actions');
     const result = await actionStart(req.params.id, userId, port ? { port, runId } : undefined);
     res.json({ success: true, preview: result });
@@ -711,11 +720,14 @@ router.post('/projects/:id/preview/start', requireAuth, ensureProjectAccess, asy
   }
 });
 
-// Stop preview server
-// Note: This route handles /api/preview/projects/:id/preview/stop
+// Stop preview server + kill any active PTY session for the project
 router.post('/projects/:id/preview/stop', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
     const { actionStop } = await import('../preview/preview-actions');
+    const { killPtySession } = await import('../preview/pty-session-manager');
+    // Kill the PTY session first so the terminal process receives SIGTERM before
+    // the preview service is torn down.  killPtySession is a no-op if no PTY exists.
+    killPtySession(req.params.id);
     const result = await actionStop(req.params.id);
     res.json(result);
   } catch (error) {

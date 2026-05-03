@@ -313,7 +313,7 @@ export function TopNavBar({
           variant={isRunning ? "destructive" : "default"}
           size="sm"
           onClick={onRun}
-          data-testid="button-run"
+          data-testid={isRunning ? "button-stop" : "button-run"}
           className={cn(
             "h-7 px-3 gap-1.5 text-[12px] font-semibold rounded-full transition-all",
             isRunning

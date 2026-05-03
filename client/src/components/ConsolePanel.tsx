@@ -1,3 +1,8 @@
+/**
+ * @deprecated LEGACY — Use `ReplitConsolePanel` from `@/components/ide/ReplitConsolePanel` instead.
+ * This file is kept for backward compatibility with pages/Project.tsx (legacy layout).
+ * Do not add new features here; target the canonical component.
+ */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {

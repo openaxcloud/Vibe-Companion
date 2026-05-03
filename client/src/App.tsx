@@ -240,7 +240,7 @@ function UnifiedProjectRoute() {
         if (projects.length > 0) {
           const target = projects[0].id;
           setResolvedId(target);
-          window.history.replaceState(null, '', `/project/${target}`);
+          window.history.replaceState(null, '', `/project/${target}${window.location.search}`);
         } else {
           setNoProjects(true);
         }

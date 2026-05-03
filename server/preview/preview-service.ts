@@ -763,6 +763,46 @@ export class PreviewService {
     fileHashCache.delete(projectId);
   }
 
+  /**
+   * Write data to the stdin of the primary process for a running preview.
+   * Returns true if the data was written, false if no running process was found.
+   */
+  writeStdin(projectId: string, data: string): boolean {
+    const preview = this.previews.get(projectId);
+    if (!preview || preview.status !== 'running') return false;
+    const [, proc] = [...preview.processes.entries()][0] ?? [];
+    if (!proc || !proc.stdin || proc.stdin.destroyed) return false;
+    try {
+      proc.stdin.write(data);
+      return true;
+    } catch (err: any) {
+      console.error(`[preview:stdin] write error for project ${projectId}:`, err?.message || err);
+      return false;
+    }
+  }
+
+  /**
+   * Send SIGTERM (graceful) then SIGKILL after 5 s to the primary process.
+   * Returns true if a running process was found.
+   */
+  signalPreview(projectId: string, signal: 'SIGTERM' | 'SIGINT' | 'SIGKILL'): boolean {
+    const preview = this.previews.get(projectId);
+    if (!preview || preview.status !== 'running') return false;
+    let sent = false;
+    for (const [, proc] of preview.processes) {
+      try { proc.kill(signal); sent = true; } catch (_) {}
+    }
+    if (signal === 'SIGTERM' && sent) {
+      setTimeout(() => {
+        const p2 = this.previews.get(projectId);
+        if (p2 && p2.status === 'running') {
+          for (const [, proc] of p2.processes) { try { proc.kill('SIGKILL'); } catch (_) {} }
+        }
+      }, 5000);
+    }
+    return sent;
+  }
+
   getPreview(projectId: string): PreviewInstance | undefined {
     return this.previews.get(projectId);
   }
