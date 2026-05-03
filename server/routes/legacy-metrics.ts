@@ -132,7 +132,7 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
     }
   });
 
-  const zipUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
+  const zipUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 250 * 1024 * 1024, files: 1 } });
 
   app.post("/api/import/validate-zip", requireAuth, zipUpload.single("file"), async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ message: "ZIP file required" });

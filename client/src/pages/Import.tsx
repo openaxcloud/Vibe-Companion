@@ -176,8 +176,8 @@ export default function Import() {
         toast({ title: "Invalid file", description: "Please select a .zip file", variant: "destructive" });
         return;
       }
-      if (file.size > 50 * 1024 * 1024) {
-        toast({ title: "File too large", description: "Maximum ZIP file size is 50MB", variant: "destructive" });
+      if (file.size > 250 * 1024 * 1024) {
+        toast({ title: "File too large", description: "Maximum ZIP file size is 250MB", variant: "destructive" });
         return;
       }
       setZipFile(file);
@@ -594,7 +594,7 @@ export default function Import() {
                       <>
                         <Upload className="w-10 h-10 text-[var(--ide-text-muted)] mx-auto mb-2" />
                         <p className="text-sm text-[var(--ide-text-muted)]">Click to select a ZIP file</p>
-                        <p className="text-xs text-[var(--ide-text-muted)] mt-1">Maximum 50MB, up to 500 text files</p>
+                        <p className="text-xs text-[var(--ide-text-muted)] mt-1">Maximum 250MB compressed / 1 GB uncompressed, up to 2000 files</p>
                       </>
                     )}
                   </div>
@@ -715,6 +715,22 @@ export default function Import() {
             <Loader2 className="w-12 h-12 animate-spin text-[#0079F2] mx-auto mb-4" />
             <h2 className="text-lg font-semibold mb-2">Importing...</h2>
             <p className="text-sm text-[var(--ide-text-muted)]">{progress}</p>
+
+            <div className="mt-6 flex items-center justify-center gap-1 text-[10px] text-[var(--ide-text-muted)]" data-testid="pipeline-stages">
+              {[
+                { label: "Upload", active: !progressData || progressData.progress === 0 },
+                { label: "Validate", active: progressData?.message?.toLowerCase().includes("validat") },
+                { label: "Extract", active: progressData?.message?.toLowerCase().includes("extract") },
+                { label: "Detect", active: progressData?.message?.toLowerCase().includes("detect") },
+                { label: "Finalize", active: progressData?.message?.toLowerCase().includes("finaliz") || progressData?.message?.toLowerCase().includes("processing") },
+              ].map((stage, i) => (
+                <span key={stage.label} className="flex items-center gap-1">
+                  {i > 0 && <span className="text-[var(--ide-border)]">›</span>}
+                  <span className={stage.active ? "text-[#0079F2] font-semibold" : ""}>{stage.label}</span>
+                </span>
+              ))}
+            </div>
+
             {progressData && progressData.totalFiles > 0 && (
               <div className="mt-4 space-y-2">
                 <div className="w-full bg-[var(--ide-surface)] rounded-full h-2 overflow-hidden">
@@ -746,7 +762,22 @@ export default function Import() {
             <p className="text-sm text-[var(--ide-text-muted)] mb-1">
               <span className="font-medium text-[var(--ide-text)]">{result.project?.name || result.fileCount + " files"}</span> imported successfully
             </p>
-            <p className="text-xs text-[var(--ide-text-muted)] mb-6">{result.fileCount} file(s) imported</p>
+            <p className="text-xs text-[var(--ide-text-muted)] mb-2">{result.fileCount} file(s) imported</p>
+            {(result.detectedLanguage || result.runCommand) && (
+              <div className="mb-6 text-left bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 space-y-1">
+                {result.detectedLanguage && (
+                  <p className="text-xs text-[var(--ide-text-muted)]" data-testid="text-detected-language">
+                    <span className="font-medium text-[var(--ide-text)]">Language:</span> {result.detectedLanguage}
+                  </p>
+                )}
+                {result.runCommand && (
+                  <p className="text-xs text-[var(--ide-text-muted)]" data-testid="text-detected-run-command">
+                    <span className="font-medium text-[var(--ide-text)]">Run command:</span>{" "}
+                    <code className="font-mono bg-[var(--ide-surface)] px-1 py-0.5 rounded">{result.runCommand}</code>
+                  </p>
+                )}
+              </div>
+            )}
 
             {result.warnings?.length > 0 && (
               <div className="mb-6 text-left bg-yellow-500/5 border border-yellow-500/20 rounded-xl p-4">

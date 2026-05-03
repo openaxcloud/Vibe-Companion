@@ -83,6 +83,8 @@ export interface ImportResult {
   fileCount: number;
   warnings: string[];
   requiredSecrets: string[];
+  detectedLanguage?: string;
+  runCommand?: string;
 }
 
 export interface ValidationResult {
@@ -95,15 +97,126 @@ export interface ValidationResult {
 
 const MAX_FILE_SIZE = 500000;
 const MAX_FILES_DEFAULT = 5000;
-const MAX_ZIP_FILES = 500;
-const MAX_ZIP_SIZE = 50 * 1024 * 1024;
-const MAX_UNCOMPRESSED_SIZE = 200 * 1024 * 1024;
+const MAX_ZIP_FILES = 2000;
+const MAX_ZIP_SIZE = 250 * 1024 * 1024;
+const MAX_UNCOMPRESSED_SIZE = 1024 * 1024 * 1024;
 const MAX_ENTRY_SIZE = 10 * 1024 * 1024;
+
+const BINARY_MIME_MAP: Record<string, string> = {
+  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+  ".gif": "image/gif", ".bmp": "image/bmp", ".ico": "image/x-icon",
+  ".svg": "image/svg+xml", ".webp": "image/webp", ".tiff": "image/tiff",
+  ".mp3": "audio/mpeg", ".mp4": "video/mp4", ".wav": "audio/wav",
+  ".ogg": "audio/ogg", ".webm": "video/webm", ".avi": "video/x-msvideo",
+  ".woff": "font/woff", ".woff2": "font/woff2",
+  ".ttf": "font/ttf", ".eot": "application/vnd.ms-fontobject",
+  ".otf": "font/otf",
+  ".pdf": "application/pdf",
+  ".zip": "application/zip", ".tar": "application/x-tar",
+  ".gz": "application/gzip", ".rar": "application/vnd.rar",
+  ".7z": "application/x-7z-compressed",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".exe": "application/octet-stream", ".dll": "application/octet-stream",
+  ".so": "application/octet-stream", ".dylib": "application/octet-stream",
+  ".o": "application/octet-stream",
+  ".pyc": "application/octet-stream", ".pyo": "application/octet-stream",
+  ".class": "application/octet-stream", ".jar": "application/java-archive",
+};
+
+function getBinaryMime(filename: string): string {
+  const ext = getExtension(filename);
+  return BINARY_MIME_MAP[ext] || "application/octet-stream";
+}
+
+interface ReplitHints {
+  language?: string;
+  runCommand?: string;
+}
+
+function detectReplitHints(
+  fileMap: Map<string, string>,
+): ReplitHints {
+  const hints: ReplitHints = {};
+
+  const replitContent = fileMap.get(".replit");
+  if (replitContent) {
+    // Accept both quoted (run = "cmd") and unquoted (run = cmd) forms,
+    // as well as the TOML array syntax (run = ["cmd", "arg"]).
+    const runMatch = replitContent.match(/^run\s*=\s*(?:["'](.+?)["']|\[["'](.+?)["']|(.+?)\s*$)/m);
+    if (runMatch) hints.runCommand = (runMatch[1] || runMatch[2] || runMatch[3])?.trim();
+    const langMatch = replitContent.match(/^language\s*=\s*["']?([^\s"']+)["']?/m);
+    if (langMatch) hints.language = langMatch[1].trim();
+  }
+
+  if (!hints.language && !hints.runCommand) {
+    const nixContent = fileMap.get("replit.nix");
+    if (nixContent) {
+      const langHints: Record<string, string> = {
+        python3: "python", nodejs: "javascript", go: "go",
+        rustc: "rust", ruby: "ruby", php: "php", jdk: "java",
+      };
+      for (const [pkg, lang] of Object.entries(langHints)) {
+        if (nixContent.includes(pkg)) { hints.language = lang; break; }
+      }
+    }
+  }
+
+  if (!hints.runCommand) {
+    const pkgJson = fileMap.get("package.json");
+    if (pkgJson) {
+      try {
+        const pkg = JSON.parse(pkgJson);
+        const scripts: Record<string, string> = pkg.scripts || {};
+        if (scripts.start) hints.runCommand = "npm run start";
+        else if (scripts.dev) hints.runCommand = "npm run dev";
+        else if (scripts.build) hints.runCommand = "npm run build";
+        else hints.runCommand = "node index.js";
+        if (!hints.language) hints.language = "javascript";
+      } catch { /* ignore */ }
+    }
+  }
+
+  if (!hints.runCommand) {
+    if (fileMap.has("requirements.txt") || fileMap.has("pyproject.toml") || fileMap.has("setup.py") || fileMap.has("Pipfile")) {
+      hints.language = hints.language || "python";
+      const mainPy = fileMap.has("main.py") ? "main.py" : fileMap.has("app.py") ? "app.py" : fileMap.has("run.py") ? "run.py" : null;
+      hints.runCommand = mainPy ? `python ${mainPy}` : "python main.py";
+    } else if (fileMap.has("Cargo.toml")) {
+      hints.language = hints.language || "rust";
+      hints.runCommand = "cargo run";
+    } else if (fileMap.has("go.mod")) {
+      hints.language = hints.language || "go";
+      hints.runCommand = "go run .";
+    } else if (fileMap.has("Gemfile") || fileMap.has("config.ru")) {
+      hints.language = hints.language || "ruby";
+      const mainRb = fileMap.has("main.rb") ? "main.rb" : fileMap.has("app.rb") ? "app.rb" : fileMap.has("server.rb") ? "server.rb" : null;
+      hints.runCommand = mainRb ? `ruby ${mainRb}` : "ruby main.rb";
+    } else if (fileMap.has("composer.json")) {
+      hints.language = hints.language || "php";
+      const mainPhp = fileMap.has("index.php") ? "index.php" : fileMap.has("main.php") ? "main.php" : null;
+      hints.runCommand = mainPhp ? `php ${mainPhp}` : "php index.php";
+    } else if (fileMap.has("pom.xml") || fileMap.has("build.gradle")) {
+      hints.language = hints.language || "java";
+      hints.runCommand = fileMap.has("pom.xml") ? "mvn compile exec:java" : "gradle run";
+    } else if (fileMap.has("mix.exs")) {
+      hints.language = hints.language || "elixir";
+      hints.runCommand = "mix run";
+    } else if (fileMap.has("deno.json") || fileMap.has("deno.jsonc")) {
+      hints.language = hints.language || "javascript";
+      hints.runCommand = "deno run main.ts";
+    }
+  }
+
+  return hints;
+}
 
 export interface ImportJob {
   id: string;
   userId: string;
-  status: "pending" | "validating" | "importing" | "processing" | "complete" | "error";
+  status: "pending" | "validating" | "importing" | "detecting" | "processing" | "complete" | "error";
   progress: number;
   totalFiles: number;
   importedFiles: number;
@@ -360,14 +473,13 @@ export async function importFromZip(
     if (entry.entryName.includes("node_modules/")) return false;
     if (entry.entryName.includes(".git/")) return false;
     if (entry.entryName.includes("__MACOSX/")) return false;
-    if (isBinaryFile(entry.entryName)) return false;
     if (entry.header.size > MAX_ENTRY_SIZE) return false;
     return true;
   });
 
   if (validEntries.length === 0) {
     updateJob(job, { status: "error", error: "No importable files." });
-    throw new Error("ZIP file contains no importable text files.");
+    throw new Error("ZIP file contains no importable files.");
   }
 
   if (validEntries.length > MAX_ZIP_FILES) {
@@ -398,6 +510,7 @@ export async function importFromZip(
 
   let importedCount = 0;
   const warnings: string[] = [];
+  const textFileMap = new Map<string, string>();
 
   updateJob(job, {
     status: "importing",
@@ -407,16 +520,24 @@ export async function importFromZip(
 
   for (const entry of validEntries) {
     try {
-      const content = entry.getData().toString("utf8");
       let filename = entry.entryName;
       if (rootPrefix && filename.startsWith(rootPrefix)) {
         filename = filename.substring(rootPrefix.length);
       }
       if (!filename) continue;
-      await storage.createFile(project.id, {
-        filename,
-        content: content.slice(0, MAX_FILE_SIZE),
-      });
+
+      let content: string;
+      if (isBinaryFile(entry.entryName)) {
+        const raw = entry.getData();
+        const mime = getBinaryMime(entry.entryName);
+        content = `data:${mime};base64,${raw.toString("base64")}`;
+      } else {
+        const text = entry.getData().toString("utf8");
+        content = text.slice(0, MAX_FILE_SIZE);
+        textFileMap.set(filename, content);
+      }
+
+      await storage.createFile(project.id, { filename, content });
       importedCount++;
       updateJob(job, {
         importedFiles: importedCount,
@@ -428,11 +549,40 @@ export async function importFromZip(
     }
   }
 
+  updateJob(job, { status: "detecting", message: "Detecting runtime configuration..." });
+
+  const hints = detectReplitHints(textFileMap);
+
+  const detectedLang = hints.language || lang;
+  const updates: Parameters<typeof storage.updateProject>[1] = { language: detectedLang };
+
+  if (hints.runCommand) {
+    const replitFilename = ".replit";
+    const hasReplitFile = textFileMap.has(replitFilename);
+    if (!hasReplitFile) {
+      const replitContent = `run = "${hints.runCommand}"\nlanguage = "${detectedLang}"\n`;
+      try {
+        await storage.createFile(project.id, { filename: replitFilename, content: replitContent });
+        importedCount++;
+      } catch { /* non-critical */ }
+    }
+  }
+
+  if (updates.language && updates.language !== project.language) {
+    await storage.updateProject(project.id, updates);
+  }
+
+  const finalProject = { id: project.id, name: project.name, language: detectedLang };
+
+  updateJob(job, { status: "processing", message: "Finalizing import..." });
+
   const result: ImportResult = {
-    project: { id: project.id, name: project.name, language: project.language },
+    project: finalProject,
     fileCount: importedCount,
     warnings,
     requiredSecrets: [],
+    detectedLanguage: detectedLang,
+    runCommand: hints.runCommand,
   };
 
   updateJob(job, { status: "complete", message: "Import complete", result });
@@ -1033,26 +1183,48 @@ function detectEnvSecrets(files: { filename: string; content: string | null }[])
 
 export function validateZipBuffer(buffer: Buffer): ValidationResult {
   if (buffer.length > MAX_ZIP_SIZE) {
-    return { valid: false, compatible: false, reasons: [`ZIP file exceeds maximum size of ${MAX_ZIP_SIZE / 1024 / 1024}MB.`] };
+    return { valid: false, compatible: false, reasons: [`ZIP file exceeds maximum compressed size of ${MAX_ZIP_SIZE / 1024 / 1024}MB.`] };
   }
   try {
     const zip = new AdmZip(buffer);
     const entries = zip.getEntries();
-    const validEntries = entries.filter((entry: { isDirectory: boolean; entryName: string }) => {
+
+    let totalUncompressed = 0;
+    const oversizedEntries: string[] = [];
+    const validEntries = entries.filter((entry: { isDirectory: boolean; entryName: string; header: { size: number } }) => {
       if (entry.isDirectory) return false;
       if (entry.entryName.includes("..") || entry.entryName.startsWith("/")) return false;
       if (entry.entryName.includes("node_modules/") || entry.entryName.includes(".git/")) return false;
+      if (entry.entryName.includes("__MACOSX/")) return false;
+      totalUncompressed += entry.header.size;
+      if (entry.header.size > MAX_ENTRY_SIZE) {
+        oversizedEntries.push(entry.entryName);
+        return false;
+      }
       return true;
     });
+
+    if (totalUncompressed > MAX_UNCOMPRESSED_SIZE) {
+      return {
+        valid: false, compatible: false,
+        reasons: [`ZIP uncompressed size (${Math.round(totalUncompressed / 1024 / 1024)}MB) exceeds the ${MAX_UNCOMPRESSED_SIZE / 1024 / 1024 / 1024}GB uncompressed limit.`],
+      };
+    }
     if (validEntries.length === 0) {
       return { valid: false, compatible: false, reasons: ["ZIP file contains no importable files."] };
     }
     if (validEntries.length > MAX_ZIP_FILES) {
       return { valid: false, compatible: false, reasons: [`ZIP contains too many files (${validEntries.length}). Maximum is ${MAX_ZIP_FILES}.`] };
     }
+
+    const reasons: string[] = [];
+    if (oversizedEntries.length > 0) {
+      reasons.push(`${oversizedEntries.length} file(s) exceed the ${MAX_ENTRY_SIZE / 1024 / 1024}MB per-file limit and will be skipped: ${oversizedEntries.slice(0, 3).join(", ")}${oversizedEntries.length > 3 ? "…" : ""}`);
+    }
+
     const filenames = validEntries.map((e: { entryName: string }) => e.entryName);
     const lang = detectLanguageFromFiles(filenames);
-    return { valid: true, compatible: true, reasons: [], detectedLanguage: lang, fileCount: validEntries.length };
+    return { valid: true, compatible: true, reasons, detectedLanguage: lang, fileCount: validEntries.length };
   } catch {
     return { valid: false, compatible: false, reasons: ["Could not read ZIP file. It may be corrupted."] };
   }
