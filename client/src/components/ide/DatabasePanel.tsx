@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { apiRequest, queryClient } from '@/lib/queryClient';
+import { apiRequest, queryClient, getCsrfToken } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -284,18 +284,101 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
   const isRunning = isProvisioned && dbStatus === 'running';
 
   // ─── SQL execute helper ──────────────────────────────────────────────────────
+  // Routes between two backends:
+  //  • Modern: POST /api/database/project/:projectId/sql/execute  → used when a
+  //    dedicated provisioned database exists for the project. Has stronger
+  //    guards (blocks GRANT/REVOKE/etc), AST-based classification, and surfaces
+  //    `needsProvisioning` / `retryable` hints on failure.
+  //  • Legacy: POST /api/projects/:projectId/database/execute     → schema-based
+  //    fallback used when no dedicated DB has been provisioned. Operates inside
+  //    a per-project schema on the shared platform DB. Distinction is
+  //    transparent to the user — both paths return the same SqlExecuteResult.
+
+  const execSqlModern = useCallback(async (
+    query: string,
+    confirmed = false,
+    prodConfirmed = false,
+  ): Promise<SqlExecuteResult> => {
+    const url = `/api/database/project/${projectId}/sql/execute?env=${dbEnv}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(getCsrfToken() ? { 'X-CSRF-Token': getCsrfToken()! } : {}),
+      },
+      body: JSON.stringify({ query, confirmed, prodConfirmed }),
+    });
+    let data: (SqlExecuteResult & { error?: string; needsProvisioning?: boolean; retryable?: boolean; status?: string }) | null = null;
+    try { data = await res.json(); } catch { /* non-JSON */ }
+    if (!res.ok || data?.error) {
+      const baseMsg = data?.error || `HTTP ${res.status}`;
+      const hints: string[] = [];
+      if (data?.needsProvisioning) hints.push('Provision a database first.');
+      if (data?.retryable) hints.push('You can retry once provisioning completes.');
+      if (data?.status && data.status !== 'running') hints.push(`Database status: ${data.status}.`);
+      throw new Error(hints.length ? `${baseMsg} ${hints.join(' ')}` : baseMsg);
+    }
+    return data as SqlExecuteResult;
+  }, [projectId, dbEnv]);
+
+  const execSqlLegacy = useCallback(async (
+    query: string,
+    confirmed = false,
+  ): Promise<SqlExecuteResult> => {
+    const url = `/api/projects/${projectId}/database/execute`;
+    const env = dbEnv === 'prod' ? 'production' : 'development';
+    const res = await apiRequest('POST', url, { sql: query, confirm: confirmed, env }) as unknown as {
+      columns?: string[];
+      rows?: unknown[][];
+      rowCount?: number;
+      requiresConfirmation?: boolean;
+      sql?: string;
+      message?: string;
+      error?: string;
+    };
+    if (res.error) throw new Error(res.error);
+    if (res.requiresConfirmation) {
+      return {
+        rows: [],
+        rowCount: 0,
+        fields: [],
+        executionTime: 0,
+        requiresConfirmation: true,
+        isWriteOperation: true,
+        statementClass: 'write',
+        targetEnv: dbEnv,
+        query: res.sql ?? query,
+        message: res.message,
+      };
+    }
+    const cols = res.columns || [];
+    const rowsArr = res.rows || [];
+    // Legacy returns rows as arrays of values; convert to objects keyed by column name
+    const rowObjs = rowsArr.map((row) => {
+      const obj: Record<string, unknown> = {};
+      cols.forEach((c, i) => { obj[c] = (row as unknown[])[i]; });
+      return obj;
+    });
+    return {
+      rows: rowObjs,
+      rowCount: res.rowCount ?? rowObjs.length,
+      fields: cols.map((name) => ({ name })),
+      executionTime: 0,
+      targetEnv: dbEnv,
+    };
+  }, [projectId, dbEnv]);
 
   const execSql = useCallback(async (
     query: string,
     confirmed = false,
     prodConfirmed = false,
   ): Promise<SqlExecuteResult> => {
-    const url = `/api/database/project/${projectId}/sql/execute?env=${dbEnv}`;
-    const res = await apiRequest('POST', url, { query, confirmed, prodConfirmed });
-    const data: SqlExecuteResult = await res.json();
-    if (!res.ok || (data as { error?: string }).error) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
-    return data;
-  }, [projectId, dbEnv]);
+    if (isProvisioned) {
+      return execSqlModern(query, confirmed, prodConfirmed);
+    }
+    return execSqlLegacy(query, confirmed);
+  }, [isProvisioned, execSqlModern, execSqlLegacy]);
 
   // ─── Tables List ─────────────────────────────────────────────────────────────
 
@@ -877,7 +960,7 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
             <p className="text-[11px] text-[var(--ide-text-muted)] text-center">Failed to load database info</p>
             <Button variant="outline" size="sm" className="text-[10px] h-7" onClick={() => dbInfoQuery.refetch()}>Retry</Button>
           </div>
-        ) : !isProvisioned && (activeTab === 'data' || activeTab === 'sql') ? (
+        ) : !isProvisioned && activeTab === 'data' ? (
           renderProvisioningUI()
         ) : isProvisioned && dbStatus === 'provisioning' ? (
           renderProvisioningInProgress()
@@ -1131,7 +1214,7 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
                       }
                       executeMutation.mutate({ sql: sqlQuery });
                     }}
-                    disabled={executeMutation.isPending || !isRunning}
+                    disabled={executeMutation.isPending || (isProvisioned && !isRunning)}
                     data-testid="button-run-query">
                     {executeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                     Run
