@@ -2045,6 +2045,115 @@ Rules:
         res.write(`data: ${JSON.stringify({ type: "web_fetch_result", url: result.url, title: result.title, content: result.content.slice(0, 500), status: "done" })}\n\n`);
         return `Content from ${result.title} (${result.url}):\n\n${result.content}`;
       }
+      if (toolName === "import_repo") {
+        const repoUrl: string = toolInput.url || "";
+        const explicitSource: string | undefined = toolInput.source;
+        const projectName: string | undefined = toolInput.project_name;
+        if (!repoUrl) return "Error: url is required for import_repo";
+
+        const { startAsyncImport, getImportJob } = await import("../importService");
+
+        const githubMatch = repoUrl.match(/github\.com\/([^/]+)\/([^/#?]+)/);
+        const vercelMatch = !!(repoUrl.includes("vercel.com") || repoUrl.includes("vercel.app"));
+
+        let importSource: string;
+        let importParams: Record<string, string | undefined>;
+
+        if (explicitSource === "vercel" || (!explicitSource && vercelMatch)) {
+          importSource = "vercel";
+          importParams = { url: repoUrl, name: projectName };
+        } else if (explicitSource === "bolt") {
+          importSource = "bolt";
+          importParams = { url: repoUrl, name: projectName };
+        } else if (explicitSource === "lovable") {
+          importSource = "lovable";
+          importParams = { url: repoUrl, name: projectName };
+        } else if (githubMatch) {
+          importSource = "github";
+          importParams = { owner: githubMatch[1], repo: githubMatch[2].replace(/\.git$/, ""), name: projectName };
+        } else if (repoUrl.startsWith("https://") || repoUrl.startsWith("http://")) {
+          importSource = "git";
+          importParams = { url: repoUrl, name: projectName };
+        } else {
+          return `Error: Unsupported URL "${repoUrl}". Provide any public HTTPS git URL (GitHub, GitLab, Bitbucket, etc.), a Vercel project URL, or a GitHub URL with source="bolt" or source="lovable".`;
+        }
+
+        res.write(`data: ${JSON.stringify({ type: "tool_status", tool: "import_repo", status: "starting", message: `Importing from ${repoUrl} (source: ${importSource})...` })}\n\n`);
+        try {
+          const jobId = startAsyncImport(importSource, String(userId!), importParams);
+          let elapsed = 0;
+          let lastStatus = "";
+          while (elapsed < 300000) {
+            await new Promise(r => setTimeout(r, 2000));
+            elapsed += 2000;
+            const job = getImportJob(jobId, String(userId!));
+            if (!job) break;
+            if (job.message !== lastStatus) {
+              res.write(`data: ${JSON.stringify({ type: "tool_status", tool: "import_repo", status: "progress", message: job.message, progress: job.progress })}\n\n`);
+              lastStatus = job.message;
+            }
+            if (job.status === "complete" && job.result) {
+              const r = job.result;
+              res.write(`data: ${JSON.stringify({ type: "tool_status", tool: "import_repo", status: "complete", projectId: r.project.id, projectName: r.project.name })}\n\n`);
+              const runHint = r.runCommand ? ` Run command: \`${r.runCommand}\`.` : "";
+              return `Successfully imported ${r.fileCount} files into project "${r.project.name}" (ID: ${r.project.id}). Language: ${r.project.language}.${runHint}${r.warnings?.length ? " Warnings: " + r.warnings.join("; ") : ""}`;
+            }
+            if (job.status === "error") {
+              return `Import failed: ${job.error || "Unknown error"}`;
+            }
+          }
+          return "Import timed out. The job may still be running in the background.";
+        } catch (err: any) {
+          return `Import failed: ${err.message || "Unknown error"}`;
+        }
+      }
+      if (toolName === "import_zip") {
+        const zipUrl: string = toolInput.zip_url || "";
+        const projectName: string = toolInput.project_name || "zip-import";
+        if (!zipUrl) return "Error: zip_url is required for import_zip";
+        let parsedZipUrl: URL;
+        try { parsedZipUrl = new URL(zipUrl); } catch { return "Error: Invalid ZIP URL format"; }
+        if (parsedZipUrl.protocol !== "https:") return "Error: ZIP URL must use HTTPS";
+        const zipHost = parsedZipUrl.hostname.toLowerCase();
+        const isPrivate = zipHost === "localhost" || zipHost === "127.0.0.1" || zipHost === "0.0.0.0" ||
+          zipHost === "[::1]" || zipHost.startsWith("10.") || zipHost.startsWith("192.168.") ||
+          /^172\.(1[6-9]|2\d|3[01])\./.test(zipHost) || zipHost.endsWith(".local") ||
+          zipHost.endsWith(".internal") || zipHost === "metadata.google.internal" || zipHost === "169.254.169.254";
+        if (isPrivate) return "Error: ZIP URL must not point to internal or private hosts";
+        res.write(`data: ${JSON.stringify({ type: "tool_status", tool: "import_zip", status: "starting", message: `Downloading ZIP from ${zipUrl}...` })}\n\n`);
+        try {
+          const response = await fetch(zipUrl, { signal: AbortSignal.timeout(30000) });
+          if (!response.ok) return `Error: Failed to download ZIP file (HTTP ${response.status})`;
+          const buffer = Buffer.from(await response.arrayBuffer());
+          if (buffer.length > 50 * 1024 * 1024) return "Error: ZIP file exceeds 50MB limit";
+          res.write(`data: ${JSON.stringify({ type: "tool_status", tool: "import_zip", status: "progress", message: "Extracting ZIP..." })}\n\n`);
+          const { startAsyncZipImport, getImportJob } = await import("../importService");
+          const jobId = startAsyncZipImport(String(userId!), buffer, projectName.slice(0, 50));
+          let elapsed = 0;
+          let lastStatus = "";
+          while (elapsed < 120000) {
+            await new Promise(r => setTimeout(r, 2000));
+            elapsed += 2000;
+            const job = getImportJob(jobId, String(userId!));
+            if (!job) break;
+            if (job.message !== lastStatus) {
+              res.write(`data: ${JSON.stringify({ type: "tool_status", tool: "import_zip", status: "progress", message: job.message, progress: job.progress })}\n\n`);
+              lastStatus = job.message;
+            }
+            if (job.status === "complete" && job.result) {
+              const r = job.result;
+              res.write(`data: ${JSON.stringify({ type: "tool_status", tool: "import_zip", status: "complete", projectId: r.project.id, projectName: r.project.name })}\n\n`);
+              return `Successfully imported ${r.fileCount} files from ZIP into project "${r.project.name}" (ID: ${r.project.id}).`;
+            }
+            if (job.status === "error") {
+              return `ZIP import failed: ${job.error || "Unknown error"}`;
+            }
+          }
+          return "ZIP import timed out.";
+        } catch (err: any) {
+          return `ZIP import failed: ${err.message || "Unknown error"}`;
+        }
+      }
       if (toolName.startsWith("mcp__") && mcpDefs) {
         const mcpDef = mcpDefs.find(d => d.name === toolName);
         if (mcpDef) {

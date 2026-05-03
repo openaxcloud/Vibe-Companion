@@ -78,6 +78,16 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
     }
   });
 
+  app.get("/api/github/status", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const user = await github.getAuthenticatedUser();
+      if (!user) return res.json({ connected: false });
+      return res.json({ connected: true, user });
+    } catch {
+      return res.json({ connected: false });
+    }
+  });
+
   app.get("/api/github/repos", requireAuth, async (_req: Request, res: Response) => {
     try {
       const repos = await github.listUserRepos();
@@ -159,6 +169,80 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
     });
   });
 
+  app.get("/api/import/stream/:jobId", requireAuth, (req: Request, res: Response) => {
+    const userId = req.session.userId!;
+    const { jobId } = req.params;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
+
+    const sendEvent = (data: Record<string, unknown>) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    let lastMessage = "";
+    let lastStatus = "";
+    let done = false;
+    const MAX_MS = 310000;
+    const start = Date.now();
+
+    const tick = () => {
+      if (done) return;
+      if (Date.now() - start > MAX_MS) {
+        sendEvent({ type: "error", error: "Import stream timed out" });
+        res.end();
+        done = true;
+        return;
+      }
+      const job = getImportJob(jobId, userId);
+      if (!job) {
+        sendEvent({ type: "error", error: "Import job not found" });
+        res.end();
+        done = true;
+        return;
+      }
+      if (job.message !== lastMessage || job.status !== lastStatus) {
+        lastMessage = job.message;
+        lastStatus = job.status;
+        sendEvent({
+          type: "progress",
+          status: job.status,
+          message: job.message,
+          progress: job.progress,
+          totalFiles: job.totalFiles,
+          importedFiles: job.importedFiles,
+          currentFile: job.currentFile,
+        });
+      }
+      if (job.status === "complete") {
+        sendEvent({ type: "complete", result: job.result });
+        res.end();
+        done = true;
+        return;
+      }
+      if (job.status === "error") {
+        sendEvent({ type: "error", error: job.error });
+        res.end();
+        done = true;
+        return;
+      }
+      setTimeout(tick, 400);
+    };
+
+    req.on("close", () => { done = true; });
+    tick();
+  });
+
+  app.post("/api/import/cancel/:jobId", requireAuth, async (req: Request, res: Response) => {
+    const { cancelImportJob } = await import("../importService");
+    const cancelled = cancelImportJob(req.params.jobId, req.session.userId!);
+    if (!cancelled) return res.status(404).json({ message: "Job not found or already finished" });
+    return res.json({ cancelled: true });
+  });
+
   app.post("/api/import/zip", requireAuth, zipUpload.single("file"), async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ message: "ZIP file required" });
     const projectName = (req.body.name || "zip-import").slice(0, 50);
@@ -211,6 +295,14 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
     if (!url) return res.status(400).json({ message: "GitHub repo URL required" });
     const { startAsyncImport } = await import("../importService");
     const jobId = startAsyncImport("lovable", req.session.userId!, { url, name });
+    return res.status(202).json({ jobId, async: true });
+  });
+
+  app.post("/api/import/git", requireAuth, async (req: Request, res: Response) => {
+    const { url, name } = req.body;
+    if (!url) return res.status(400).json({ message: "Git URL required" });
+    const { startAsyncImport } = await import("../importService");
+    const jobId = startAsyncImport("git", req.session.userId!, { url, name });
     return res.status(202).json({ jobId, async: true });
   });
 

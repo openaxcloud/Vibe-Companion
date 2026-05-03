@@ -6,12 +6,12 @@ import { useToast } from "@/hooks/use-toast";
 import { getCsrfToken } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
 import {
-  ArrowLeft, Github, Figma, Upload, Zap, Heart, Triangle,
+  ArrowLeft, Github, Figma, Upload,
   Loader2, CheckCircle2, AlertTriangle, FileArchive, X, ChevronRight,
-  ExternalLink, Key, Plus, Trash2
+  ExternalLink, Key, Plus, Trash2, GitBranch
 } from "lucide-react";
 
-type ImportSource = "github" | "figma" | "vercel" | "bolt" | "lovable" | "zip";
+type ImportSource = "github" | "figma" | "zip" | "git";
 
 interface ImportSourceConfig {
   id: ImportSource;
@@ -25,9 +25,18 @@ interface ImportSourceConfig {
 
 const IMPORT_SOURCES: ImportSourceConfig[] = [
   {
+    id: "git",
+    name: "Git URL",
+    description: "Import any public Git repository — GitHub, GitLab, Bitbucket, or any HTTPS git URL",
+    icon: <GitBranch className="w-6 h-6" />,
+    color: "#FF6B35",
+    placeholder: "https://github.com/owner/repo or https://gitlab.com/user/project",
+    inputType: "url",
+  },
+  {
     id: "github",
-    name: "GitHub",
-    description: "Import from a GitHub repository with full file tree support",
+    name: "GitHub (with OAuth)",
+    description: "Import private GitHub repositories using your connected GitHub account",
     icon: <Github className="w-6 h-6" />,
     color: "#24292f",
     placeholder: "https://github.com/owner/repo",
@@ -40,33 +49,6 @@ const IMPORT_SOURCES: ImportSourceConfig[] = [
     icon: <Figma className="w-6 h-6" />,
     color: "#A259FF",
     placeholder: "https://www.figma.com/file/...",
-    inputType: "url",
-  },
-  {
-    id: "vercel",
-    name: "Vercel",
-    description: "Import a Vercel project via its linked GitHub repository",
-    icon: <Triangle className="w-6 h-6" />,
-    color: "#000000",
-    placeholder: "https://vercel.com/team/project or project.vercel.app",
-    inputType: "url",
-  },
-  {
-    id: "bolt",
-    name: "Bolt",
-    description: "Import a Bolt project from its GitHub export repository",
-    icon: <Zap className="w-6 h-6" />,
-    color: "#FFB800",
-    placeholder: "https://github.com/owner/bolt-project",
-    inputType: "url",
-  },
-  {
-    id: "lovable",
-    name: "Lovable",
-    description: "Import a Lovable project from its GitHub export repository",
-    icon: <Heart className="w-6 h-6" />,
-    color: "#FF4D6A",
-    placeholder: "https://github.com/owner/lovable-project",
     inputType: "url",
   },
   {
@@ -330,23 +312,9 @@ export default function Import() {
           designContext,
         });
         data = await res.json();
-      } else if (selectedSource === "vercel") {
-        setProgress("Starting Vercel import...");
-        const res = await apiRequest("POST", "/api/import/vercel", {
-          url: inputUrl.trim(),
-          name: projectName || undefined,
-        });
-        data = await res.json();
-      } else if (selectedSource === "bolt") {
-        setProgress("Starting Bolt import...");
-        const res = await apiRequest("POST", "/api/import/bolt", {
-          url: inputUrl.trim(),
-          name: projectName || undefined,
-        });
-        data = await res.json();
-      } else if (selectedSource === "lovable") {
-        setProgress("Starting Lovable import...");
-        const res = await apiRequest("POST", "/api/import/lovable", {
+      } else if (selectedSource === "git") {
+        setProgress("Starting Git clone...");
+        const res = await apiRequest("POST", "/api/import/git", {
           url: inputUrl.trim(),
           name: projectName || undefined,
         });
@@ -355,35 +323,37 @@ export default function Import() {
 
       if (data?.async && data?.jobId) {
         setJobId(data.jobId);
-        setProgress("Import started, tracking progress...");
+        setProgress("Import started, streaming progress...");
         const controller = new AbortController();
         abortRef.current = controller;
-        const pollForCompletion = async (): Promise<any> => {
-          const maxAttempts = 300;
-          for (let i = 0; i < maxAttempts; i++) {
-            if (controller.signal.aborted) throw new Error("Import cancelled");
-            await new Promise(r => setTimeout(r, 1000));
-            if (controller.signal.aborted) throw new Error("Import cancelled");
-            const pollRes = await fetch(`/api/import/progress/${data.jobId}`, { credentials: "include", signal: controller.signal });
-            if (!pollRes.ok) {
-              if (pollRes.status === 401 || pollRes.status === 403) throw new Error("Session expired. Please log in again.");
-              if (pollRes.status === 404) throw new Error("Import job not found.");
-              continue;
+        const streamForCompletion = (): Promise<any> => new Promise((resolve, reject) => {
+          const es = new EventSource(`/api/import/stream/${data.jobId}`);
+          const cleanup = () => { try { es.close(); } catch { /* ignore */ } };
+          controller.signal.addEventListener("abort", () => {
+            cleanup();
+            reject(new Error("Import cancelled"));
+          });
+          es.onmessage = (evt) => {
+            let msg: any;
+            try { msg = JSON.parse(evt.data); } catch { return; }
+            if (msg.type === "progress") {
+              setProgressData(msg);
+              setProgress(msg.message || "Importing...");
+            } else if (msg.type === "complete") {
+              cleanup();
+              resolve(msg.result);
+            } else if (msg.type === "error") {
+              cleanup();
+              reject(new Error(msg.error || "Import failed"));
             }
-            const jobData = await pollRes.json();
-            setProgressData(jobData);
-            setProgress(jobData.message || "Importing...");
-            if (jobData.status === "complete") {
-              return jobData.result;
-            }
-            if (jobData.status === "error") {
-              throw new Error(jobData.error || "Import failed");
-            }
-          }
-          throw new Error("Import timed out after 5 minutes");
-        };
+          };
+          es.onerror = () => {
+            cleanup();
+            reject(new Error("Lost connection to import stream. Please check progress manually."));
+          };
+        });
         try {
-          data = await pollForCompletion();
+          data = await streamForCompletion();
         } finally {
           abortRef.current = null;
         }
@@ -424,8 +394,14 @@ export default function Import() {
       setResult(data);
       setStep("complete");
     } catch (err: any) {
-      setError(err.message || "Import failed");
-      setStep("error");
+      const msg: string = err?.message || "Import failed";
+      if (msg === "Import cancelled") {
+        setStep("select");
+        setSelectedSource(null);
+      } else {
+        setError(msg);
+        setStep("error");
+      }
     } finally {
       setImporting(false);
     }
@@ -780,6 +756,31 @@ export default function Import() {
                 )}
               </div>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-6 text-xs border-[var(--ide-border)] text-[var(--ide-text-muted)] hover:text-red-400 hover:border-red-400/50"
+              data-testid="button-cancel-import"
+              onClick={async () => {
+                if (abortRef.current) {
+                  abortRef.current.abort();
+                  abortRef.current = null;
+                }
+                if (jobId) {
+                  try {
+                    await fetch(`/api/import/cancel/${jobId}`, { method: "POST", credentials: "include" });
+                  } catch { /* ignore cancel errors */ }
+                }
+                setImporting(false);
+                setStep("select");
+                setSelectedSource(null);
+                setJobId(null);
+                setProgressData(null);
+                setError("");
+              }}
+            >
+              <X className="w-3 h-3 mr-1" /> Cancel Import
+            </Button>
           </div>
         )}
 
@@ -792,18 +793,21 @@ export default function Import() {
             <p className="text-sm text-[var(--ide-text-muted)] mb-1">
               <span className="font-medium text-[var(--ide-text)]">{result.project?.name || result.fileCount + " files"}</span> imported successfully
             </p>
-            <p className="text-xs text-[var(--ide-text-muted)] mb-2">{result.fileCount} file(s) imported</p>
-            {(result.detectedLanguage || result.runCommand) && (
-              <div className="mb-6 text-left bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 space-y-1">
-                {result.detectedLanguage && (
-                  <p className="text-xs text-[var(--ide-text-muted)]" data-testid="text-detected-language">
-                    <span className="font-medium text-[var(--ide-text)]">Language:</span> {result.detectedLanguage}
+            <p className="text-xs text-[var(--ide-text-muted)] mb-4">{result.fileCount} file(s) imported</p>
+
+            {(result.runCommand || result.framework) && (
+              <div className="mb-5 text-left bg-[#0079F2]/5 border border-[#0079F2]/20 rounded-xl p-4" data-testid="import-run-command">
+                <h3 className="text-xs font-medium text-[#0079F2] flex items-center gap-1 mb-2">
+                  <span>⚡</span> Detected Run Config{result.framework ? ` · ${result.framework}` : ""}
+                </h3>
+                {result.installCommand && (
+                  <p className="text-[11px] text-[var(--ide-text-muted)] mb-1">
+                    Install: <code className="font-mono bg-[var(--ide-surface)] px-1 py-0.5 rounded text-[var(--ide-text)]" data-testid="text-install-command">{result.installCommand}</code>
                   </p>
                 )}
                 {result.runCommand && (
-                  <p className="text-xs text-[var(--ide-text-muted)]" data-testid="text-detected-run-command">
-                    <span className="font-medium text-[var(--ide-text)]">Run command:</span>{" "}
-                    <code className="font-mono bg-[var(--ide-surface)] px-1 py-0.5 rounded">{result.runCommand}</code>
+                  <p className="text-[11px] text-[var(--ide-text-muted)]">
+                    Run: <code className="font-mono bg-[var(--ide-surface)] px-1 py-0.5 rounded text-[var(--ide-text)]" data-testid="text-run-command">{result.runCommand}</code>
                   </p>
                 )}
               </div>
@@ -847,7 +851,7 @@ export default function Import() {
               </Button>
               <Button
                 className="bg-[#0079F2] hover:bg-[#006AD8] text-white text-sm"
-                onClick={() => navigate(`/project/${result.project?.id}`)}
+                onClick={() => navigate(`/ide/${result.project?.id}`)}
                 data-testid="button-open-project"
               >
                 Open Project <ExternalLink className="w-3.5 h-3.5 ml-1.5" />

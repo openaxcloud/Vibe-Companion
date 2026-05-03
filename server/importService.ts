@@ -1,6 +1,10 @@
 import * as github from "./github";
 import { storage } from "./storage";
 import AdmZip from "adm-zip";
+import { execa } from "execa";
+import fs from "fs/promises";
+import path from "path";
+import os from "os";
 
 const BINARY_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".webp",
@@ -78,6 +82,83 @@ function detectLanguageFromGitHub(repoLanguage: string | null, filenames: string
   return detectLanguageFromFiles(filenames);
 }
 
+export function detectRunCommand(filenames: string[], fileContentMap?: Record<string, string>): { runCommand: string; installCommand?: string; framework?: string } | null {
+  const has = (f: string) => filenames.some(n => n === f || n.endsWith(`/${f}`));
+  const getContent = (f: string) => fileContentMap?.[f] || fileContentMap?.[filenames.find(n => n === f || n.endsWith(`/${f}`)) || ""];
+
+  if (has("package.json")) {
+    const pkg = getContent("package.json");
+    let scripts: Record<string, string> = {};
+    try { scripts = JSON.parse(pkg || "{}").scripts || {}; } catch { /* ignore */ }
+    const priority = ["dev", "start", "serve", "preview", "run"];
+    const cmd = priority.find(s => scripts[s]);
+    const framework = has("next.config.js") || has("next.config.ts") || has("next.config.mjs") ? "Next.js"
+      : has("vite.config.ts") || has("vite.config.js") ? "Vite"
+      : has("nuxt.config.ts") || has("nuxt.config.js") ? "Nuxt"
+      : has("svelte.config.js") ? "SvelteKit"
+      : has("astro.config.mjs") || has("astro.config.ts") ? "Astro"
+      : has("remix.config.js") ? "Remix"
+      : has("angular.json") ? "Angular"
+      : undefined;
+    return {
+      runCommand: cmd ? `npm run ${cmd}` : "npm start",
+      installCommand: "npm install",
+      framework,
+    };
+  }
+
+  if (has("requirements.txt") || has("Pipfile")) {
+    const isFlask = filenames.some(f => {
+      const content = fileContentMap?.[f] || "";
+      return content.includes("from flask") || content.includes("import flask");
+    });
+    const isDjango = has("manage.py");
+    const isFastAPI = filenames.some(f => {
+      const content = fileContentMap?.[f] || "";
+      return content.includes("from fastapi") || content.includes("import fastapi");
+    });
+    if (isDjango) return { runCommand: "python manage.py runserver 0.0.0.0:5000", installCommand: "pip install -r requirements.txt", framework: "Django" };
+    if (isFlask) return { runCommand: "flask run --host=0.0.0.0 --port=5000", installCommand: "pip install -r requirements.txt", framework: "Flask" };
+    if (isFastAPI) return { runCommand: "uvicorn main:app --host 0.0.0.0 --port 5000", installCommand: "pip install -r requirements.txt", framework: "FastAPI" };
+    const mainPy = filenames.find(f => f === "main.py" || f === "app.py" || f === "server.py" || f === "run.py");
+    return { runCommand: mainPy ? `python ${mainPy}` : "python main.py", installCommand: "pip install -r requirements.txt" };
+  }
+
+  if (has("Cargo.toml")) {
+    return { runCommand: "cargo run", installCommand: undefined, framework: "Rust" };
+  }
+
+  if (has("go.mod")) {
+    return { runCommand: "go run .", installCommand: "go mod download", framework: "Go" };
+  }
+
+  if (has("pom.xml")) {
+    return { runCommand: "mvn spring-boot:run", installCommand: "mvn install -DskipTests", framework: "Spring Boot" };
+  }
+
+  if (has("build.gradle") || has("build.gradle.kts")) {
+    return { runCommand: "./gradlew bootRun", installCommand: undefined, framework: "Gradle" };
+  }
+
+  if (has("composer.json")) {
+    return { runCommand: "php -S 0.0.0.0:5000 -t public", installCommand: "composer install", framework: "PHP" };
+  }
+
+  if (has("Gemfile")) {
+    const isRails = has("config/routes.rb");
+    if (isRails) return { runCommand: "rails server -b 0.0.0.0 -p 5000", installCommand: "bundle install", framework: "Rails" };
+    return { runCommand: "ruby main.rb", installCommand: "bundle install" };
+  }
+
+  const mainPy = filenames.find(f => f === "main.py" || f === "app.py");
+  if (mainPy) return { runCommand: `python ${mainPy}` };
+
+  const mainJs = filenames.find(f => f === "index.js" || f === "server.js" || f === "main.js" || f === "app.js");
+  if (mainJs) return { runCommand: `node ${mainJs}` };
+
+  return null;
+}
+
 export interface ImportResult {
   project: { id: string; name: string; language: string };
   fileCount: number;
@@ -85,6 +166,8 @@ export interface ImportResult {
   requiredSecrets: string[];
   detectedLanguage?: string;
   runCommand?: string;
+  installCommand?: string;
+  framework?: string;
 }
 
 export interface ValidationResult {
@@ -225,9 +308,23 @@ export interface ImportJob {
   message: string;
   result?: ImportResult;
   error?: string;
+  cancelled: boolean;
 }
 
 const importJobs = new Map<string, ImportJob>();
+
+export function cancelImportJob(jobId: string, userId: string): boolean {
+  const job = importJobs.get(jobId);
+  if (!job || job.userId !== userId) return false;
+  if (job.status === "complete" || job.status === "error") return false;
+  job.cancelled = true;
+  updateJob(job, { status: "error", error: "Import cancelled by user" });
+  return true;
+}
+
+function isJobCancelled(job: ImportJob): boolean {
+  return job.cancelled;
+}
 
 function createJob(userId: string): ImportJob {
   const id = `import_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -240,6 +337,7 @@ function createJob(userId: string): ImportJob {
     importedFiles: 0,
     currentFile: "",
     message: "Initializing...",
+    cancelled: false,
   };
   importJobs.set(id, job);
   return job;
@@ -294,6 +392,9 @@ export function startAsyncImport(
           break;
         case "lovable":
           result = await importFromLovable(userId, params.url!, params.name, job);
+          break;
+        case "git":
+          result = await importFromGit(userId, params.url!, params.name, job);
           break;
         default:
           throw new Error(`Unknown import source: ${source}`);
@@ -368,9 +469,14 @@ export async function importFromGitHub(
 
   const BATCH_SIZE = 10;
   for (let i = 0; i < filesToImport.length; i += BATCH_SIZE) {
+    if (isJobCancelled(job)) {
+      try { await storage.deleteProject(project.id, userId); } catch { /* cleanup */ }
+      return { project: { id: "", name: "", language: "" }, fileCount: 0, warnings: [], requiredSecrets: [], jobId: job.id };
+    }
     const batch = filesToImport.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map(async (item: { path: string }) => {
+        if (isJobCancelled(job)) throw new Error("cancelled");
         const content = await github.getFileContent(owner, repo, item.path);
         await storage.createFile(project.id, {
           filename: item.path,
@@ -385,7 +491,8 @@ export async function importFromGitHub(
         importedCount++;
       } else {
         const batchItem = batch[results.indexOf(r)];
-        warnings.push(`Failed to import: ${batchItem?.path || "unknown"}`);
+        const errMsg = r.status === "rejected" && r.reason?.message === "cancelled" ? null : `Failed to import: ${batchItem?.path || "unknown"}`;
+        if (errMsg) warnings.push(errMsg);
       }
     }
 
@@ -396,10 +503,26 @@ export async function importFromGitHub(
     });
   }
 
+  if (isJobCancelled(job)) {
+    try { await storage.deleteProject(project.id, userId); } catch { /* cleanup */ }
+    return { project: { id: "", name: "", language: "" }, fileCount: 0, warnings: [], requiredSecrets: [], jobId: job.id };
+  }
+
   if (importedCount === 0) {
     try { await storage.deleteProject(project.id, userId); } catch { /* cleanup failure is non-critical */ }
     updateJob(job, { status: "error", error: "No files could be imported from this repository." });
     throw new Error("No files could be imported from this repository.");
+  }
+
+  const allFilenames = filesToImport.map((f: { path: string }) => f.path);
+  const runInfo = detectRunCommand(allFilenames);
+
+  if (runInfo?.runCommand) {
+    const replitConfig = [`run = "${runInfo.runCommand}"`];
+    if (runInfo.installCommand) replitConfig.push(`[nix]\nchannel = "stable-24_05"`);
+    try {
+      await storage.createFile(project.id, { filename: ".replit", content: replitConfig.join("\n") + "\n" });
+    } catch { /* non-fatal */ }
   }
 
   const result: ImportResult = {
@@ -407,6 +530,9 @@ export async function importFromGitHub(
     fileCount: importedCount,
     warnings,
     requiredSecrets: [],
+    runCommand: runInfo?.runCommand,
+    installCommand: runInfo?.installCommand,
+    framework: runInfo?.framework,
   };
 
   updateJob(job, { status: "complete", message: "Import complete", result });
@@ -520,6 +646,10 @@ export async function importFromZip(
   });
 
   for (const entry of validEntries) {
+    if (isJobCancelled(job)) {
+      try { await storage.deleteProject(project.id, userId); } catch { /* cleanup */ }
+      return { project: { id: "", name: "", language: "" }, fileCount: 0, warnings: [], requiredSecrets: [], jobId: job.id };
+    }
     try {
       let filename = entry.entryName;
       if (rootPrefix && filename.startsWith(rootPrefix)) {
@@ -554,6 +684,14 @@ export async function importFromZip(
     }
   }
 
+  const zipFilenames = validEntries.map(e => {
+    let fn = e.entryName;
+    if (rootPrefix && fn.startsWith(rootPrefix)) fn = fn.substring(rootPrefix.length);
+    return fn;
+  });
+
+  const runInfo = detectRunCommand(zipFilenames);
+
   updateJob(job, { status: "detecting", message: "Detecting runtime configuration..." });
 
   const hints = detectReplitHints(textFileMap);
@@ -561,11 +699,12 @@ export async function importFromZip(
   const detectedLang = hints.language || lang;
   const updates: Parameters<typeof storage.updateProject>[1] = { language: detectedLang };
 
-  if (hints.runCommand) {
+  if (hints.runCommand || runInfo?.runCommand) {
+    const finalRunCommand = hints.runCommand || runInfo?.runCommand;
     const replitFilename = ".replit";
     const hasReplitFile = textFileMap.has(replitFilename);
     if (!hasReplitFile) {
-      const replitContent = `run = "${hints.runCommand}"\nlanguage = "${detectedLang}"\n`;
+      const replitContent = `run = "${finalRunCommand}"\nlanguage = "${detectedLang}"\n`;
       try {
         await storage.createFile(project.id, { filename: replitFilename, content: replitContent });
         importedCount++;
@@ -587,7 +726,9 @@ export async function importFromZip(
     warnings,
     requiredSecrets: [],
     detectedLanguage: detectedLang,
-    runCommand: hints.runCommand,
+    runCommand: hints.runCommand || runInfo?.runCommand,
+    installCommand: runInfo?.installCommand,
+    framework: runInfo?.framework,
   };
 
   updateJob(job, { status: "complete", message: "Import complete", result });
@@ -786,6 +927,10 @@ export async function importFromFigma(
   updateJob(job, { totalFiles });
 
   for (const [filename, content] of Object.entries(allFiles)) {
+    if (isJobCancelled(job)) {
+      try { await storage.deleteProject(project.id, userId); } catch { /* cleanup */ }
+      return { project: { id: "", name: "", language: "" }, fileCount: 0, warnings: [], requiredSecrets: [], jobId: job.id };
+    }
     try {
       await storage.createFile(project.id, { filename, content });
       importedCount++;
@@ -799,6 +944,11 @@ export async function importFromFigma(
     }
   }
 
+  if (isJobCancelled(job)) {
+    try { await storage.deleteProject(project.id, userId); } catch { /* cleanup */ }
+    return { project: { id: "", name: "", language: "" }, fileCount: 0, warnings: [], requiredSecrets: [], jobId: job.id };
+  }
+
   const result: ImportResult = {
     project: { id: project.id, name: project.name, language: project.language },
     fileCount: importedCount,
@@ -808,6 +958,163 @@ export async function importFromFigma(
 
   updateJob(job, { status: "complete", message: "Import complete", result });
   return { ...result, jobId: job.id };
+}
+
+export async function importFromGit(
+  userId: string,
+  gitUrl: string,
+  projectName?: string,
+  existingJob?: ImportJob,
+): Promise<ImportResult & { jobId: string }> {
+  cleanupOldJobs();
+  const job = existingJob || createJob(userId);
+
+  const projectCheck = await storage.checkProjectLimit(userId);
+  if (!projectCheck.allowed) {
+    updateJob(job, { status: "error", error: "Project limit reached." });
+    throw new Error("Project limit reached. Upgrade your plan for more projects.");
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(gitUrl);
+  } catch {
+    updateJob(job, { status: "error", error: "Invalid Git URL." });
+    throw new Error("Invalid Git URL format.");
+  }
+  if (parsedUrl.protocol !== "https:") {
+    updateJob(job, { status: "error", error: "Git URL must use HTTPS." });
+    throw new Error("Git URL must use HTTPS (http:// is not allowed).");
+  }
+  const host = parsedUrl.hostname.toLowerCase();
+  const isPrivate = host === "localhost" || host === "127.0.0.1" || host === "::1" ||
+    host.startsWith("10.") || host.startsWith("192.168.") ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    host.startsWith("169.254.") ||
+    host === "metadata.google.internal" || host.endsWith(".metadata.google.internal") ||
+    host === "169.254.169.254" ||
+    host.endsWith(".local") || host.endsWith(".internal") ||
+    host.startsWith("fc") || host.startsWith("fd") ||
+    host.startsWith("fe80");
+  if (isPrivate) {
+    updateJob(job, { status: "error", error: "Git URL must not point to internal hosts." });
+    throw new Error("Git URL must not point to internal or private hosts.");
+  }
+
+  const derivedName = (projectName || parsedUrl.pathname.split("/").filter(Boolean).pop()?.replace(/\.git$/, "") || "git-import").slice(0, 50);
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "git-import-"));
+
+  try {
+    updateJob(job, { status: "importing", message: `Cloning ${gitUrl}...` });
+
+    if (isJobCancelled(job)) throw new Error("cancelled");
+
+    await execa("git", ["clone", "--depth", "1", "--single-branch", gitUrl, tmpDir], {
+      timeout: 120000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    });
+
+    if (isJobCancelled(job)) throw new Error("cancelled");
+
+    const files = await getAllFiles(tmpDir, tmpDir);
+    const textFiles = files.filter(f => !isBinaryFile(f));
+    const lang = detectLanguageFromFiles(textFiles);
+
+    const project = await storage.createProject(userId, {
+      name: derivedName,
+      language: lang,
+      visibility: "private",
+      outputType: "web",
+      projectType: "web-app",
+    });
+
+    let importedCount = 0;
+    const warnings: string[] = [];
+
+    updateJob(job, { totalFiles: textFiles.length, message: `Importing ${textFiles.length} files...` });
+
+    const BATCH_SIZE = 20;
+    for (let i = 0; i < textFiles.length; i += BATCH_SIZE) {
+      if (isJobCancelled(job)) {
+        try { await storage.deleteProject(project.id, userId); } catch { /* cleanup */ }
+        throw new Error("cancelled");
+      }
+      const batch = textFiles.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(batch.map(async relPath => {
+        if (isJobCancelled(job)) return;
+        try {
+          const content = await fs.readFile(path.join(tmpDir, relPath), "utf8");
+          await storage.createFile(project.id, { filename: relPath, content: content.slice(0, MAX_FILE_SIZE) });
+          importedCount++;
+        } catch {
+          warnings.push(`Failed to import: ${relPath}`);
+        }
+      }));
+      updateJob(job, {
+        importedFiles: importedCount,
+        currentFile: batch[batch.length - 1] || "",
+        message: `Imported ${importedCount}/${textFiles.length} files...`,
+      });
+    }
+
+    if (importedCount === 0) {
+      try { await storage.deleteProject(project.id, userId); } catch { /* cleanup */ }
+      updateJob(job, { status: "error", error: "No files could be imported from this repository." });
+      throw new Error("No files could be imported from this repository.");
+    }
+
+    const runInfo = detectRunCommand(textFiles);
+
+    if (runInfo?.runCommand) {
+      const replitConfig = [`run = "${runInfo.runCommand}"`];
+      if (runInfo.installCommand) replitConfig.push(`[nix]\nchannel = "stable-24_05"`);
+      try {
+        await storage.createFile(project.id, { filename: ".replit", content: replitConfig.join("\n") + "\n" });
+      } catch { /* non-fatal */ }
+    }
+
+    const result: ImportResult = {
+      project: { id: project.id, name: project.name, language: project.language },
+      fileCount: importedCount,
+      warnings,
+      requiredSecrets: [],
+      runCommand: runInfo?.runCommand,
+      installCommand: runInfo?.installCommand,
+      framework: runInfo?.framework,
+    };
+
+    updateJob(job, { status: "complete", message: "Import complete", result });
+    return { ...result, jobId: job.id };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Git clone failed";
+    if (message === "cancelled") {
+      return { project: { id: "", name: "", language: "" }, fileCount: 0, warnings: [], requiredSecrets: [], jobId: job.id };
+    }
+    updateJob(job, { status: "error", error: message });
+    throw err;
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { /* cleanup */ });
+  }
+}
+
+async function getAllFiles(dir: string, baseDir: string): Promise<string[]> {
+  const SKIP_DIRS = new Set([".git", "node_modules", ".next", "__pycache__", "dist", "build", ".venv", "venv", ".cache"]);
+  const results: string[] = [];
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (SKIP_DIRS.has(entry.name)) continue;
+      const fullPath = path.join(dir, entry.name);
+      const relPath = path.relative(baseDir, fullPath);
+      if (entry.isDirectory()) {
+        const nested = await getAllFiles(fullPath, baseDir);
+        results.push(...nested);
+      } else if (entry.isFile()) {
+        results.push(relPath);
+      }
+    }
+  } catch { /* skip unreadable dirs */ }
+  return results;
 }
 
 function parseFigmaUrl(url: string): { fileKey: string; nodeId?: string } | null {
@@ -1321,9 +1628,191 @@ export async function validateImportSource(
         return { valid: false, compatible: false, reasons: ["Repository not accessible"] };
       }
     }
+    case "git": {
+      let parsedGit: URL;
+      try {
+        parsedGit = new URL(input);
+      } catch {
+        return { valid: false, compatible: false, reasons: ["Invalid URL format."] };
+      }
+      if (parsedGit.protocol !== "https:") {
+        return { valid: false, compatible: false, reasons: ["Git URL must use HTTPS (http:// URLs are not allowed)."] };
+      }
+      const gitHost = parsedGit.hostname.toLowerCase();
+      const isPrivateHost = gitHost === "localhost" || gitHost === "127.0.0.1" || gitHost === "::1" ||
+        gitHost.startsWith("10.") || gitHost.startsWith("192.168.") ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(gitHost) ||
+        gitHost.startsWith("169.254.") ||
+        gitHost === "metadata.google.internal" || gitHost.endsWith(".metadata.google.internal") ||
+        gitHost.endsWith(".local") || gitHost.endsWith(".internal") ||
+        gitHost.startsWith("fc") || gitHost.startsWith("fd") || gitHost.startsWith("fe80");
+      if (isPrivateHost) {
+        return { valid: false, compatible: false, reasons: ["Git URL must not point to internal or private hosts."] };
+      }
+      const pathParts = parsedGit.pathname.split("/").filter(Boolean);
+      if (pathParts.length < 2) {
+        return { valid: true, compatible: true, reasons: ["URL looks like a root of a hosting service — make sure it points to a specific repository."] };
+      }
+      return { valid: true, compatible: true, reasons: [], detectedLanguage: "unknown" };
+    }
     case "zip":
       return { valid: false, compatible: false, reasons: ["ZIP validation requires file upload. Use the ZIP upload endpoint directly."] };
     default:
       return { valid: false, compatible: false, reasons: ["Unknown import source"] };
   }
+}
+
+export async function importFromGit(
+  userId: string,
+  gitUrl: string,
+  projectName?: string,
+  existingJob?: ImportJob,
+): Promise<ImportResult & { jobId: string }> {
+  cleanupOldJobs();
+  const job = existingJob || createJob(userId);
+
+  const projectCheck = await storage.checkProjectLimit(userId);
+  if (!projectCheck.allowed) {
+    updateJob(job, { status: "error", error: "Project limit reached." });
+    throw new Error("Project limit reached. Upgrade your plan for more projects.");
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(gitUrl);
+  } catch {
+    updateJob(job, { status: "error", error: "Invalid Git URL." });
+    throw new Error("Invalid Git URL format.");
+  }
+  if (parsedUrl.protocol !== "https:") {
+    updateJob(job, { status: "error", error: "Git URL must use HTTPS." });
+    throw new Error("Git URL must use HTTPS (http:// is not allowed).");
+  }
+  const host = parsedUrl.hostname.toLowerCase();
+  const isPrivate = host === "localhost" || host === "127.0.0.1" || host === "::1" ||
+    host.startsWith("10.") || host.startsWith("192.168.") ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    host.startsWith("169.254.") ||
+    host === "metadata.google.internal" || host.endsWith(".metadata.google.internal") ||
+    host.endsWith(".local") || host.endsWith(".internal") ||
+    host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80");
+  if (isPrivate) {
+    updateJob(job, { status: "error", error: "Git URL must not point to internal hosts." });
+    throw new Error("Git URL must not point to internal or private hosts.");
+  }
+
+  const derivedName = (projectName || parsedUrl.pathname.split("/").filter(Boolean).pop()?.replace(/\.git$/, "") || "git-import").slice(0, 50);
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "git-import-"));
+
+  try {
+    updateJob(job, { status: "importing", message: `Cloning ${gitUrl}...` });
+
+    if (isJobCancelled(job)) throw new Error("cancelled");
+
+    await execa("git", ["clone", "--depth", "1", "--single-branch", gitUrl, tmpDir], {
+      timeout: 120000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    });
+
+    if (isJobCancelled(job)) throw new Error("cancelled");
+
+    const files = await getAllFiles(tmpDir, tmpDir);
+    const textFiles = files.filter(f => !isBinaryFile(f));
+    const lang = detectLanguageFromFiles(textFiles);
+
+    const project = await storage.createProject(userId, {
+      name: derivedName,
+      language: lang,
+      visibility: "private",
+      outputType: "web",
+      projectType: "web-app",
+    });
+
+    let importedCount = 0;
+    const warnings: string[] = [];
+
+    updateJob(job, { totalFiles: textFiles.length, message: `Importing ${textFiles.length} files...` });
+
+    const BATCH_SIZE = 20;
+    for (let i = 0; i < textFiles.length; i += BATCH_SIZE) {
+      if (isJobCancelled(job)) {
+        try { await storage.deleteProject(project.id, userId); } catch { /* cleanup */ }
+        throw new Error("cancelled");
+      }
+      const batch = textFiles.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(batch.map(async relPath => {
+        if (isJobCancelled(job)) return;
+        try {
+          const content = await fs.readFile(path.join(tmpDir, relPath), "utf8");
+          await storage.createFile(project.id, { filename: relPath, content: content.slice(0, MAX_FILE_SIZE) });
+          importedCount++;
+        } catch {
+          warnings.push(`Failed to import: ${relPath}`);
+        }
+      }));
+      updateJob(job, {
+        importedFiles: importedCount,
+        currentFile: batch[batch.length - 1] || "",
+        message: `Imported ${importedCount}/${textFiles.length} files...`,
+      });
+    }
+
+    if (importedCount === 0) {
+      try { await storage.deleteProject(project.id, userId); } catch { /* cleanup */ }
+      updateJob(job, { status: "error", error: "No files could be imported from this repository." });
+      throw new Error("No files could be imported from this repository.");
+    }
+
+    const runInfo = detectRunCommand(textFiles);
+
+    if (runInfo?.runCommand) {
+      const replitConfig = [`run = "${runInfo.runCommand}"`];
+      if (runInfo.installCommand) replitConfig.push(`[nix]\nchannel = "stable-24_05"`);
+      try {
+        await storage.createFile(project.id, { filename: ".replit", content: replitConfig.join("\n") + "\n" });
+      } catch { /* non-fatal */ }
+    }
+
+    const result: ImportResult = {
+      project: { id: project.id, name: project.name, language: project.language },
+      fileCount: importedCount,
+      warnings,
+      requiredSecrets: [],
+      runCommand: runInfo?.runCommand,
+      installCommand: runInfo?.installCommand,
+      framework: runInfo?.framework,
+    };
+
+    updateJob(job, { status: "complete", message: "Import complete", result });
+    return { ...result, jobId: job.id };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Git clone failed";
+    if (message === "cancelled") {
+      return { project: { id: "", name: "", language: "" }, fileCount: 0, warnings: [], requiredSecrets: [], jobId: job.id };
+    }
+    updateJob(job, { status: "error", error: message });
+    throw err;
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { /* cleanup */ });
+  }
+}
+
+async function getAllFiles(dir: string, baseDir: string): Promise<string[]> {
+  const SKIP_DIRS = new Set([".git", "node_modules", ".next", "__pycache__", "dist", "build", ".venv", "venv", ".cache"]);
+  const results: string[] = [];
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (SKIP_DIRS.has(entry.name)) continue;
+      const fullPath = path.join(dir, entry.name);
+      const relPath = path.relative(baseDir, fullPath);
+      if (entry.isDirectory()) {
+        const nested = await getAllFiles(fullPath, baseDir);
+        results.push(...nested);
+      } else if (entry.isFile()) {
+        results.push(relPath);
+      }
+    }
+  } catch { /* skip unreadable dirs */ }
+  return results;
 }

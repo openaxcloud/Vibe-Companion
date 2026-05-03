@@ -557,6 +557,53 @@ export const portTools: AgentTool[] = [
 ];
 
 /**
+ * Import Tools
+ */
+export const importTools: AgentTool[] = [
+  {
+    name: 'import_repo',
+    description: 'Import any public Git repository by its URL. Creates a new project with all files from the repository. Supports GitHub (private repos via OAuth), GitLab, Bitbucket, or any public HTTPS git URL. Also supports Vercel projects. Use this when the user asks to import or clone a repo from any Git host.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'Full HTTPS URL of the repository to import. Examples: https://github.com/owner/repo, https://gitlab.com/user/project, https://bitbucket.org/user/repo, https://vercel.com/team/project'
+        },
+        source: {
+          type: 'string',
+          enum: ['github', 'git', 'vercel', 'bolt', 'lovable'],
+          description: 'Override the import source. "github" uses OAuth for private repo access; "git" clones any public HTTPS git URL (GitLab, Bitbucket, etc.); "vercel" imports a Vercel project. Omit to auto-detect from URL.'
+        },
+        project_name: {
+          type: 'string',
+          description: 'Optional name for the new project. Defaults to the repository name.'
+        }
+      },
+      required: ['url']
+    }
+  },
+  {
+    name: 'import_zip',
+    description: 'Import a project from a ZIP archive URL. Downloads the ZIP, extracts it safely, and creates a new project with the files. Use when the user provides a ZIP download URL.',
+    parameters: {
+      type: 'object',
+      properties: {
+        zip_url: {
+          type: 'string',
+          description: 'Public URL of the ZIP file to download and import (e.g., https://example.com/project.zip)'
+        },
+        project_name: {
+          type: 'string',
+          description: 'Name for the new project created from the ZIP contents'
+        }
+      },
+      required: ['zip_url', 'project_name']
+    }
+  }
+];
+
+/**
  * All Tools Combined
  */
 export const allTools: AgentTool[] = [
@@ -565,7 +612,8 @@ export const allTools: AgentTool[] = [
   ...searchTools,
   ...contextTools,
   ...testingTools,
-  ...portTools
+  ...portTools,
+  ...importTools
 ];
 
 /**
