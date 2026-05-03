@@ -203,7 +203,11 @@ export class PreviewService {
   }
 
   private ensurePreviewAuth(req: any, res: any, next: any) {
-    if (!req.isAuthenticated || !req.isAuthenticated()) {
+    // Accept BOTH passport-style (req.user via req.isAuthenticated) and the
+    // app's primary session-based auth (req.session.userId set by /api/auth/login).
+    const sessionUserId = req.session?.userId;
+    const passportAuthed = typeof req.isAuthenticated === 'function' && req.isAuthenticated();
+    if (!sessionUserId && !passportAuthed) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     next();
@@ -219,12 +223,17 @@ export class PreviewService {
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
       }
-      const userId = req.user?.id;
-      if ((project as any).userId === userId || (project as any).ownerId === userId) {
+      // Resolve userId from either passport (req.user.id) or the session store.
+      const userId = req.user?.id ?? req.session?.userId;
+      if (userId == null) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const sUid = String(userId);
+      if (String((project as any).userId) === sUid || String((project as any).ownerId) === sUid) {
         return next();
       }
       const collaborators = await storage.getProjectCollaborators?.(projectId);
-      const isCollaborator = collaborators?.some((c: any) => c.userId === userId);
+      const isCollaborator = collaborators?.some((c: any) => String(c.userId) === sUid);
       if (!isCollaborator) {
         return res.status(403).json({ error: 'Access denied' });
       }

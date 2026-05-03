@@ -5244,7 +5244,12 @@ Based on the search results above, provide a comprehensive answer to the user's 
      * routes in server/routes/preview.ts are never shadowed.
      */
     app.get("/api/preview/:projectId", requireAuth, async (req: Request, res: Response, next) => {
-      if (req.params.projectId === 'projects') return next();
+      // Skip reserved sub-paths so they fall through to the modular router
+      // (e.g. /api/preview/url, /api/preview/projects/..., /api/preview/devtools/...).
+      // Project IDs in this codebase are sometimes UUIDs, so we use a deny-list
+      // rather than a numeric-only allow-list.
+      const PREVIEW_RESERVED = new Set(['projects', 'url', 'devtools', 'status', 'health']);
+      if (PREVIEW_RESERVED.has(req.params.projectId)) return next();
       const project = await storage.getProject(req.params.projectId);
       if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
@@ -5253,7 +5258,8 @@ Based on the search results above, provide a comprehensive answer to the user's 
     });
 
     app.all("/api/preview/:projectId/{*path}", requireAuth, async (req: Request, res: Response, next) => {
-      if (req.params.projectId === 'projects') return next();
+      const PREVIEW_RESERVED = new Set(['projects', 'url', 'devtools', 'status', 'health']);
+      if (PREVIEW_RESERVED.has(req.params.projectId)) return next();
       const project = await storage.getProject(req.params.projectId);
       if (!project || (String(project.userId) !== String(req.session.userId) && !await verifyProjectAccess(project.id, req.session.userId!))) {
         return res.status(404).json({ message: "Project not found" });
