@@ -109,14 +109,30 @@ export interface DatabaseCredentials {
 }
 
 class ProjectDatabaseProvisioningService {
-  async getProjectDatabase(projectId: number): Promise<ProjectDatabase | null> {
-    const [database] = await db
+  /**
+   * Returns the database record for a project.
+   * When env='prod', looks for a record whose name contains 'production' or ends with '-prod'.
+   * Falls back to any record for the project if no environment-specific one exists.
+   */
+  async getProjectDatabase(projectId: number, env: 'dev' | 'prod' = 'dev'): Promise<ProjectDatabase | null> {
+    const all = await db
       .select()
       .from(projectDatabases)
-      .where(eq(projectDatabases.projectId, projectId))
-      .limit(1);
-    
-    return database || null;
+      .where(eq(projectDatabases.projectId, projectId));
+
+    if (!all.length) return null;
+
+    if (env === 'prod') {
+      const prod = all.find(
+        d => d.name.includes('production') || d.name.endsWith('-prod') || (d as Record<string,unknown>).environment === 'prod',
+      );
+      return prod || null; // prod-specific: no fallback — avoids accidental dev→prod routing
+    }
+    // dev: prefer records NOT marked as production
+    const dev = all.find(
+      d => !d.name.includes('production') && !d.name.endsWith('-prod') && (d as Record<string,unknown>).environment !== 'prod',
+    );
+    return dev || all[0]; // fallback to first if none specifically marked dev
   }
 
   async provisionDatabase(projectId: number, options: ProvisioningOptions = {}): Promise<ProjectDatabase> {
@@ -676,13 +692,21 @@ class ProjectDatabaseProvisioningService {
     };
   }
 
-  async executeQuery(projectId: number, query: string): Promise<{
-    rows: any[];
+  async executeQuery(
+    projectId: number,
+    query: string,
+    env: 'dev' | 'prod' = 'dev',
+  ): Promise<{
+    rows: unknown[];
     rowCount: number;
     fields: Array<{ name: string; dataTypeID?: number }>;
+    targetEnv: 'dev' | 'prod';
   }> {
-    const database = await this.getProjectDatabase(projectId);
+    const database = await this.getProjectDatabase(projectId, env);
     if (!database) {
+      if (env === 'prod') {
+        throw new Error('No production database provisioned for this project. Provision a production database first.');
+      }
       throw new Error('Database not found');
     }
 
@@ -702,11 +726,12 @@ class ProjectDatabaseProvisioningService {
       return {
         rows: result.rows || [],
         rowCount: result.rowCount || 0,
-        fields: result.fields || []
+        fields: result.fields || [],
+        targetEnv: env,
       };
-    } catch (error: any) {
-      logger.error(`SQL execution error for project ${projectId}:`, error);
-      throw new Error(error.message || 'Query execution failed');
+    } catch (error: unknown) {
+      logger.error(`SQL execution error for project ${projectId} (env=${env}):`, error);
+      throw new Error(error instanceof Error ? error.message : 'Query execution failed');
     }
   }
 

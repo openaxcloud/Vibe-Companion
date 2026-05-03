@@ -5,6 +5,42 @@ import * as schema from '@shared/schema';
 import { ensureAdmin } from '../middleware/admin-auth';
 import { eq, sql } from 'drizzle-orm';
 import { projectDatabaseService } from '../services/project-database-provisioning.service';
+import SqlParserPkg from 'node-sql-parser';
+const SqlParser = SqlParserPkg.Parser ?? (SqlParserPkg as unknown as { default: { Parser: new () => { astify: (q: string, opts?: Record<string, string>) => unknown } } }).default?.Parser ?? (SqlParserPkg as unknown as typeof SqlParserPkg & { Parser: new () => { astify: (q: string, opts?: Record<string, string>) => unknown } }).Parser;
+
+// AST-based SQL statement classifier — robust to comments, CTEs, and case variants.
+// Returns 'read', 'write', or 'ddl'. Falls back to conservative regex if parse fails.
+type SqlStatementClass = 'read' | 'write' | 'ddl';
+
+const WRITE_AST_TYPES = new Set([
+  'insert', 'update', 'delete', 'replace', 'merge',
+]);
+const DDL_AST_TYPES = new Set([
+  'create', 'drop', 'alter', 'truncate', 'rename', 'comment',
+]);
+
+function classifySqlStatement(query: string): SqlStatementClass {
+  try {
+    const parser = new SqlParser();
+    // Strip leading/trailing comments and whitespace, parse in PostgreSQL mode
+    const ast = parser.astify(query, { database: 'PostgreSQL' });
+    const stmts = Array.isArray(ast) ? ast : [ast];
+    // Classify by the worst statement type in multi-statement input
+    let result: SqlStatementClass = 'read';
+    for (const stmt of stmts) {
+      const t = (stmt?.type || '').toLowerCase();
+      if (DDL_AST_TYPES.has(t)) return 'ddl'; // worst case — return immediately
+      if (WRITE_AST_TYPES.has(t)) result = 'write';
+    }
+    return result;
+  } catch {
+    // Fallback: conservative regex for comments/CTEs that confuse the parser
+    const stripped = query.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '').trim();
+    if (/\b(drop|truncate|alter|create)\b/i.test(stripped)) return 'ddl';
+    if (/\b(insert|update|delete|replace|merge|upsert)\b/i.test(stripped)) return 'write';
+    return 'read';
+  }
+}
 
 const databaseRouter = Router();
 
@@ -890,6 +926,61 @@ databaseRouter.post('/project/:projectId/backups/:backupId/restore', async (req:
 });
 
 /**
+ * Export backup metadata / connection info for a backup
+ * GET /api/database/project/:projectId/backups/:backupId/export
+ * REQUIRES: Authentication + Project ownership
+ * Returns backup metadata that can be used to download or reference the backup.
+ */
+databaseRouter.get('/project/:projectId/backups/:backupId/export', async (req: Request, res: Response) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const backupId = parseInt(req.params.backupId);
+
+    if (isNaN(projectId) || isNaN(backupId)) {
+      return res.status(400).json({ error: 'Invalid project ID or backup ID' });
+    }
+
+    if (!await checkProjectOwnership(req, res, projectId)) {
+      return;
+    }
+
+    const backups = await projectDatabaseService.listBackups(projectId);
+    const backup = backups.find(b => b.id === backupId);
+    if (!backup) {
+      return res.status(404).json({ error: 'Backup not found' });
+    }
+
+    if (backup.status !== 'completed') {
+      return res.status(400).json({ error: `Cannot export backup with status: ${backup.status}` });
+    }
+
+    return res.json({
+      backup: {
+        id: backup.id,
+        name: backup.name,
+        status: backup.status,
+        backupType: backup.backupType,
+        sizeBytes: backup.sizeBytes,
+        restorePoint: backup.restorePoint,
+        createdAt: backup.createdAt,
+        completedAt: backup.completedAt,
+        expiresAt: backup.expiresAt,
+      },
+      exportInfo: {
+        available: !!backup.restorePoint,
+        restorePoint: backup.restorePoint,
+        message: backup.restorePoint
+          ? 'Use the restore point timestamp with pg_restore or your provider dashboard to download the backup.'
+          : 'Export download is not available for this backup type. Use Restore to apply this backup.',
+      },
+    });
+  } catch (error: any) {
+    console.error('[Database API] Export backup error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to export backup' });
+  }
+});
+
+/**
  * Delete a backup
  * DELETE /api/database/project/:projectId/backups/:backupId
  * REQUIRES: Authentication + Project ownership
@@ -973,13 +1064,36 @@ databaseRouter.post('/project/:projectId/sql/execute', async (req: Request, res:
       return res.status(400).json({ error: 'Query too long (max 10000 characters)' });
     }
 
-    // Security: Block dangerous operations in read-only mode
-    const queryLower = query.toLowerCase().trim();
-    const dangerousOps = ['drop ', 'truncate ', 'alter ', 'create database', 'drop database'];
-    for (const op of dangerousOps) {
-      if (queryLower.includes(op)) {
-        return res.status(403).json({ error: `Operation not allowed: ${op.trim().toUpperCase()}` });
-      }
+    // AST-based SQL statement classification (authoritative — robust to comments/CTEs)
+    const statementClass = classifySqlStatement(query);
+    const confirmed = req.body.confirmed === true;
+
+    // DDL (CREATE/ALTER/DROP/TRUNCATE) and write operations both require explicit confirmation.
+    // Production env (env=prod query param) enforces write-protect by default.
+    const targetEnv = (req.query.env as string | undefined) === 'prod' ? 'prod' : 'dev';
+    if ((statementClass === 'ddl' || statementClass === 'write') && !confirmed) {
+      return res.status(200).json({
+        requiresConfirmation: true,
+        query,
+        statementClass,
+        targetEnv,
+        message: `${statementClass === 'ddl' ? 'DDL' : 'Write'} operation detected. Pass confirmed=true to execute${targetEnv === 'prod' ? ' against production database' : ''}.`,
+        isWriteOperation: true,
+      });
+    }
+
+    // Production DDL requires a second explicit body flag for double-confirm semantics.
+    // The UI shows a second dialog when isProdDdl=true; only re-submits with prodConfirmed=true.
+    const prodConfirmed = req.body.prodConfirmed === true;
+    if (statementClass === 'ddl' && targetEnv === 'prod' && !prodConfirmed) {
+      return res.status(200).json({
+        requiresConfirmation: true,
+        query,
+        statementClass,
+        targetEnv,
+        message: 'DDL on production database requires explicit double-confirmation. Confirm again to proceed.',
+        isProdDdl: true,
+      });
     }
 
     // Check if database is provisioned and running first
@@ -1000,7 +1114,7 @@ databaseRouter.post('/project/:projectId/sql/execute', async (req: Request, res:
     }
 
     const startTime = Date.now();
-    const result = await projectDatabaseService.executeQuery(projectId, query);
+    const result = await projectDatabaseService.executeQuery(projectId, query, targetEnv);
     const executionTime = Date.now() - startTime;
 
     return res.json({
@@ -1008,11 +1122,101 @@ databaseRouter.post('/project/:projectId/sql/execute', async (req: Request, res:
       rows: result.rows || [],
       rowCount: result.rowCount || 0,
       fields: result.fields || [],
-      executionTime
+      executionTime,
+      targetEnv: result.targetEnv,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Failed to execute query';
     console.error('[Database API] SQL execute error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to execute query' });
+    return res.status(500).json({ error: msg });
+  }
+});
+
+/**
+ * Get real-time usage metrics from the project's database.
+ * Uses pg catalog queries for accurate storage and table stats.
+ * GET /api/database/project/:projectId/usage
+ * REQUIRES: Authentication + Project ownership
+ */
+databaseRouter.get('/project/:projectId/usage', async (req: Request, res: Response) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    if (!await checkProjectOwnership(req, res, projectId)) {
+      return;
+    }
+
+    const dbInfo = await projectDatabaseService.getDatabaseInfo(projectId);
+    if (!dbInfo?.provisioned) {
+      return res.status(400).json({ error: 'Database not provisioned' });
+    }
+    if (dbInfo.status !== 'running') {
+      return res.status(503).json({ error: `Database not available (status: ${dbInfo.status})` });
+    }
+
+    // Run real pg catalog queries for size/connection metrics
+    const [dbSizeResult, tableStatsResult, connResult] = await Promise.allSettled([
+      projectDatabaseService.executeQuery(projectId,
+        `SELECT pg_database_size(current_database()) AS db_bytes,
+                pg_size_pretty(pg_database_size(current_database())) AS db_size`
+      ),
+      projectDatabaseService.executeQuery(projectId,
+        `SELECT table_name,
+                pg_total_relation_size(quote_ident(table_name)) AS total_bytes,
+                pg_size_pretty(pg_total_relation_size(quote_ident(table_name))) AS total_size,
+                pg_relation_size(quote_ident(table_name)) AS data_bytes,
+                pg_size_pretty(pg_indexes_size(quote_ident(table_name))) AS index_size,
+                (SELECT reltuples::bigint FROM pg_class WHERE relname = t.table_name) AS estimated_rows
+         FROM information_schema.tables t
+         WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+         ORDER BY total_bytes DESC
+         LIMIT 50`
+      ),
+      projectDatabaseService.executeQuery(projectId,
+        `SELECT count(*) AS active_connections
+         FROM pg_stat_activity
+         WHERE state != 'idle' OR state IS NULL`
+      ),
+    ]);
+
+    const dbBytes = dbSizeResult.status === 'fulfilled'
+      ? Number((dbSizeResult.value.rows[0] as Record<string,unknown>)?.db_bytes ?? 0)
+      : null;
+    const dbSize = dbSizeResult.status === 'fulfilled'
+      ? String((dbSizeResult.value.rows[0] as Record<string,unknown>)?.db_size ?? 'N/A')
+      : 'N/A';
+
+    const tableStats = tableStatsResult.status === 'fulfilled'
+      ? (tableStatsResult.value.rows as Record<string, unknown>[]).map(r => ({
+          tableName: String(r.table_name ?? ''),
+          totalBytes: Number(r.total_bytes ?? 0),
+          totalSize: String(r.total_size ?? ''),
+          dataBytes: Number(r.data_bytes ?? 0),
+          indexSize: String(r.index_size ?? ''),
+          estimatedRows: Number(r.estimated_rows ?? 0),
+        }))
+      : [];
+
+    const activeConnections = connResult.status === 'fulfilled'
+      ? Number((connResult.value.rows[0] as Record<string,unknown>)?.active_connections ?? 0)
+      : null;
+
+    return res.json({
+      usage: {
+        databaseSizeBytes: dbBytes,
+        databaseSizeHuman: dbSize,
+        activeConnections,
+        tableStats,
+        queriedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Failed to get usage metrics';
+    console.error('[Database API] Usage error:', error);
+    return res.status(500).json({ error: msg });
   }
 });
 
