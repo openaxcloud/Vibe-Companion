@@ -57,6 +57,7 @@ interface ReplitAgentPanelV3Props {
   hideInput?: boolean;
   onExternalInput?: (handlers: ExternalInputHandlers | null) => void;
   onBootstrapFailure?: () => void;
+  className?: string;
 }
 
 export function ReplitAgentPanelV3({
@@ -79,6 +80,7 @@ export function ReplitAgentPanelV3({
   canvasFrames,
   hideInput,
   onExternalInput,
+  className,
 }: ReplitAgentPanelV3Props) {
   const context = (activeFileId && activeFileName && activeFileContent != null)
     ? {
@@ -89,7 +91,7 @@ export function ReplitAgentPanelV3({
     : undefined;
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className={`h-full flex flex-col overflow-hidden${className ? ` ${className}` : ''}`}>
       <AIPanel
         projectId={projectId}
         context={context}

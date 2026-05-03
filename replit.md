@@ -39,6 +39,8 @@ The project's vision is to deliver a comprehensive, pixel-perfect development en
 4. **Goose** (Apache 2.0, Block/Linux Foundation) — AI agent via REST API integration (`server/integrations/goose-client.ts`, routes at `/api/goose/*`)
 Unified provider status at `/api/agent-providers/status`. Provider selection persisted in `localStorage("ai-agent-provider")`. Each external provider supports health checks, session management, streaming events, and configuration (server URL, API key, model). The built-in agent offers various modes (Economy, Power, Turbo) with **usage-based token billing** — credits deducted per-token from `MODEL_TOKEN_PRICING` in `shared/schema.ts`. Modular AI agent services support DALL-E 3, NanoBanana (Stable Diffusion XL), Brave Image Search, and ElevenLabs TTS.
 
+**AI Agent Surface Convergence (2026-05-03)**: All IDE surfaces now mount the same canonical `ReplitAgentPanelV3` → `AIPanel` component backed by `/api/agent/chat/stream`. Legacy components removed: `AIAssistant`, `AgentV2Interface`, `AdvancedAIPanel`, `MobileChatInterface`, `UnifiedAIInterface`. The streaming endpoint enforces a per-user concurrency cap (max 3 concurrent SSE streams) and emits structured observability logs per turn. Full parity report at `docs/ai-agent-parity.md`.
+
 **Code Editor**: Dual-engine editor with toggle in the status bar:
 1. **Monaco Editor** (default) — VS Code's editor engine via `@monaco-editor/react`. Full IntelliSense, TypeScript/JSX support, bracket colorization, sticky scroll, minimap. Component at `client/src/components/editor/MonacoCodeEditor.tsx`.
 2. **CodeMirror 6** — Lightweight alternative with Yjs collaboration, git blame, AI completions. Component at `client/src/components/CodeEditor.tsx`.

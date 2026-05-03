@@ -32,7 +32,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TABLET_GRID_CLASSES } from '@shared/responsive-config';
-import { AIAssistant } from '@/components/AIAssistant';
+import { ReplitAgentPanelV3 } from '@/components/ai/ReplitAgentPanelV3';
+import { AgentPanelErrorBoundary } from '@/components/ai/AgentPanelErrorBoundary';
 
 interface Conversation {
   id: string;
@@ -239,12 +240,15 @@ export default function AssistantPage() {
 
           <div className={TABLET_GRID_CLASSES.settingsContentTabletOptimized}>
             {activeTab === 'chat' && (
-              <Card className={`${cardClassName} min-h-[600px]`} data-testid="card-chat">
-                <CardContent className="p-0 h-full">
-                  <AIAssistant
-                    projectId={1}
-                    className="border-0 shadow-none w-full h-full"
-                  />
+              <Card className={`${cardClassName} min-h-[600px] flex flex-col`} data-testid="card-chat">
+                <CardContent className="p-0 h-full flex flex-col min-h-[600px]">
+                  <AgentPanelErrorBoundary>
+                    <ReplitAgentPanelV3
+                      projectId="1"
+                      mode="desktop"
+                      className="flex-1 min-h-0"
+                    />
+                  </AgentPanelErrorBoundary>
                 </CardContent>
               </Card>
             )}

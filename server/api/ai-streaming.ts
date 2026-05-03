@@ -85,6 +85,30 @@ function getOpenAIModelCapabilities(model: string): OpenAIModelCapabilities {
 
 const router = Router();
 
+// ---------------------------------------------------------------------------
+// Per-user concurrency cap for streaming endpoints
+// Prevents a single user from holding unlimited SSE connections open, which
+// would exhaust provider rate limits and drive up costs. Cap = 3 concurrent
+// streams per user. The Map is process-scoped; for multi-process deployments
+// use Redis instead, but this protects the common single-process case.
+// ---------------------------------------------------------------------------
+const MAX_CONCURRENT_STREAMS_PER_USER = 3;
+const activeStreamsByUser = new Map<string | number, number>();
+
+function acquireStreamSlot(userId: string | number): boolean {
+  const current = activeStreamsByUser.get(userId) ?? 0;
+  if (current >= MAX_CONCURRENT_STREAMS_PER_USER) return false;
+  activeStreamsByUser.set(userId, current + 1);
+  return true;
+}
+
+function releaseStreamSlot(userId: string | number): void {
+  const current = activeStreamsByUser.get(userId) ?? 0;
+  const next = Math.max(0, current - 1);
+  if (next === 0) activeStreamsByUser.delete(userId);
+  else activeStreamsByUser.set(userId, next);
+}
+
 // AI Usage Tracking (Pay-As-You-Go) - Track ALL streaming endpoints for billing
 // No blocking - users pay for what they use via Stripe metered billing
 // CRITICAL: Streaming is high-cost and MUST be accurately tracked
@@ -177,9 +201,39 @@ const sendSSE = (res: any, event: string, data: any) => {
  * Supports OpenAI, Anthropic, Google AI, and more
  */
 router.post('/agent/chat/stream', ensureAuthenticated, async (req, res) => {
+  // ── Per-user concurrency cap ──────────────────────────────────────────────
+  // Reject early (before SSE headers are sent) if the user already has too
+  // many active streams. This prevents runaway cost and provider throttling.
+  const earlyUserId = (req as any).user?.id;
+  const hasSlot = earlyUserId !== undefined && earlyUserId !== null;
+  if (hasSlot) {
+    if (!acquireStreamSlot(earlyUserId)) {
+      logger.warn('[AI Stream] Concurrency cap reached, rejecting request', {
+        userId: earlyUserId,
+        cap: MAX_CONCURRENT_STREAMS_PER_USER,
+      });
+      return res.status(429).json({
+        error: 'Too many concurrent AI streams',
+        message: `You already have ${MAX_CONCURRENT_STREAMS_PER_USER} active streams. Please wait for one to finish before starting a new one.`,
+        retryAfter: 30,
+      });
+    }
+  }
+
+  // Idempotent release — can be called from multiple code paths (cleanup,
+  // success, error) without double-decrementing the per-user counter.
+  let _slotReleased = false;
+  const safeRelease = () => {
+    if (hasSlot && !_slotReleased) {
+      _slotReleased = true;
+      releaseStreamSlot(earlyUserId);
+    }
+  };
+
   // ✅ FORTUNE 500: Validate origin and setup SSE with 403 rejection for invalid origins
   const registerCleanup = setupSSE(res, req);
   if (!registerCleanup) {
+    safeRelease();
     return; // 403 already sent by setupSSE
   }
   
@@ -190,6 +244,7 @@ router.post('/agent/chat/stream', ensureAuthenticated, async (req, res) => {
   registerCleanup(() => {
     isConnectionClosed = true;
     abortController.abort();
+    safeRelease();
     logger.info('[AI Stream] Connection closed - aborting provider stream');
   });
   
@@ -637,6 +692,28 @@ ${ragContextPrompt}`
     });
     
     res.end();
+
+    // ── Structured turn observability log ─────────────────────────────────
+    // Emitted after every successful turn so ops/data teams can query latency,
+    // token consumption, and tool usage without parsing raw stream chunks.
+    const requestId = (req as any).id || `stream-${Date.now()}`;
+    const latencyMs = Date.now() - requestStartTime;
+    logger.info('[AI Stream] Turn completed', {
+      request_id: requestId,
+      user_id: userId,
+      project_id: projectId,
+      model: normalizedModel,
+      provider,
+      tokens_input: tokensInput,
+      tokens_output: tokensOutput,
+      latency_ms: latencyMs,
+      agent_mode: agentMode,
+      tool_count: enforcedTools ? enforcedTools.length : 0,
+      stream_end_reason: 'done',
+    });
+
+    // ── Release concurrency slot ──────────────────────────────────────────
+    safeRelease();
     
     // Fire-and-forget: post-response background work
     (async () => {
@@ -895,6 +972,24 @@ ${ragContextPrompt}`
     });
     
     res.end();
+
+    // ── Release concurrency slot on error ─────────────────────────────────
+    safeRelease();
+
+    // ── Structured error observability log ────────────────────────────────
+    const reqIdErr = (req as any).id || `stream-${Date.now()}`;
+    logger.info('[AI Stream] Turn failed', {
+      request_id: reqIdErr,
+      user_id: userId,
+      project_id: projectId,
+      model,
+      provider,
+      latency_ms: Date.now() - requestStartTime,
+      tool_count: enforcedTools ? enforcedTools.length : 0,
+      stream_end_reason: 'error',
+      error_code: errorClassification.code,
+      is_retryable: errorClassification.isRetryable,
+    });
   }
 });
 
