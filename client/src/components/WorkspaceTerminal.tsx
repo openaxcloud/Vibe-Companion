@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle, useMemo, useState } from "react";
-import { Terminal as XTerminal } from "@xterm/xterm";
+import { Terminal as XTerminal, type ITerminalOptions, type ITerminalInitOnlyOptions } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
@@ -11,15 +11,21 @@ interface WorkspaceTerminalProps {
   runnerOffline: boolean;
   visible: boolean;
   onLastCommand?: (command: string) => void;
+  onConnectionChange?: (connected: boolean) => void;
   shellBell?: boolean;
   accessibleTerminal?: boolean;
   theme?: "dark" | "light";
+  fontSize?: number;
 }
 
 export interface WorkspaceTerminalHandle {
   searchNext: (query: string) => boolean;
   searchPrevious: (query: string) => boolean;
   clearSearch: () => void;
+  clear: () => void;
+  sendRaw: (message: object) => void;
+  paste: () => Promise<void>;
+  reconnect: () => void;
 }
 
 const DARK_THEME = {
@@ -73,7 +79,7 @@ const LIGHT_THEME = {
 };
 
 const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalProps>(
-  function WorkspaceTerminal({ wsUrl, runnerOffline, visible, onLastCommand, shellBell = false, accessibleTerminal = false, theme: themeProp }, ref) {
+  function WorkspaceTerminal({ wsUrl, runnerOffline, visible, onLastCommand, onConnectionChange, shellBell = false, accessibleTerminal = false, theme: themeProp, fontSize: fontSizeProp = 13 }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [htmlDark, setHtmlDark] = useState(() =>
     typeof document !== "undefined" && document.documentElement.classList.contains("dark")
@@ -99,6 +105,8 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
   const MAX_RETRIES = 3;
   const onLastCommandRef = useRef(onLastCommand);
   onLastCommandRef.current = onLastCommand;
+  const onConnectionChangeRef = useRef(onConnectionChange);
+  onConnectionChangeRef.current = onConnectionChange;
 
   useImperativeHandle(ref, () => ({
     searchNext: (query: string) => {
@@ -116,6 +124,31 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
     clearSearch: () => {
       searchAddonRef.current?.clearDecorations();
     },
+    clear: () => {
+      termRef.current?.clear();
+    },
+    sendRaw: (message: object) => {
+      if (socketRef.current?.readyState === WebSocket.OPEN) {
+        socketRef.current.send(JSON.stringify(message));
+      }
+    },
+    paste: async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text && termRef.current) {
+          termRef.current.paste(text);
+        }
+      } catch {
+        // Clipboard permission denied — silently ignore; user can paste via Ctrl+Shift+V
+      }
+    },
+    reconnect: () => {
+      const url = connectedUrlRef.current;
+      if (url) {
+        retryCountRef.current = 0;
+        connect(url);
+      }
+    },
   }));
 
   const initTerminal = useCallback(() => {
@@ -123,14 +156,14 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
 
     const term = new XTerminal({
       cursorBlink: true,
-      fontSize: 13,
+      fontSize: fontSizeProp,
       fontFamily: "'JetBrains Mono', monospace",
       theme: xtermTheme,
       allowProposedApi: true,
       scrollback: 5000,
       screenReaderMode: accessibleTerminal,
       bellStyle: shellBell ? "sound" : "none",
-    } as any);
+    } satisfies ITerminalOptions & ITerminalInitOnlyOptions);
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
@@ -157,7 +190,15 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
         socketRef.current.send(JSON.stringify({ type: "resize", cols, rows }));
       }
     });
-  }, [accessibleTerminal, shellBell, xtermTheme]);
+  }, [accessibleTerminal, shellBell, xtermTheme, fontSizeProp]);
+
+  // Apply font size changes to a live xterm instance without re-initializing.
+  useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.fontSize = fontSizeProp;
+      fitAddonRef.current?.fit();
+    }
+  }, [fontSizeProp]);
 
   const closeSocket = useCallback((intentional: boolean) => {
     if (retryTimeoutRef.current) {
@@ -182,6 +223,7 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
 
     ws.onopen = () => {
       retryCountRef.current = 0;
+      onConnectionChangeRef.current?.(true);
       termRef.current?.writeln("\r\n\x1b[32mConnected to workspace terminal.\x1b[0m\r\n");
       if (fitAddonRef.current) {
         fitAddonRef.current.fit();
@@ -198,8 +240,13 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
           const msg = JSON.parse(ev.data);
           if (msg.type === "output" && msg.data) {
             termRef.current?.write(msg.data);
+          } else if (msg.type === "history" && msg.data) {
+            // Scrollback replay on reconnect — write the snapshot verbatim so
+            // the user sees prior output without clearing the existing buffer.
+            termRef.current?.writeln("\r\n\x1b[33m[Session history restored]\x1b[0m");
+            termRef.current?.write(msg.data);
           } else if (msg.type === "error") {
-            termRef.current?.writeln(`\r\n\x1b[31m${msg.message || "Error"}\x1b[0m`);
+            termRef.current?.writeln(`\r\n\x1b[31m${msg.data || msg.message || "Error"}\x1b[0m`);
           } else if (msg.type === "lastCommand" && msg.command) {
             onLastCommandRef.current?.(msg.command);
           }
@@ -210,6 +257,7 @@ const WorkspaceTerminal = forwardRef<WorkspaceTerminalHandle, WorkspaceTerminalP
     };
 
     ws.onclose = () => {
+      onConnectionChangeRef.current?.(false);
       if (!intentionalCloseRef.current && connectedUrlRef.current === url) {
         retryCountRef.current += 1;
         if (retryCountRef.current > MAX_RETRIES) {

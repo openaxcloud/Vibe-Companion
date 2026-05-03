@@ -4899,4 +4899,8 @@ export function getStorage(): DatabaseStorage {
   return storage;
 }
 
-export const sessionStore = storage;
+// NOTE: This is the DATABASE storage object — NOT the express-session session store.
+// For the session store (connect-pg-simple / MemoryStore), import from:
+//   import { sessionStore } from '../middleware/session-config';
+// @deprecated — prefer getStorage(). Kept for backward compat with legacy imports.
+export const dbStorage = storage;

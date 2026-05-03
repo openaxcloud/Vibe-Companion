@@ -56,8 +56,13 @@ export const sessionMiddleware = session({
   cookie: {
     maxAge: 7 * 24 * 60 * 60 * 1000,
     httpOnly: true,
-    secure: isProduction || isReplit,
-    sameSite: isProduction || isReplit ? ("none" as const) : ("lax" as const),
+    // secure:true only in production. In development (including Replit dev mode)
+    // the server runs on HTTP at localhost:5000 behind Replit's HTTPS proxy.
+    // Setting secure:true here would prevent express-session from ever setting
+    // the ecode.sid cookie on internal HTTP connections (e.g. load tests).
+    // The HTTPS proxy handles transport security in production.
+    secure: isProduction,
+    sameSite: isProduction ? ("none" as const) : ("lax" as const),
     domain: process.env.COOKIE_DOMAIN || undefined,
   },
 });

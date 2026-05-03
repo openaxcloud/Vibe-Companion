@@ -1309,7 +1309,7 @@ export async function registerRoutes(
       if (err) {
         console.error("[csrf-token] Session save error:", err);
       }
-      const isSecure = process.env.NODE_ENV === "production" || !!process.env.REPL_ID;
+      const isSecure = process.env.NODE_ENV === "production";
       res.cookie("ecode.csrf", token, {
         httpOnly: false,
         secure: isSecure,

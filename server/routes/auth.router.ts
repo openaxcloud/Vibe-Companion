@@ -318,7 +318,7 @@ export class AuthRouter {
               if (saveErr) {
                 logger.warn('Session save warning:', saveErr.message);
               }
-              const isSecure = process.env.NODE_ENV === "production" || !!process.env.REPL_ID;
+              const isSecure = process.env.NODE_ENV === "production";
               res.cookie("ecode.csrf", csrfToken, {
                 httpOnly: false,
                 secure: isSecure,
@@ -649,7 +649,7 @@ export class AuthRouter {
               if (saveErr) {
                 logger.warn('Session save warning:', saveErr.message);
               }
-              const isSecure = process.env.NODE_ENV === "production" || !!process.env.REPL_ID;
+              const isSecure = process.env.NODE_ENV === "production";
               res.cookie("ecode.csrf", csrfToken, {
                 httpOnly: false,
                 secure: isSecure,

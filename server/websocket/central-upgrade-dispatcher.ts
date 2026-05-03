@@ -24,7 +24,7 @@ import type { Server } from 'http';
 import { parse as parseCookie } from 'cookie';
 import { markSocketAsHandled, isSocketHandled } from './upgrade-guard';
 import { createCentralizedLogger } from '../logging/centralized-logger';
-import { sessionStore } from '../storage';
+import { sessionStore } from '../middleware/session-config';
 
 const logger = createCentralizedLogger('central-upgrade-dispatcher');
 
@@ -228,19 +228,21 @@ class CentralUpgradeDispatcher {
       this.activeConnections--;
     });
     
-    // Public paths that don't require auth from the dispatcher
-    // Includes paths that have their own self-contained auth handlers
+    // Self-authenticating paths: these handlers enforce their own session auth
+    // (cookie/JWT/1008 close codes). The dispatcher defers to the handler rather
+    // than applying a second redundant auth layer on top.
     const selfAuthPaths = [
       '/api/runtime/logs/ws',  // RuntimeLogsService handles its own session auth
       '/api/server/logs/ws',   // ServerLogsService handles its own session auth
       '/ws/project',           // Legacy WebSocket handler does its own session auth
-      '/ws/terminal',          // Terminal handler does its own session auth
-      '/terminal',             // Terminal handler (Replit proxy strips /ws prefix)
+      '/ws/terminal',          // Disabled (410 Gone) — no auth needed before 410
+      '/terminal',             // Disabled (410 Gone) — no auth needed before 410
+      '/shell',                // Disabled (410 Gone) — no auth needed before 410
+      '/api/terminal/ws',      // PTYTerminalService enforces cookie/JWT auth + 1008 on every connection
     ];
     const publicPaths = [
       '/health', '/api/health',
       ...selfAuthPaths,
-      ...(process.env.NODE_ENV !== 'production' ? ['/api/terminal/ws'] : []),
     ];
     
     // Only validate auth for non-public paths with registered handlers

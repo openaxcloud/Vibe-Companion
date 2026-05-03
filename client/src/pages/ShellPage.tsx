@@ -1,8 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import { Terminal as XTerm } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import { WebLinksAddon } from 'xterm-addon-web-links';
-import 'xterm/css/xterm.css';
+import { useState } from 'react';
 import { PageShell, PageHeader } from '@/components/layout/PageShell';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -149,9 +145,6 @@ const SCRIPT_TEMPLATES: ScriptTemplate[] = [
 
 export default function ShellPage() {
   const { toast } = useToast();
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const [terminal, setTerminal] = useState<XTerm | null>(null);
-  const [fitAddon, setFitAddon] = useState<FitAddon | null>(null);
   const [activeTab, setActiveTab] = useState('shell');
   const [currentPath, setCurrentPath] = useState('/home/user/project');
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
@@ -167,58 +160,6 @@ export default function ShellPage() {
   const [newEnvVar, setNewEnvVar] = useState({ key: '', value: '', isSecret: false });
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [runningScripts, setRunningScripts] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!terminalRef.current) return;
-
-    const term = new XTerm({
-      cursorBlink: true,
-      fontFamily: 'JetBrains Mono, Monaco, Consolas, "Courier New", monospace',
-      fontSize: 14,
-      theme: {
-        background: '#1a1b26',
-        foreground: '#c0caf5',
-        cursor: '#c0caf5',
-        black: '#414868',
-        red: '#f7768e',
-        green: '#9ece6a',
-        yellow: '#e0af68',
-        blue: '#7aa2f7',
-        magenta: '#bb9af7',
-        cyan: '#7dcfff',
-        white: '#a9b1d6',
-      },
-      scrollback: 10000,
-    });
-
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-
-    const webLinks = new WebLinksAddon();
-    term.loadAddon(webLinks);
-
-    term.open(terminalRef.current);
-    fit.fit();
-
-    term.writeln('\x1b[1;32mE-Code Shell v2.0\x1b[0m');
-    term.writeln('\x1b[90mInteractive shell environment\x1b[0m');
-    term.writeln('');
-    term.write(`\x1b[1;34m${currentPath} $\x1b[0m `);
-
-    setTerminal(term);
-    setFitAddon(fit);
-
-    const handleResize = () => {
-      if (fit) fit.fit();
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      term.dispose();
-    };
-  }, []);
 
   const toggleDir = (path: string) => {
     const newExpanded = new Set(expandedDirs);
@@ -248,22 +189,15 @@ export default function ShellPage() {
   };
 
   const runScript = (script: ScriptTemplate) => {
-    if (terminal) {
-      terminal.writeln('');
-      terminal.writeln(`\x1b[1;33m> Running: ${script.name}\x1b[0m`);
-      terminal.writeln(`\x1b[90m$ ${script.script}\x1b[0m`);
-      setRunningScripts(new Set([...runningScripts, script.id]));
-
-      setTimeout(() => {
-        terminal.writeln('\x1b[1;32m✓ Script completed successfully\x1b[0m');
-        terminal.write(`\x1b[1;34m${currentPath} $\x1b[0m `);
-        setRunningScripts((prev) => {
-          const next = new Set(prev);
-          next.delete(script.id);
-          return next;
-        });
-      }, 2000);
-    }
+    setRunningScripts(new Set([...runningScripts, script.id]));
+    toast({ title: 'Script queued', description: `Open a project terminal to run: ${script.script}` });
+    setTimeout(() => {
+      setRunningScripts((prev) => {
+        const next = new Set(prev);
+        next.delete(script.id);
+        return next;
+      });
+    }, 2000);
   };
 
   const stopScript = (scriptId: string) => {
@@ -272,20 +206,11 @@ export default function ShellPage() {
       next.delete(scriptId);
       return next;
     });
-    if (terminal) {
-      terminal.writeln('\x1b[1;31m✗ Script stopped\x1b[0m');
-      terminal.write(`\x1b[1;34m${currentPath} $\x1b[0m `);
-    }
     toast({ title: 'Script Stopped', description: 'The script has been terminated' });
   };
 
   const navigateToPath = (path: string) => {
     setCurrentPath(path);
-    if (terminal) {
-      terminal.writeln('');
-      terminal.writeln(`\x1b[90mcd ${path}\x1b[0m`);
-      terminal.write(`\x1b[1;34m${path} $\x1b[0m `);
-    }
   };
 
   const addEnvVar = () => {
@@ -532,46 +457,15 @@ export default function ShellPage() {
 
             <TabsContent value="shell">
               <Card data-testid="card-shell-terminal">
-                <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <TerminalSquare className="h-4 w-4" />
-                    <span className="text-[13px] font-medium">Interactive Shell</span>
-                    <Badge variant="secondary" className="text-[11px]">
-                      bash
-                    </Badge>
+                <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-4">
+                  <TerminalSquare className="h-12 w-12 text-muted-foreground opacity-40" />
+                  <div>
+                    <p className="text-[15px] font-medium">Shell available inside a project</p>
+                    <p className="text-[13px] text-muted-foreground mt-1">
+                      Open a project and use the Terminal panel to get a live interactive shell.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => {
-                        if (terminal) {
-                          terminal.clear();
-                          terminal.write(`\x1b[1;34m${currentPath} $\x1b[0m `);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => {
-                        if (terminal && fitAddon) fitAddon.fit();
-                      }}
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                <div
-                  ref={terminalRef}
-                  className="p-2"
-                  style={{ minHeight: '400px' }}
-                  data-testid="shell-terminal-container"
-                />
+                </CardContent>
               </Card>
             </TabsContent>
 
@@ -932,14 +826,8 @@ export default function ShellPage() {
             </Button>
             <Button
               onClick={() => {
-                if (customScript && terminal) {
-                  terminal.writeln('');
-                  terminal.writeln('\x1b[1;33m> Running custom script\x1b[0m');
-                  terminal.writeln(`\x1b[90m${customScript}\x1b[0m`);
-                  setTimeout(() => {
-                    terminal.writeln('\x1b[1;32m✓ Script completed\x1b[0m');
-                    terminal.write(`\x1b[1;34m${currentPath} $\x1b[0m `);
-                  }, 1000);
+                if (customScript) {
+                  toast({ title: 'Script queued', description: 'Open a project terminal to run this script.' });
                 }
                 setShowScriptEditor(false);
               }}

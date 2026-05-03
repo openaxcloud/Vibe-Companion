@@ -12,9 +12,11 @@ interface ShellPanelProps {
 }
 
 function buildTerminalWsUrl(projectId: string): string {
+  // Use the canonical PTY WebSocket endpoint directly.
+  // Previously this fell back to /ws/terminal (legacy Socket.IO transport); removed per audit.
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   const host = window.location.host;
-  return `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(projectId)}&sessionId=default`;
+  return `${protocol}://${host}/api/terminal/ws?projectId=${encodeURIComponent(projectId)}&sessionId=default`;
 }
 
 export const ShellPanel = forwardRef<WorkspaceTerminalHandle, ShellPanelProps>(

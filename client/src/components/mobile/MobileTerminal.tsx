@@ -1,7 +1,4 @@
-// @ts-nocheck
-import { useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { 
   Copy, Clipboard, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
   CornerDownLeft, Delete, X as Escape, Command, Keyboard
@@ -9,9 +6,8 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useTerminalHistoryPersistence } from '@/hooks/use-mobile-persistence';
 import { TerminalMetricsIndicator } from '@/components/terminal/TerminalMetricsIndicator';
-import '@xterm/xterm/css/xterm.css';
+import WorkspaceTerminal, { type WorkspaceTerminalHandle } from '@/components/WorkspaceTerminal';
 
 interface MobileTerminalProps {
   projectId: string | number;
@@ -24,306 +20,16 @@ export function MobileTerminal({
   sessionId,
   className 
 }: MobileTerminalProps) {
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const termInstanceRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const commandBufferRef = useRef<string>('');
+  const wthRef = useRef<WorkspaceTerminalHandle>(null);
   const [showKeyboard, setShowKeyboard] = useState(true);
   const [canPaste, setCanPaste] = useState(false);
-  const [currentLine, setCurrentLine] = useState('');
-  const [historyIndex, setHistoryIndex] = useState(-1);
   const { toast } = useToast();
-  
-  const { history, addToHistory } = useTerminalHistoryPersistence(String(projectId));
 
-  useEffect(() => {
-    if (!terminalRef.current) return;
-
-    const getTerminalTheme = () => {
-      const computedStyle = getComputedStyle(document.documentElement);
-      const terminalBg = computedStyle.getPropertyValue('--ecode-terminal-bg').trim() || '#1e1e1e';
-      const terminalText = computedStyle.getPropertyValue('--ecode-terminal-text').trim() || '#d4d4d4';
-      const terminalCursor = computedStyle.getPropertyValue('--ecode-terminal-cursor').trim() || '#F26207';
-      
-      return {
-        background: terminalBg,
-        foreground: terminalText,
-        cursor: terminalCursor,
-        selectionBackground: '#3D4455',
-        black: '#000000',
-        red: '#cd3131',
-        green: '#0dbc79',
-        yellow: '#e5e510',
-        blue: '#2472c8',
-        magenta: '#bc3fbc',
-        cyan: '#11a8cd',
-        white: '#e5e5e5',
-        brightBlack: '#666666',
-        brightRed: '#f14c4c',
-        brightGreen: '#23d18b',
-        brightYellow: '#f5f543',
-        brightBlue: '#3b8eea',
-        brightMagenta: '#d670d6',
-        brightCyan: '#29b8db',
-        brightWhite: '#e5e5e5',
-      };
-    };
-
-    const terminal = new Terminal({
-      cursorBlink: true,
-      cursorStyle: 'block',
-      fontSize: 13,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      lineHeight: 1.4,
-      theme: getTerminalTheme(),
-      scrollback: 1000,
-      convertEol: true,
-      disableStdin: false,
-      allowProposedApi: true,
-    });
-
-    const handleThemeChange = () => {
-      terminal.options.theme = getTerminalTheme();
-    };
-    
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class') {
-          handleThemeChange();
-        }
-      });
-    });
-    observer.observe(document.documentElement, { attributes: true });
-
-    const fitAddon = new FitAddon();
-    terminal.loadAddon(fitAddon);
-    
-    terminal.open(terminalRef.current);
-    fitAddon.fit();
-
-    termInstanceRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const host = window.location.host;
-    const wsUrl = `${protocol}://${host}/ws/terminal?projectId=${encodeURIComponent(String(projectId))}&sessionId=${encodeURIComponent(sessionId || 'default')}`;
-    
-    const MAX_RETRIES = 3;
-    let retryCount = 0;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let disposed = false;
-
-    const connectWs = () => {
-      if (disposed) return;
-      try {
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          if (disposed) { ws.close(); return; }
-          retryCount = 0;
-          terminal.writeln('\x1b[32mConnected to terminal.\x1b[0m\r\n');
-        };
-
-        ws.onmessage = (event) => {
-          if (disposed) return;
-          try {
-            const message = JSON.parse(event.data);
-
-            if (message.type === 'output') {
-              terminal.write(message.data);
-            } else if (message.type === 'error') {
-              terminal.writeln(`\r\n\x1b[31mError: ${message.error}\x1b[0m\r\n$ `);
-            }
-          } catch (error) {
-            console.error('[MobileTerminal] Failed to parse message:', error);
-          }
-        };
-
-        ws.onerror = (error) => {
-          console.error('[MobileTerminal] WebSocket error:', error);
-        };
-
-        ws.onclose = () => {
-          wsRef.current = null;
-          if (disposed) return;
-          retryCount++;
-          if (retryCount <= MAX_RETRIES) {
-            terminal.writeln(`\r\n\x1b[33mDisconnected. Reconnecting (${retryCount}/${MAX_RETRIES})...\x1b[0m`);
-            retryTimeout = setTimeout(connectWs, 3000);
-          } else {
-            terminal.writeln('\r\n\x1b[31mTerminal unavailable. Max retries reached.\x1b[0m\r\n');
-          }
-        };
-      } catch (error) {
-        console.error('[MobileTerminal] Failed to create WebSocket:', error);
-        terminal.writeln('\x1b[31mFailed to connect to terminal.\x1b[0m\r\n');
-        terminal.writeln('Type commands below (local mode - commands will not execute).\r\n$ ');
-      }
-    };
-
-    connectWs();
-
-    terminal.onData((data) => {
-      terminal.scrollToBottom();
-      
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'input',
-          data
-        }));
-      }
-      
-      if (data === '\r') {
-        if (commandBufferRef.current.trim()) {
-          addToHistory(commandBufferRef.current.trim());
-        }
-        
-        commandBufferRef.current = '';
-        setHistoryIndex(-1);
-        return;
-      }
-      
-      if (data === '\x7F') {
-        if (commandBufferRef.current.length > 0) {
-          commandBufferRef.current = commandBufferRef.current.slice(0, -1);
-        }
-        return;
-      }
-      
-      if (data >= ' ' && data <= '~') {
-        commandBufferRef.current += data;
-      }
-    });
-
-    const handleResize = () => {
-      fitAddon.fit();
-      
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        const { cols, rows } = terminal;
-        ws.send(JSON.stringify({
-          type: 'resize',
-          cols,
-          rows
-        }));
-      }
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      disposed = true;
-      if (retryTimeout) clearTimeout(retryTimeout);
-      window.removeEventListener('resize', handleResize);
-      observer.disconnect();
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-      terminal.dispose();
-    };
-  }, [projectId, sessionId, addToHistory]);
-
-  const sendToTerminal = (text: string) => {
-    termInstanceRef.current?.paste(text);
-    termInstanceRef.current?.scrollToBottom();
-  };
-
-  const handleTab = () => sendToTerminal('\t');
-  const handleEnter = () => sendToTerminal('\r');
-  const handleEscape = () => sendToTerminal('\x1B');
-  const handleBackspace = () => sendToTerminal('\x7F');
-  
-  const replaceCurrentLine = (newCommand: string) => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      try {
-        ws.send(JSON.stringify({ 
-          type: 'replace_line',
-          command: newCommand
-        }));
-        
-        commandBufferRef.current = newCommand;
-        setCurrentLine(newCommand);
-      } catch (error) {
-        console.error('[MobileTerminal] Failed to send replace_line:', error);
-        toast({
-          title: 'Terminal sync error',
-          description: 'Failed to replace command line',
-          variant: 'destructive',
-        });
-      }
-    } else {
-      console.warn('[MobileTerminal] WebSocket not connected, cannot replace line');
-    }
-  };
-
-  const handleArrowUp = () => {
-    if (history.length > 0) {
-      const newIndex = historyIndex < history.length - 1 ? historyIndex + 1 : historyIndex;
-      if (newIndex >= 0 && newIndex < history.length) {
-        setHistoryIndex(newIndex);
-        const command = history[history.length - 1 - newIndex];
-        replaceCurrentLine(command);
-      }
-    }
-  };
-  
-  const handleArrowDown = () => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      setHistoryIndex(newIndex);
-      const command = history[history.length - 1 - newIndex];
-      replaceCurrentLine(command);
-    } else if (historyIndex === 0) {
-      setHistoryIndex(-1);
-      replaceCurrentLine('');
-    }
-  };
-  
-  const handleArrowLeft = () => sendToTerminal('\x1B[D');
-  const handleArrowRight = () => sendToTerminal('\x1B[C');
-  
-  const handleCtrlC = () => sendToTerminal('\x03');
-  const handleCtrlD = () => sendToTerminal('\x04');
-
-  const handleCopy = async () => {
-    const selection = termInstanceRef.current?.getSelection();
-    if (selection) {
-      try {
-        await navigator.clipboard.writeText(selection);
-        toast({
-          title: 'Copied',
-          description: 'Terminal output copied to clipboard',
-        });
-      } catch (error) {
-        toast({
-          title: 'Copy failed',
-          description: 'Failed to copy to clipboard',
-          variant: 'destructive',
-        });
-      }
-    }
-  };
-
-  const handlePaste = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      sendToTerminal(text);
-      toast({
-        title: 'Pasted',
-        description: 'Text pasted into terminal',
-      });
-    } catch (error) {
-      toast({
-        title: 'Paste failed',
-        description: 'Failed to read from clipboard',
-        variant: 'destructive',
-      });
-    }
-  };
+  const protocol = typeof window !== 'undefined'
+    ? (window.location.protocol === 'https:' ? 'wss' : 'ws')
+    : 'ws';
+  const host = typeof window !== 'undefined' ? window.location.host : 'localhost:5000';
+  const wsUrl = `${protocol}://${host}/api/terminal/ws?projectId=${encodeURIComponent(String(projectId))}&sessionId=${encodeURIComponent(sessionId || 'default')}`;
 
   useEffect(() => {
     const checkClipboard = async () => {
@@ -339,9 +45,49 @@ export function MobileTerminal({
     checkClipboard();
   }, []);
 
+  const send = useCallback((data: string) => {
+    wthRef.current?.sendRaw({ type: 'input', data });
+  }, []);
+
+  const handleTab = () => send('\t');
+  const handleEnter = () => {
+    send('\r');
+  };
+  const handleEscape = () => send('\x1B');
+  const handleBackspace = () => send('\x7F');
+  const handleArrowLeft = () => send('\x1B[D');
+  const handleArrowRight = () => send('\x1B[C');
+  const handleCtrlC = () => send('\x03');
+  const handleCtrlD = () => send('\x04');
+
+  // Arrow up/down send the standard ANSI sequences that bash/readline
+  // handles natively through the PTY — no custom server-side message needed.
+  const handleArrowUp = () => send('\x1B[A');
+  const handleArrowDown = () => send('\x1B[B');
+
+  const handleCopy = async () => {
+    const selection = window.getSelection()?.toString();
+    if (selection) {
+      try {
+        await navigator.clipboard.writeText(selection);
+        toast({ title: 'Copied', description: 'Terminal output copied to clipboard' });
+      } catch {
+        toast({ title: 'Copy failed', description: 'Failed to copy to clipboard', variant: 'destructive' });
+      }
+    }
+  };
+
+  const handlePaste = async () => {
+    try {
+      await wthRef.current?.paste();
+      toast({ title: 'Pasted', description: 'Text pasted into terminal' });
+    } catch {
+      toast({ title: 'Paste failed', description: 'Failed to read from clipboard', variant: 'destructive' });
+    }
+  };
+
   const handleClear = () => {
-    termInstanceRef.current?.clear();
-    termInstanceRef.current?.write('$ ');
+    wthRef.current?.clear();
   };
 
   return (
@@ -527,11 +273,14 @@ export function MobileTerminal({
         </div>
       )}
 
-      <div 
-        ref={terminalRef} 
-        className="flex-1 min-h-0 p-2 overflow-auto"
-        data-testid="mobile-terminal-container"
-      />
+      <div className="flex-1 min-h-0" data-testid="mobile-terminal-container">
+        <WorkspaceTerminal
+          ref={wthRef}
+          wsUrl={wsUrl}
+          runnerOffline={false}
+          visible={true}
+        />
+      </div>
     </div>
   );
 }

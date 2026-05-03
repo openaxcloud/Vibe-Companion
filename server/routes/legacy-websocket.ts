@@ -107,6 +107,15 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
   // path it knows about.
   centralUpgradeDispatcher.initialize(httpServer);
 
+  // Must run after centralUpgradeDispatcher.initialize() so the /api/terminal/ws
+  // handler is attached before the first client upgrade request arrives.
+  try {
+    const { initPTYTerminalService } = await import('../terminal/pty-terminal-service');
+    await initPTYTerminalService().setup(httpServer);
+  } catch (err: any) {
+    log(`[PTY] Terminal service init failed: ${err?.message || err}`, 'websocket');
+  }
+
 
   // --- WebSocket ---
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
@@ -259,17 +268,13 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
     });
   }
 
-  centralUpgradeDispatcher.register(
-    '/ws/terminal',
-    handleTerminalUpgrade,
-    { pathMatch: 'exact', priority: 45 }
-  );
-
-  centralUpgradeDispatcher.register(
-    '/terminal',
-    handleTerminalUpgrade,
-    { pathMatch: 'exact', priority: 45 }
-  );
+  // /ws/terminal and /terminal are retired; return 410 to stale clients.
+  const gone410 = (_req: any, socket: any) => {
+    socket.write('HTTP/1.1 410 Gone\r\nContent-Length: 0\r\n\r\n');
+    socket.destroy();
+  };
+  centralUpgradeDispatcher.register('/ws/terminal', gone410, { pathMatch: 'exact', priority: 45 });
+  centralUpgradeDispatcher.register('/terminal',    gone410, { pathMatch: 'exact', priority: 45 });
 
   httpServer.on("upgrade", (req: any, socket, head) => {
     const pathname = new URL(req.url || "/", `http://${req.headers.host}`).pathname;
@@ -355,30 +360,6 @@ export async function registerWebsocketRoutes(app: Express, ctx: any): Promise<v
           });
         }).catch((e) => {
           log(`[ws-upgrade] /ws error: ${e?.message}`, "websocket");
-          socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
-          socket.destroy();
-        });
-      });
-    } else if (pathname === "/ws/terminal" || pathname === "/terminal") {
-      sessionMiddleware(req, fakeRes(), () => {
-        const url = new URL(req.url || "/", `http://${req.headers.host}`);
-        const projectId = url.searchParams.get("projectId");
-        if (!req.session?.userId || !projectId) {
-          log(`[ws-upgrade] ${pathname} 401 — no session (userId=${req.session?.userId})`, "websocket");
-          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-          socket.destroy();
-          return;
-        }
-        storage.getProject(projectId).then(async (project) => {
-          if (!project || !(await canAccessProject(req.session.userId, project))) {
-            socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
-            socket.destroy();
-            return;
-          }
-          terminalWss.handleUpgrade(req, socket, head, (ws) => {
-            terminalWss.emit("connection", ws, req);
-          });
-        }).catch(() => {
           socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
           socket.destroy();
         });
