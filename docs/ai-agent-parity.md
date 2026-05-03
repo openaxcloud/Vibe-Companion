@@ -108,6 +108,10 @@ Every interactive control in `AIPanel` is traced below.
 
 ## Production hardening (2026-05-03)
 
-- **Per-user concurrency cap**: `MAX_CONCURRENT_STREAMS_PER_USER = 3` enforced in `server/api/ai-streaming.ts` via `activeStreamsByUser` Map. Returns HTTP 429 when exceeded.
+- **Per-user concurrency cap**: Enforced via the shared `enforceStreamConcurrency(req, res)` helper in `server/utils/stream-concurrency.ts`, backed by a single process-scoped counter so all streaming routers share the same per-user budget. Returns HTTP 429 when exceeded. Coverage:
+  - `POST /api/agent/chat/stream` (`server/api/ai-streaming.ts`) — guarded; release wired into the SSE connection-close cleanup so the slot is freed on success, error, and client disconnect. `/agent/chat/stop` and `/agent/models` in the same file are non-streaming and intentionally unguarded. The internal `streamOpenAI` / `streamAnthropic` / `streamGemini` / `streamXAI` / `streamMoonshot` provider helpers are invoked only from `/agent/chat/stream`, so they inherit its guard.
+  - `POST /api/conversations/:id/messages` (`server/replit_integrations/audio/routes.ts`) — TTS / voice streaming endpoint, now guarded with the same helper; release runs on stream completion, error, and client disconnect.
+  - The helper is exported from `server/utils/stream-concurrency.ts` so any future streaming route (image generation, dedicated provider passthroughs, etc.) can adopt the cap with two lines and inherit identical 429 semantics.
+  - Cap is configurable via the `AI_MAX_CONCURRENT_STREAMS` environment variable (default `3`). Non-numeric or non-positive values fall back to the default to prevent a misconfiguration from disabling the cap.
 - **Structured observability**: Every completed turn logs `request_id`, `user_id`, `project_id`, `model`, `provider`, `tokens_input`, `tokens_output`, `latency_ms`, `tool_count`, `stream_end_reason` to the Winston logger.
 - **Secrets**: All provider API keys loaded exclusively from environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, etc.) via the environment-secrets pipeline — never hardcoded.

@@ -86,15 +86,72 @@ function getOpenAIModelCapabilities(model: string): OpenAIModelCapabilities {
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
 // Per-user concurrency cap for streaming endpoints (extracted to its own
-// module so it can be unit-tested without booting the full server).
+// module so it can be unit-tested without booting the full server, and shared
+// across all streaming routers). Cap is configurable via the
+// AI_MAX_CONCURRENT_STREAMS env var (default 3); see the imported module for
+// validation details.
 // ---------------------------------------------------------------------------
 import {
   MAX_CONCURRENT_STREAMS_PER_USER,
   acquireStreamSlot,
   releaseStreamSlot,
 } from './ai-streaming-concurrency';
+
+/**
+ * Reusable per-user stream concurrency guard.
+ *
+ * Usage at the top of any streaming route handler:
+ *
+ *   const guard = enforceStreamConcurrency(req, res);
+ *   if (!guard.ok) return; // 429 already sent
+ *   // ...register cleanup that calls guard.release()
+ *
+ * The returned `release` is idempotent and safe to call from multiple cleanup
+ * paths (success, error, client disconnect) without double-decrementing the
+ * per-user counter. If the request is unauthenticated (no user id), the guard
+ * is a no-op and `release` does nothing — auth middleware should normally
+ * reject those before this point.
+ *
+ * Exported so other streaming routers (audio, image, etc.) can share the
+ * exact same per-user counter and 429 semantics by importing this symbol.
+ */
+export interface StreamConcurrencyGuard {
+  ok: boolean;
+  release: () => void;
+}
+
+export function enforceStreamConcurrency(req: any, res: any): StreamConcurrencyGuard {
+  const userId = req?.user?.id;
+  const hasSlot = userId !== undefined && userId !== null;
+
+  if (hasSlot) {
+    if (!acquireStreamSlot(userId)) {
+      logger.warn('[AI Stream] Concurrency cap reached, rejecting request', {
+        userId,
+        cap: MAX_CONCURRENT_STREAMS_PER_USER,
+        path: req?.path,
+      });
+      res.status(429).json({
+        error: 'Too many concurrent AI streams',
+        message: `You already have ${MAX_CONCURRENT_STREAMS_PER_USER} active streams. Please wait for one to finish before starting a new one.`,
+        retryAfter: 30,
+      });
+      return { ok: false, release: () => {} };
+    }
+  }
+
+  let released = false;
+  return {
+    ok: true,
+    release: () => {
+      if (hasSlot && !released) {
+        released = true;
+        releaseStreamSlot(userId);
+      }
+    },
+  };
+}
 
 // AI Usage Tracking (Pay-As-You-Go) - Track ALL streaming endpoints for billing
 // No blocking - users pay for what they use via Stripe metered billing
@@ -198,36 +255,19 @@ router.post('/agent/chat/stream', ensureAuthenticated, async (req, res) => {
   // ── Per-user concurrency cap ──────────────────────────────────────────────
   // Reject early (before SSE headers are sent) if the user already has too
   // many active streams. This prevents runaway cost and provider throttling.
-  const earlyUserId = (req as any).user?.id;
-  const hasSlot = earlyUserId !== undefined && earlyUserId !== null;
-  if (hasSlot) {
-    if (!acquireStreamSlot(earlyUserId)) {
-      logger.warn('[AI Stream] Concurrency cap reached, rejecting request', {
-        userId: earlyUserId,
-        cap: MAX_CONCURRENT_STREAMS_PER_USER,
-      });
-      recordAiStreamEvent({
-        request_id: (req as any).id || `stream-${Date.now()}`,
-        user_id: earlyUserId,
-        stream_end_reason: 'concurrency_cap',
-      });
-      return res.status(429).json({
-        error: 'Too many concurrent AI streams',
-        message: `You already have ${MAX_CONCURRENT_STREAMS_PER_USER} active streams. Please wait for one to finish before starting a new one.`,
-        retryAfter: 30,
-      });
-    }
+  const concurrencyGuard = enforceStreamConcurrency(req, res);
+  if (!concurrencyGuard.ok) {
+    // Helper already sent the 429 and emitted the warn log; record the
+    // structured observability event so concurrency-cap rejections still
+    // appear in the stream-end telemetry alongside normal completions.
+    recordAiStreamEvent({
+      request_id: (req as any).id || `stream-${Date.now()}`,
+      user_id: (req as any).user?.id,
+      stream_end_reason: 'concurrency_cap',
+    });
+    return;
   }
-
-  // Idempotent release — can be called from multiple code paths (cleanup,
-  // success, error) without double-decrementing the per-user counter.
-  let _slotReleased = false;
-  const safeRelease = () => {
-    if (hasSlot && !_slotReleased) {
-      _slotReleased = true;
-      releaseStreamSlot(earlyUserId);
-    }
-  };
+  const safeRelease = concurrencyGuard.release;
 
   // ✅ FORTUNE 500: Validate origin and setup SSE with 403 rejection for invalid origins
   const registerCleanup = setupSSE(res, req);

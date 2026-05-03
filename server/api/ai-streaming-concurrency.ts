@@ -2,15 +2,31 @@
  * Per-user concurrency cap for AI streaming endpoints.
  *
  * Prevents a single user from holding unlimited SSE connections open, which
- * would exhaust provider rate limits and drive up costs. Cap = 3 concurrent
- * streams per user. The Map is process-scoped; for multi-process deployments
- * use Redis instead, but this protects the common single-process case.
+ * would exhaust provider rate limits and drive up costs. The Map is
+ * process-scoped; for multi-process deployments use Redis instead, but this
+ * protects the common single-process case.
+ *
+ * The cap is configurable via the `AI_MAX_CONCURRENT_STREAMS` env var
+ * (default 3). Non-numeric or non-positive values fall back to the default so
+ * a misconfiguration cannot silently disable the cap.
  *
  * Extracted from `ai-streaming.ts` so it can be unit-tested without spinning
  * up the full Express app, AI providers, RAG engine, etc.
  */
 
-export const MAX_CONCURRENT_STREAMS_PER_USER = 3;
+const DEFAULT_MAX_CONCURRENT_STREAMS_PER_USER = 3;
+
+export const MAX_CONCURRENT_STREAMS_PER_USER: number = (() => {
+  const raw = process.env.AI_MAX_CONCURRENT_STREAMS?.trim();
+  if (!raw) return DEFAULT_MAX_CONCURRENT_STREAMS_PER_USER;
+  // Strict numeric-only — reject things like "3abc" that parseInt would accept.
+  if (!/^\d+$/.test(raw)) return DEFAULT_MAX_CONCURRENT_STREAMS_PER_USER;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_MAX_CONCURRENT_STREAMS_PER_USER;
+  }
+  return parsed;
+})();
 
 const activeStreamsByUser = new Map<string | number, number>();
 

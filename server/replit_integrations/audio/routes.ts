@@ -1,6 +1,8 @@
 import express, { type Express, type Request, type Response } from "express";
 import { chatStorage } from "../chat/storage";
 import { openai, speechToText, ensureCompatibleFormat } from "./client";
+import { enforceStreamConcurrency } from "../../api/ai-streaming";
+import { ensureAuthenticated } from "../../middleware/auth";
 
 // Body parser with 50MB limit for audio payloads
 const audioBodyParser = express.json({ limit: "50mb" });
@@ -60,14 +62,29 @@ export function registerAudioRoutes(app: Express): void {
   // Send voice message and get streaming audio response
   // Auto-detects audio format and converts WebM/MP4/OGG to WAV
   // Uses gpt-4o-mini-transcribe for STT, gpt-audio for voice response
-  app.post("/api/conversations/:id/messages", audioBodyParser, async (req: Request, res: Response) => {
+  // Auth required so the per-user concurrency cap is meaningful — the guard
+  // keys off `req.user.id` and would be a no-op for anonymous traffic, which
+  // would defeat the "predictable billing" objective for this expensive
+  // streaming endpoint.
+  app.post("/api/conversations/:id/messages", ensureAuthenticated, audioBodyParser, async (req: Request, res: Response) => {
+    // Per-user concurrency cap (shared with AI chat streams) — prevents a
+    // single user from running unlimited parallel TTS/audio streams.
+    const concurrencyGuard = enforceStreamConcurrency(req, res);
+    if (!concurrencyGuard.ok) return; // 429 already sent
+
     try {
       const conversationId = req.params.id;
       const { audio, voice = "alloy" } = req.body;
 
       if (!audio) {
+        concurrencyGuard.release();
         return res.status(400).json({ error: "Audio data (base64) is required" });
       }
+
+      // Release the slot when the client disconnects mid-stream so it doesn't
+      // leak. `release` is idempotent, so calling it again at the end of the
+      // handler is safe.
+      req.on("close", () => concurrencyGuard.release());
 
       // 1. Auto-detect format and convert to OpenAI-compatible format
       const rawBuffer = Buffer.from(audio, "base64");
@@ -123,6 +140,7 @@ export function registerAudioRoutes(app: Express): void {
 
       res.write(`data: ${JSON.stringify({ type: "done", transcript: assistantTranscript })}\n\n`);
       res.end();
+      concurrencyGuard.release();
     } catch (error) {
       console.error("Error processing voice message:", error);
       if (res.headersSent) {
@@ -131,6 +149,7 @@ export function registerAudioRoutes(app: Express): void {
       } else {
         res.status(500).json({ error: "Failed to process voice message" });
       }
+      concurrencyGuard.release();
     }
   });
 }
