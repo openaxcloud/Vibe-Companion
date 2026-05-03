@@ -116,6 +116,7 @@ export default function Import() {
     currentFile: string;
     message: string;
   } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -169,22 +170,47 @@ export default function Import() {
     }
   }, [selectedSource, inputUrl]);
 
+  const acceptZipFile = (file: File) => {
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      toast({ title: "Invalid file", description: "Please select a .zip file", variant: "destructive" });
+      return;
+    }
+    if (file.size > 250 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum ZIP file size is 250MB", variant: "destructive" });
+      return;
+    }
+    setZipFile(file);
+    setValidation(null);
+    if (!projectName) {
+      setProjectName(file.name.replace(/\.zip$/i, "").replace(/[^a-zA-Z0-9-_ ]/g, "").slice(0, 50));
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (!file.name.endsWith(".zip")) {
-        toast({ title: "Invalid file", description: "Please select a .zip file", variant: "destructive" });
-        return;
-      }
-      if (file.size > 250 * 1024 * 1024) {
-        toast({ title: "File too large", description: "Maximum ZIP file size is 250MB", variant: "destructive" });
-        return;
-      }
-      setZipFile(file);
-      if (!projectName) {
-        setProjectName(file.name.replace(/\.zip$/i, "").replace(/[^a-zA-Z0-9-_ ]/g, "").slice(0, 50));
-      }
-    }
+    if (file) acceptZipFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) acceptZipFile(file);
   };
 
   const addEnvVar = () => {
@@ -569,8 +595,12 @@ export default function Import() {
                     data-testid="input-zip-file"
                   />
                   <div
-                    className="border-2 border-dashed border-[var(--ide-border)] rounded-xl p-6 text-center cursor-pointer hover:border-[#0079F2]/50 transition-colors"
+                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${isDragging ? "border-[#0079F2] bg-[#0079F2]/10" : "border-[var(--ide-border)] hover:border-[#0079F2]/50"}`}
                     onClick={() => fileInputRef.current?.click()}
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
                     data-testid="dropzone-zip"
                   >
                     {zipFile ? (
@@ -593,7 +623,7 @@ export default function Import() {
                     ) : (
                       <>
                         <Upload className="w-10 h-10 text-[var(--ide-text-muted)] mx-auto mb-2" />
-                        <p className="text-sm text-[var(--ide-text-muted)]">Click to select a ZIP file</p>
+                        <p className="text-sm text-[var(--ide-text-muted)]">{isDragging ? "Drop your ZIP file here" : "Click to select or drag a ZIP file here"}</p>
                         <p className="text-xs text-[var(--ide-text-muted)] mt-1">Maximum 250MB compressed / 1 GB uncompressed, up to 2000 files</p>
                       </>
                     )}
