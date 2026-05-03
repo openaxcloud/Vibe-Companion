@@ -101,3 +101,6 @@ build = ["sh", "-c", "npx tsx script/build.ts"]
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 180000
+
+[agent]
+integrations = ["github:1.0.0"]
