@@ -551,7 +551,13 @@ databaseRouter.get('/project/:projectId', async (req: Request, res: Response) =>
         connectionCount: database.connectionCount,
         maxConnections: database.maxConnections,
         autoBackup: database.autoBackup,
+        backupRetentionDays: database.backupRetentionDays,
         lastBackupAt: database.lastBackupAt,
+        nextBackupAt: database.autoBackup
+          ? (database.lastBackupAt
+              ? new Date(new Date(database.lastBackupAt).getTime() + 24 * 60 * 60 * 1000).toISOString()
+              : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString())
+          : null,
         provisionedAt: database.provisionedAt,
         createdAt: database.createdAt
       },
@@ -1278,7 +1284,10 @@ databaseRouter.post('/project/:projectId/restore', async (req: Request, res: Res
 });
 
 /**
- * Update history retention period for project database
+ * Update database settings for a project. Supports:
+ *   - historyRetentionDays (7|14|30|90)
+ *   - autoBackup (boolean)
+ *   - backupRetentionDays (7|14|30|90)
  * PATCH /api/database/project/:projectId/settings
  * REQUIRES: Authentication + Project ownership
  */
@@ -1293,15 +1302,25 @@ databaseRouter.patch('/project/:projectId/settings', async (req: Request, res: R
       return;
     }
 
-    const { historyRetentionDays } = req.body;
-    
+    const { historyRetentionDays, autoBackup, backupRetentionDays } = req.body;
+
     // Validate retention period
     const allowedDays = [7, 14, 30, 90];
     if (historyRetentionDays && !allowedDays.includes(historyRetentionDays)) {
       return res.status(400).json({ error: 'Invalid retention period. Allowed: 7, 14, 30, 90 days' });
     }
+    if (backupRetentionDays !== undefined && !allowedDays.includes(backupRetentionDays)) {
+      return res.status(400).json({ error: 'Invalid backup retention period. Allowed: 7, 14, 30, 90 days' });
+    }
+    if (autoBackup !== undefined && typeof autoBackup !== 'boolean') {
+      return res.status(400).json({ error: 'autoBackup must be a boolean' });
+    }
 
-    await projectDatabaseService.updateSettings(projectId, { historyRetentionDays });
+    await projectDatabaseService.updateSettings(projectId, {
+      historyRetentionDays,
+      autoBackup,
+      backupRetentionDays,
+    });
 
     return res.json({
       success: true,

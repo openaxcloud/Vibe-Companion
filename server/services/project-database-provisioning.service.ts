@@ -779,16 +779,25 @@ class ProjectDatabaseProvisioningService {
     }
   }
 
-  async updateSettings(projectId: number, settings: { historyRetentionDays?: number }): Promise<void> {
+  async updateSettings(
+    projectId: number,
+    settings: { historyRetentionDays?: number; autoBackup?: boolean; backupRetentionDays?: number },
+  ): Promise<void> {
     const database = await this.getProjectDatabase(projectId);
     if (!database) {
       throw new Error('Database not found');
     }
 
     const updateData: any = { updatedAt: new Date() };
-    
+
     if (settings.historyRetentionDays !== undefined) {
       updateData.historyRetentionDays = settings.historyRetentionDays;
+    }
+    if (settings.autoBackup !== undefined) {
+      updateData.autoBackup = settings.autoBackup;
+    }
+    if (settings.backupRetentionDays !== undefined) {
+      updateData.backupRetentionDays = settings.backupRetentionDays;
     }
 
     await db

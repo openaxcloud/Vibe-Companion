@@ -5,6 +5,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Database,
   Table,
@@ -78,6 +80,9 @@ interface DbDatabase {
   connectionCount?: number;
   maxConnections?: number;
   autoBackup?: boolean;
+  backupRetentionDays?: number;
+  lastBackupAt?: string;
+  nextBackupAt?: string;
   provisionedAt?: string;
 }
 
@@ -559,6 +564,23 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
       toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
       setRemoveConfirmOpen(false);
     },
+  });
+
+  const updateSettingsMutation = useMutation<unknown, Error, { autoBackup?: boolean; backupRetentionDays?: number }>({
+    mutationFn: async (settings) => {
+      const res = await apiRequest('PATCH', `/api/database/project/${projectId}/settings`, settings);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['db-info', projectId] });
+      const desc = vars.autoBackup !== undefined
+        ? `Auto-backup ${vars.autoBackup ? 'enabled' : 'disabled'}`
+        : vars.backupRetentionDays !== undefined
+          ? `Retention set to ${vars.backupRetentionDays} days`
+          : 'Settings updated';
+      toast({ title: 'Settings updated', description: desc });
+    },
+    onError: (err) => toast({ title: 'Update failed', description: err.message, variant: 'destructive' }),
   });
 
   const createBackupMutation = useMutation({
@@ -1315,6 +1337,69 @@ export function DatabasePanel({ projectId }: DatabasePanelProps) {
                       )}
                     </div>
                   )}
+
+                  {/* Auto Backup */}
+                  <div className="bg-[var(--ide-surface)] rounded p-2.5 space-y-2.5" data-testid="section-auto-backup">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-medium flex items-center gap-1.5">
+                          <Archive className="w-3.5 h-3.5" /> Auto Backup
+                        </span>
+                        <span className="text-[9px] text-[var(--ide-text-muted)]">
+                          Automatically run a daily backup of this database.
+                        </span>
+                      </div>
+                      <Switch
+                        checked={!!dbInfo?.database?.autoBackup}
+                        disabled={updateSettingsMutation.isPending}
+                        onCheckedChange={(checked) => updateSettingsMutation.mutate({ autoBackup: checked })}
+                        data-testid="switch-auto-backup"
+                      />
+                    </div>
+
+                    {dbInfo?.database?.autoBackup && (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-[var(--ide-text-muted)]">Retention period</span>
+                          <Select
+                            value={String(dbInfo?.database?.backupRetentionDays ?? 7)}
+                            disabled={updateSettingsMutation.isPending}
+                            onValueChange={(v) => updateSettingsMutation.mutate({ backupRetentionDays: parseInt(v, 10) })}
+                          >
+                            <SelectTrigger className="h-7 w-28 text-[10px]" data-testid="select-retention-days">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[7, 14, 30, 90].map((d) => (
+                                <SelectItem key={d} value={String(d)} className="text-[10px]" data-testid={`option-retention-${d}`}>
+                                  {d} days
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="border-t border-[var(--ide-border)] pt-2 space-y-1 text-[10px]">
+                          <div className="flex justify-between">
+                            <span className="text-[var(--ide-text-muted)]">Schedule</span>
+                            <span data-testid="text-backup-schedule">Daily</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[var(--ide-text-muted)]">Last backup</span>
+                            <span data-testid="text-last-backup-at">
+                              {dbInfo?.database?.lastBackupAt ? formatDate(dbInfo.database.lastBackupAt) : 'Never'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[var(--ide-text-muted)]">Next backup</span>
+                            <span data-testid="text-next-backup-at">
+                              {dbInfo?.database?.nextBackupAt ? formatDate(dbInfo.database.nextBackupAt) : '—'}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
 
                   {/* Connection Credentials */}
                   <div>
