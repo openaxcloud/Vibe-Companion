@@ -1540,6 +1540,14 @@ export class AgentToolFrameworkService extends EventEmitter {
       return workflow;
     };
 
+    // Preview control tools — delegate to server/preview/preview-actions.ts shared contract
+    const resolvePreviewCtx = (context: ToolContext): { projectId: string; userId: string } | { error: string } => {
+      const projectId = String(context.projectId ?? '').trim();
+      const userId = String(context.userId ?? '').trim();
+      if (!projectId) return { error: 'Project ID is required' };
+      if (!userId) return { error: 'Authentication required' };
+      return { projectId, userId };
+    };
 
     this.registerTool({
       name: 'list_workflows',
@@ -1570,6 +1578,26 @@ export class AgentToolFrameworkService extends EventEmitter {
       }
     });
 
+    // Preview Control Tools — agent drives preview via same shared contract as HTTP routes
+    this.registerTool({
+      name: 'preview_get_status',
+      displayName: 'Get Preview Status',
+      description: 'Get the current status of the preview server for the active project. Returns status (running/stopped/starting/error), available ports, and framework type.',
+      capability: 'ide_integration',
+      inputSchema: z.object({}),
+      requiresAuth: true,
+      execute: async (_input, context) => {
+        const ctx = resolvePreviewCtx(context);
+        if ('error' in ctx) return { success: false, error: ctx.error };
+        try {
+          const { verifyProjectAccess, actionGetStatus } = await import('../preview/preview-actions');
+          const deny = await verifyProjectAccess(ctx.projectId, ctx.userId);
+          if (deny) return { success: false, error: deny };
+          return await actionGetStatus(ctx.projectId);
+        } catch (err: unknown) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
+      }
+    });
+
     this.registerTool({
       name: 'run_workflow',
       displayName: 'Run Workflow',
@@ -1596,6 +1624,25 @@ export class AgentToolFrameworkService extends EventEmitter {
     });
 
     this.registerTool({
+      name: 'preview_start',
+      displayName: 'Start Preview',
+      description: 'Start the preview dev server for the active project. Auto-detects framework (Vite, CRA, Express, etc.) and spawns the server. Use when the user wants to see their app running.',
+      capability: 'ide_integration',
+      inputSchema: z.object({}),
+      requiresAuth: true,
+      execute: async (_input, context) => {
+        const ctx = resolvePreviewCtx(context);
+        if ('error' in ctx) return { success: false, error: ctx.error };
+        try {
+          const { verifyProjectAccess, actionStart } = await import('../preview/preview-actions');
+          const deny = await verifyProjectAccess(ctx.projectId, ctx.userId);
+          if (deny) return { success: false, error: deny };
+          return await actionStart(ctx.projectId, ctx.userId);
+        } catch (err: unknown) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
+      }
+    });
+
+    this.registerTool({
       name: 'stop_workflow',
       displayName: 'Stop Workflow',
       description: 'Stop a currently running workflow',
@@ -1611,6 +1658,25 @@ export class AgentToolFrameworkService extends EventEmitter {
         const { stopWorkflow } = await import('../workflowExecutor');
         const stopped = stopWorkflow(input.workflowId);
         return { success: true, stopped, workflowId: input.workflowId };
+      }
+    });
+
+    this.registerTool({
+      name: 'preview_stop',
+      displayName: 'Stop Preview',
+      description: 'Stop the preview dev server for the active project.',
+      capability: 'ide_integration',
+      inputSchema: z.object({}),
+      requiresAuth: true,
+      execute: async (_input, context) => {
+        const ctx = resolvePreviewCtx(context);
+        if ('error' in ctx) return { success: false, error: ctx.error };
+        try {
+          const { verifyProjectAccess, actionStop } = await import('../preview/preview-actions');
+          const deny = await verifyProjectAccess(ctx.projectId, ctx.userId);
+          if (deny) return { success: false, error: deny };
+          return await actionStop(ctx.projectId);
+        } catch (err: unknown) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
       }
     });
 
@@ -1641,6 +1707,26 @@ export class AgentToolFrameworkService extends EventEmitter {
     });
 
     this.registerTool({
+      name: 'preview_restart',
+      displayName: 'Restart Preview',
+      description: 'Stop and restart the preview dev server. Use after making changes that require a full server restart (e.g. package.json changes, env variables, new entry points).',
+      capability: 'ide_integration',
+      inputSchema: z.object({}),
+      requiresAuth: true,
+      execute: async (_input, context) => {
+        const ctx = resolvePreviewCtx(context);
+        if ('error' in ctx) return { success: false, error: ctx.error };
+        try {
+          const { verifyProjectAccess, actionStop, actionStart } = await import('../preview/preview-actions');
+          const deny = await verifyProjectAccess(ctx.projectId, ctx.userId);
+          if (deny) return { success: false, error: deny };
+          await actionStop(ctx.projectId);
+          return await actionStart(ctx.projectId, ctx.userId);
+        } catch (err: unknown) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
+      }
+    });
+
+    this.registerTool({
       name: 'create_workflow',
       displayName: 'Create Workflow',
       description: 'Create a new workflow with a shell command step for a project',
@@ -1658,6 +1744,29 @@ export class AgentToolFrameworkService extends EventEmitter {
         await storage.createWorkflowStep({ workflowId: workflow.id, name: 'Run', command: input.command, taskType: 'shell', orderIndex: 0, continueOnError: false });
         const steps = await storage.getWorkflowSteps(workflow.id);
         return { id: workflow.id, name: workflow.name, steps };
+      }
+    });
+
+    this.registerTool({
+      name: 'preview_switch_port',
+      displayName: 'Switch Preview Port',
+      description: 'Switch the preview iframe to a different port. Use when the project exposes multiple services and the user wants to view a specific one.',
+      capability: 'ide_integration',
+      inputSchema: z.object({
+        port: z.number().int().min(1).max(65535).describe('Port number to switch to')
+      }),
+      requiresAuth: true,
+      execute: async (input, context) => {
+        const ctx = resolvePreviewCtx(context);
+        if ('error' in ctx) return { success: false, error: ctx.error };
+        const portResult = z.number().int().min(1).max(65535).safeParse(input.port);
+        if (!portResult.success) return { success: false, error: 'Invalid port number' };
+        try {
+          const { verifyProjectAccess, actionSwitchPort } = await import('../preview/preview-actions');
+          const deny = await verifyProjectAccess(ctx.projectId, ctx.userId);
+          if (deny) return { success: false, error: deny };
+          return await actionSwitchPort(ctx.projectId, portResult.data);
+        } catch (err: unknown) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
       }
     });
 
@@ -1734,6 +1843,25 @@ export class AgentToolFrameworkService extends EventEmitter {
           durationMs: latest.durationMs,
           stepResults: latest.stepResults || [],
         };
+      }
+    });
+
+    this.registerTool({
+      name: 'preview_reload',
+      displayName: 'Reload Preview',
+      description: 'Trigger a live-reload in the preview iframe without restarting the server. Use after making frontend file changes that the HMR system may have missed.',
+      capability: 'ide_integration',
+      inputSchema: z.object({}),
+      requiresAuth: true,
+      execute: async (_input, context) => {
+        const ctx = resolvePreviewCtx(context);
+        if ('error' in ctx) return { success: false, error: ctx.error };
+        try {
+          const { verifyProjectAccess, actionReload } = await import('../preview/preview-actions');
+          const deny = await verifyProjectAccess(ctx.projectId, ctx.userId);
+          if (deny) return { success: false, error: deny };
+          return await actionReload(ctx.projectId);
+        } catch (err: unknown) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
       }
     });
   }

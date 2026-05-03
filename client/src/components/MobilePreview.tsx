@@ -1,3 +1,19 @@
+/**
+ * MobilePreview — Expo / React Native device-frame preview
+ *
+ * PURPOSE: Renders a scaled device bezel (iPhone/Android/iPad) around a
+ * live preview of a React Native / Expo project built with `expo export`.
+ * Accepts a pre-resolved `previewUrl` or raw `previewHtml` blob, plus an
+ * optional `expoGoUrl` for QR-code deep-link scanning with Expo Go.
+ *
+ * THIS IS NOT THE IDE WEB PREVIEW PANEL.
+ * For the web-preview panel used inside the IDE layout (start/stop/restart
+ * lifecycle, port switcher, DevTools, URL nav, console) see:
+ *   client/src/components/mobile/MobilePreviewPanel.tsx   ← IDE panel
+ *   client/src/components/editor/ResponsiveWebPreview.tsx ← desktop panel
+ *
+ * Used exclusively by: client/src/pages/Project.tsx
+ */
 import { useState, useCallback, useEffect } from "react";
 import { Smartphone, Tablet, RotateCcw, ExternalLink, QrCode, Wifi, Monitor, Server, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";

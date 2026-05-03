@@ -685,29 +685,9 @@ ${getHotReloadScript(projectId)}
 // Note: This route handles /api/preview/projects/:id/preview/status
 router.get('/projects/:id/preview/status', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
-    const projectId = req.params.id;
-    
-    const { previewService } = await import('../preview/preview-service');
-    const preview = previewService.getPreview(projectId);
-    
-    if (!preview) {
-      return res.json({
-        status: 'stopped',
-        message: 'No preview session found'
-      });
-    }
-    
-    res.json({
-      status: preview.status,
-      runId: preview.runId,
-      ports: preview.ports,
-      primaryPort: preview.primaryPort,
-      services: preview.exposedServices,
-      healthChecks: Object.fromEntries(preview.healthChecks),
-      lastHealthCheck: preview.lastHealthCheck,
-      frameworkType: preview.frameworkType,
-      logs: preview.logs.slice(-50)
-    });
+    const { actionGetStatus } = await import('../preview/preview-actions');
+    const result = await actionGetStatus(req.params.id);
+    res.json(result);
   } catch (error) {
     console.error('Error getting preview status:', error);
     res.status(500).json({ error: 'Failed to get preview status' });
@@ -720,31 +700,11 @@ router.get('/projects/:id/preview/status', requireAuth, ensureProjectAccess, asy
 // If no port is supplied, auto-detect the framework from DB files and spawn the server.
 router.post('/projects/:id/preview/start', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
-    const projectId = req.params.id;
     const { runId, port } = req.body;
-    
-    const { previewService } = await import('../preview/preview-service');
-    
-    let preview;
-    if (port) {
-      // Proxy mode: runtime already running on a known port
-      preview = await previewService.startPreview(projectId, { port, runId });
-    } else {
-      // Auto mode: read files from DB, detect framework, spawn server
-      preview = await previewService.startPreviewFromProject(projectId, req.session?.userId ? String(req.session.userId) : undefined);
-    }
-    
-    res.json({
-      success: true,
-      preview: {
-        runId: preview.runId,
-        status: preview.status,
-        ports: preview.ports,
-        primaryPort: preview.primaryPort,
-        services: preview.exposedServices,
-        frameworkType: preview.frameworkType
-      }
-    });
+    const userId = req.session?.userId ? String(req.session.userId) : '';
+    const { actionStart } = await import('../preview/preview-actions');
+    const result = await actionStart(req.params.id, userId, port ? { port, runId } : undefined);
+    res.json({ success: true, preview: result });
   } catch (error) {
     console.error('Error starting preview:', error);
     res.status(500).json({ error: 'Failed to start preview server' });
@@ -755,12 +715,9 @@ router.post('/projects/:id/preview/start', requireAuth, ensureProjectAccess, asy
 // Note: This route handles /api/preview/projects/:id/preview/stop
 router.post('/projects/:id/preview/stop', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
-    const projectId = req.params.id;
-    
-    const { previewService } = await import('../preview/preview-service');
-    await previewService.stopPreview(projectId);
-    
-    res.json({ success: true, message: 'Preview server stopped' });
+    const { actionStop } = await import('../preview/preview-actions');
+    const result = await actionStop(req.params.id);
+    res.json(result);
   } catch (error) {
     console.error('Error stopping preview:', error);
     res.status(500).json({ error: 'Failed to stop preview server' });
@@ -771,25 +728,14 @@ router.post('/projects/:id/preview/stop', requireAuth, ensureProjectAccess, asyn
 // Note: This route handles /api/preview/projects/:id/preview/switch-port
 router.post('/projects/:id/preview/switch-port', requireAuth, ensureProjectAccess, async (req, res) => {
   try {
-    const projectId = req.params.id;
     const { port } = req.body;
-    
     if (!port || typeof port !== 'number') {
       return res.status(400).json({ error: 'Port number is required' });
     }
-    
-    const { previewService } = await import('../preview/preview-service');
-    const success = await previewService.switchPort(projectId, port);
-    
-    if (success) {
-      res.json({ 
-        success: true, 
-        port,
-        url: previewService.getPreviewUrl(projectId, port)
-      });
-    } else {
-      res.status(400).json({ error: 'Failed to switch to port. Port may not be available or unhealthy.' });
-    }
+    const { actionSwitchPort } = await import('../preview/preview-actions');
+    const result = await actionSwitchPort(req.params.id, port);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json(result);
   } catch (error) {
     console.error('Error switching preview port:', error);
     res.status(500).json({ error: 'Failed to switch preview port' });
