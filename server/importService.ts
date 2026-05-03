@@ -101,6 +101,7 @@ const MAX_ZIP_FILES = 2000;
 const MAX_ZIP_SIZE = 250 * 1024 * 1024;
 const MAX_UNCOMPRESSED_SIZE = 1024 * 1024 * 1024;
 const MAX_ENTRY_SIZE = 10 * 1024 * 1024;
+const MAX_BINARY_ENTRY_SIZE = 5 * 1024 * 1024;
 
 const BINARY_MIME_MAP: Record<string, string> = {
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -528,6 +529,10 @@ export async function importFromZip(
 
       let content: string;
       if (isBinaryFile(entry.entryName)) {
+        if (entry.header.size > MAX_BINARY_ENTRY_SIZE) {
+          warnings.push(`Skipped oversized binary file (${Math.round(entry.header.size / 1024 / 1024)}MB exceeds ${MAX_BINARY_ENTRY_SIZE / 1024 / 1024}MB limit): ${filename}`);
+          continue;
+        }
         const raw = entry.getData();
         const mime = getBinaryMime(entry.entryName);
         content = `data:${mime};base64,${raw.toString("base64")}`;
@@ -1191,6 +1196,7 @@ export function validateZipBuffer(buffer: Buffer): ValidationResult {
 
     let totalUncompressed = 0;
     const oversizedEntries: string[] = [];
+    const oversizedBinaries: string[] = [];
     const validEntries = entries.filter((entry: { isDirectory: boolean; entryName: string; header: { size: number } }) => {
       if (entry.isDirectory) return false;
       if (entry.entryName.includes("..") || entry.entryName.startsWith("/")) return false;
@@ -1199,6 +1205,10 @@ export function validateZipBuffer(buffer: Buffer): ValidationResult {
       totalUncompressed += entry.header.size;
       if (entry.header.size > MAX_ENTRY_SIZE) {
         oversizedEntries.push(entry.entryName);
+        return false;
+      }
+      if (isBinaryFile(entry.entryName) && entry.header.size > MAX_BINARY_ENTRY_SIZE) {
+        oversizedBinaries.push(entry.entryName);
         return false;
       }
       return true;
@@ -1210,16 +1220,19 @@ export function validateZipBuffer(buffer: Buffer): ValidationResult {
         reasons: [`ZIP uncompressed size (${Math.round(totalUncompressed / 1024 / 1024)}MB) exceeds the ${MAX_UNCOMPRESSED_SIZE / 1024 / 1024 / 1024}GB uncompressed limit.`],
       };
     }
-    if (validEntries.length === 0) {
-      return { valid: false, compatible: false, reasons: ["ZIP file contains no importable files."] };
-    }
-    if (validEntries.length > MAX_ZIP_FILES) {
-      return { valid: false, compatible: false, reasons: [`ZIP contains too many files (${validEntries.length}). Maximum is ${MAX_ZIP_FILES}.`] };
-    }
-
     const reasons: string[] = [];
     if (oversizedEntries.length > 0) {
       reasons.push(`${oversizedEntries.length} file(s) exceed the ${MAX_ENTRY_SIZE / 1024 / 1024}MB per-file limit and will be skipped: ${oversizedEntries.slice(0, 3).join(", ")}${oversizedEntries.length > 3 ? "…" : ""}`);
+    }
+    if (oversizedBinaries.length > 0) {
+      reasons.push(`${oversizedBinaries.length} binary file(s) exceed the ${MAX_BINARY_ENTRY_SIZE / 1024 / 1024}MB per-binary limit and will be skipped: ${oversizedBinaries.slice(0, 3).join(", ")}${oversizedBinaries.length > 3 ? "…" : ""}`);
+    }
+
+    if (validEntries.length === 0) {
+      return { valid: false, compatible: false, reasons: ["ZIP file contains no importable files.", ...reasons] };
+    }
+    if (validEntries.length > MAX_ZIP_FILES) {
+      return { valid: false, compatible: false, reasons: [`ZIP contains too many files (${validEntries.length}). Maximum is ${MAX_ZIP_FILES}.`, ...reasons] };
     }
 
     const filenames = validEntries.map((e: { entryName: string }) => e.entryName);
