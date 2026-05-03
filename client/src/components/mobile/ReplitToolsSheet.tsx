@@ -19,7 +19,8 @@ import {
   Code, 
   FolderTree,
   HardDrive,
-  Settings
+  Settings,
+  Zap
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -129,6 +130,13 @@ const tools: Tool[] = [
     name: 'Preview',
     description: 'View your app in a browser',
     icon: FileCode,
+    category: 'tools',
+  },
+  {
+    id: 'workflows',
+    name: 'Workflows',
+    description: 'Create and run automated workflows for your project',
+    icon: Zap,
     category: 'tools',
   },
 ];

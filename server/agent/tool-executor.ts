@@ -229,6 +229,34 @@ export class ToolExecutor {
           result = await this.scanPorts(parameters);
           break;
 
+        case 'list_workflows':
+          result = await this.listWorkflows(parameters);
+          break;
+
+        case 'run_workflow':
+          result = await this.runWorkflow(parameters);
+          break;
+
+        case 'stop_workflow':
+          result = await this.stopWorkflow(parameters);
+          break;
+
+        case 'create_workflow':
+          result = await this.createWorkflow(parameters);
+          break;
+
+        case 'update_workflow':
+          result = await this.updateWorkflow(parameters);
+          break;
+
+        case 'delete_workflow':
+          result = await this.deleteWorkflow(parameters);
+          break;
+
+        case 'get_workflow_logs':
+          result = await this.getWorkflowLogs(parameters);
+          break;
+
         default:
           result = {
             success: false,
@@ -1091,6 +1119,142 @@ export class ToolExecutor {
       };
     } catch (err: any) {
       return { success: false, error: `Failed to scan ports: ${err.message}` };
+    }
+  }
+
+  // ==========================================
+  // Workflow Tools
+  // ==========================================
+
+  private async listWorkflows(_params: Record<string, unknown>): Promise<ToolExecutionResult> {
+    try {
+      await this.verifyProjectOwnership();
+      const workflows = await storage.getWorkflows(this.projectId);
+      const withSteps = await Promise.all(
+        workflows.map(async (w) => {
+          const steps = await storage.getWorkflowSteps(w.id);
+          return {
+            id: w.id,
+            name: w.name,
+            enabled: w.enabled,
+            triggerEvent: w.triggerEvent,
+            executionMode: w.executionMode,
+            steps: steps.map(s => ({ name: s.name, command: s.command, taskType: s.taskType })),
+          };
+        })
+      );
+      return { success: true, output: { count: withSteps.length, workflows: withSteps } };
+    } catch (err: any) {
+      return { success: false, error: `Failed to list workflows: ${err.message}` };
+    }
+  }
+
+  private async createWorkflow(params: { name: string; command: string }): Promise<ToolExecutionResult> {
+    try {
+      await this.verifyProjectOwnership();
+      const workflow = await storage.createWorkflow({ projectId: this.projectId, name: params.name, triggerEvent: 'manual' });
+      await storage.createWorkflowStep({ workflowId: workflow.id, name: 'Run', command: params.command, taskType: 'shell', orderIndex: 0, continueOnError: false });
+      const steps = await storage.getWorkflowSteps(workflow.id);
+      return { success: true, output: { id: workflow.id, name: workflow.name, steps } };
+    } catch (err: any) {
+      return { success: false, error: `Failed to create workflow: ${err.message}` };
+    }
+  }
+
+  private async updateWorkflow(params: { workflowId: string; name?: string; command?: string }): Promise<ToolExecutionResult> {
+    try {
+      await this.verifyProjectOwnership();
+      const workflow = await storage.getWorkflow(params.workflowId);
+      if (!workflow) return { success: false, error: `Workflow not found: ${params.workflowId}` };
+      if (workflow.projectId !== this.projectId) return { success: false, error: 'Workflow does not belong to this project' };
+
+      const updates: Record<string, unknown> = {};
+      if (params.name) updates.name = params.name;
+      const updated = await storage.updateWorkflow(params.workflowId, updates);
+
+      if (params.command) {
+        const existingSteps = await storage.getWorkflowSteps(params.workflowId);
+        for (const s of existingSteps) await storage.deleteWorkflowStep(s.id);
+        await storage.createWorkflowStep({ workflowId: params.workflowId, name: 'Run', command: params.command, taskType: 'shell', orderIndex: 0, continueOnError: false });
+      }
+
+      const steps = await storage.getWorkflowSteps(params.workflowId);
+      return { success: true, output: { id: updated.id, name: updated.name, steps } };
+    } catch (err: any) {
+      return { success: false, error: `Failed to update workflow: ${err.message}` };
+    }
+  }
+
+  private async deleteWorkflow(params: { workflowId: string }): Promise<ToolExecutionResult> {
+    try {
+      await this.verifyProjectOwnership();
+      const workflow = await storage.getWorkflow(params.workflowId);
+      if (!workflow) return { success: false, error: `Workflow not found: ${params.workflowId}` };
+      if (workflow.projectId !== this.projectId) return { success: false, error: 'Workflow does not belong to this project' };
+      await storage.deleteWorkflow(params.workflowId);
+      return { success: true, output: { deleted: true, workflowId: params.workflowId } };
+    } catch (err: any) {
+      return { success: false, error: `Failed to delete workflow: ${err.message}` };
+    }
+  }
+
+  private async runWorkflow(params: { workflowId: string }): Promise<ToolExecutionResult> {
+    try {
+      await this.verifyProjectOwnership();
+      const workflow = await storage.getWorkflow(params.workflowId);
+      if (!workflow) return { success: false, error: `Workflow not found: ${params.workflowId}` };
+      if (workflow.projectId !== this.projectId) return { success: false, error: 'Workflow does not belong to this project' };
+      const { executeWorkflow } = await import('../workflowExecutor');
+      const result = await executeWorkflow(params.workflowId);
+      return {
+        success: result.success,
+        output: {
+          workflowId: params.workflowId,
+          runId: result.runId,
+          status: result.status ?? (result.success ? 'completed' : 'failed'),
+        }
+      };
+    } catch (err: any) {
+      return { success: false, error: `Failed to run workflow: ${err.message}` };
+    }
+  }
+
+  private async stopWorkflow(params: { workflowId: string }): Promise<ToolExecutionResult> {
+    try {
+      await this.verifyProjectOwnership();
+      const workflow = await storage.getWorkflow(params.workflowId);
+      if (!workflow) return { success: false, error: `Workflow not found: ${params.workflowId}` };
+      if (workflow.projectId !== String(this.projectId)) return { success: false, error: 'Access denied: workflow belongs to a different project' };
+      const { stopWorkflow } = await import('../workflowExecutor');
+      const stopped = stopWorkflow(params.workflowId);
+      return { success: true, output: { stopped, workflowId: params.workflowId } };
+    } catch (err: any) {
+      return { success: false, error: `Failed to stop workflow: ${err.message}` };
+    }
+  }
+
+  private async getWorkflowLogs(params: { workflowId: string }): Promise<ToolExecutionResult> {
+    try {
+      await this.verifyProjectOwnership();
+      const workflow = await storage.getWorkflow(params.workflowId);
+      if (!workflow) return { success: false, error: `Workflow not found: ${params.workflowId}` };
+      if (workflow.projectId !== String(this.projectId)) return { success: false, error: 'Access denied: workflow belongs to a different project' };
+      const runs = await storage.getWorkflowRuns(params.workflowId, 5);
+      if (!runs.length) return { success: true, output: { found: false, message: 'No runs found' } };
+      const latest = runs[0];
+      return {
+        success: true,
+        output: {
+          found: true,
+          runId: latest.id,
+          status: latest.status,
+          startedAt: latest.startedAt,
+          finishedAt: latest.finishedAt,
+          stepResults: latest.stepResults || [],
+        }
+      };
+    } catch (err: any) {
+      return { success: false, error: `Failed to get workflow logs: ${err.message}` };
     }
   }
 }

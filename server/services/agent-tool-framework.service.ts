@@ -22,6 +22,7 @@ import { OpenAI } from 'openai';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import fetch from 'node-fetch';
+import { storage } from '../storage';
 
 const logger = createLogger('agent-tool-framework');
 
@@ -1520,6 +1521,219 @@ export class AgentToolFrameworkService extends EventEmitter {
         const projectId = String(context.projectId);
         const entry = await dbStorage.setStorageKvEntry(projectId, input.key, input.value);
         return { key: entry.key, value: entry.value, updatedAt: entry.updatedAt };
+      }
+    });
+
+    // Workflow tools — all use storage directly; ownership verified against context.userId
+    const assertProjectAccess = async (projectId: string, userId: string) => {
+      const project = await storage.getProject(projectId);
+      if (!project) throw new Error(`Project not found: ${projectId}`);
+      if (project.userId !== userId) throw new Error('Access denied: project belongs to another user');
+      return project;
+    };
+
+    const assertWorkflowAccess = async (workflowId: string, projectId: string, userId: string) => {
+      await assertProjectAccess(projectId, userId);
+      const workflow = await storage.getWorkflow(workflowId);
+      if (!workflow) throw new Error(`Workflow not found: ${workflowId}`);
+      if (workflow.projectId !== projectId) throw new Error('Workflow does not belong to the specified project');
+      return workflow;
+    };
+
+
+    this.registerTool({
+      name: 'list_workflows',
+      displayName: 'List Workflows',
+      description: 'List all workflows for a project, including their steps',
+      capability: 'ide_integration',
+      inputSchema: z.object({
+        projectId: z.string().describe('Project ID to list workflows for'),
+      }),
+      requiresAuth: true,
+      execute: async (input, context) => {
+        await assertProjectAccess(input.projectId, context.userId);
+        const workflows = await storage.getWorkflows(input.projectId);
+        const withSteps = await Promise.all(
+          workflows.map(async (w) => {
+            const steps = await storage.getWorkflowSteps(w.id);
+            return {
+              id: w.id,
+              name: w.name,
+              enabled: w.enabled,
+              triggerEvent: w.triggerEvent,
+              executionMode: w.executionMode,
+              steps: steps.map((s) => ({ name: s.name, command: s.command, taskType: s.taskType })),
+            };
+          })
+        );
+        return { count: withSteps.length, workflows: withSteps };
+      }
+    });
+
+    this.registerTool({
+      name: 'run_workflow',
+      displayName: 'Run Workflow',
+      description: 'Execute a workflow by ID and return the execution result.',
+      capability: 'ide_integration',
+      inputSchema: z.object({
+        projectId: z.string().describe('Project ID the workflow belongs to'),
+        workflowId: z.string().describe('Workflow ID to run'),
+      }),
+      requiresAuth: true,
+      rateLimit: 5,
+      execute: async (input, context) => {
+        await assertWorkflowAccess(input.workflowId, input.projectId, context.userId);
+        const { executeWorkflow } = await import('../workflowExecutor');
+        const result = await executeWorkflow(input.workflowId);
+        return {
+          success: result.success,
+          workflowId: input.workflowId,
+          runId: result.runId,
+          status: result.status ?? (result.success ? 'completed' : 'failed'),
+          error: result.error,
+        };
+      }
+    });
+
+    this.registerTool({
+      name: 'stop_workflow',
+      displayName: 'Stop Workflow',
+      description: 'Stop a currently running workflow',
+      capability: 'ide_integration',
+      inputSchema: z.object({
+        projectId: z.string().describe('Project ID'),
+        workflowId: z.string().describe('Workflow ID to stop'),
+      }),
+      requiresAuth: true,
+      rateLimit: 10,
+      execute: async (input, context) => {
+        await assertWorkflowAccess(input.workflowId, input.projectId, context.userId);
+        const { stopWorkflow } = await import('../workflowExecutor');
+        const stopped = stopWorkflow(input.workflowId);
+        return { success: true, stopped, workflowId: input.workflowId };
+      }
+    });
+
+    this.registerTool({
+      name: 'get_workflow_runs',
+      displayName: 'Get Workflow Run History',
+      description: 'Retrieve the run history for a specific workflow',
+      capability: 'ide_integration',
+      inputSchema: z.object({
+        projectId: z.string().describe('Project ID the workflow belongs to'),
+        workflowId: z.string().describe('Workflow ID to get run history for'),
+      }),
+      requiresAuth: true,
+      execute: async (input, context) => {
+        await assertWorkflowAccess(input.workflowId, input.projectId, context.userId);
+        const runs = await storage.getWorkflowRuns(input.workflowId, 20);
+        return {
+          count: runs.length,
+          runs: runs.map((r) => ({
+            id: r.id,
+            status: r.status,
+            startedAt: r.startedAt,
+            finishedAt: r.finishedAt,
+            durationMs: r.durationMs,
+          })),
+        };
+      }
+    });
+
+    this.registerTool({
+      name: 'create_workflow',
+      displayName: 'Create Workflow',
+      description: 'Create a new workflow with a shell command step for a project',
+      capability: 'ide_integration',
+      inputSchema: z.object({
+        projectId: z.string().describe('Project ID to create the workflow in'),
+        name: z.string().describe('Workflow name'),
+        command: z.string().describe('Shell command to run as the first step'),
+      }),
+      requiresAuth: true,
+      rateLimit: 10,
+      execute: async (input, context) => {
+        await assertProjectAccess(input.projectId, context.userId);
+        const workflow = await storage.createWorkflow({ projectId: input.projectId, name: input.name, triggerEvent: 'manual' });
+        await storage.createWorkflowStep({ workflowId: workflow.id, name: 'Run', command: input.command, taskType: 'shell', orderIndex: 0, continueOnError: false });
+        const steps = await storage.getWorkflowSteps(workflow.id);
+        return { id: workflow.id, name: workflow.name, steps };
+      }
+    });
+
+    this.registerTool({
+      name: 'update_workflow',
+      displayName: 'Update Workflow',
+      description: 'Update an existing workflow name and/or its command',
+      capability: 'ide_integration',
+      inputSchema: z.object({
+        projectId: z.string().describe('Project ID'),
+        workflowId: z.string().describe('Workflow ID to update'),
+        name: z.string().optional().describe('New workflow name'),
+        command: z.string().optional().describe('New shell command (replaces existing steps)'),
+      }),
+      requiresAuth: true,
+      rateLimit: 10,
+      execute: async (input, context) => {
+        await assertWorkflowAccess(input.workflowId, input.projectId, context.userId);
+
+        const updates: Record<string, unknown> = {};
+        if (input.name) updates.name = input.name;
+        const updated = await storage.updateWorkflow(input.workflowId, updates);
+
+        if (input.command) {
+          const existingSteps = await storage.getWorkflowSteps(input.workflowId);
+          for (const s of existingSteps) await storage.deleteWorkflowStep(s.id);
+          await storage.createWorkflowStep({ workflowId: input.workflowId, name: 'Run', command: input.command, taskType: 'shell', orderIndex: 0, continueOnError: false });
+        }
+
+        const steps = await storage.getWorkflowSteps(input.workflowId);
+        return { id: updated.id, name: updated.name, steps };
+      }
+    });
+
+    this.registerTool({
+      name: 'delete_workflow',
+      displayName: 'Delete Workflow',
+      description: 'Delete a workflow by ID from a project',
+      capability: 'ide_integration',
+      inputSchema: z.object({
+        projectId: z.string().describe('Project ID'),
+        workflowId: z.string().describe('Workflow ID to delete'),
+      }),
+      requiresAuth: true,
+      rateLimit: 5,
+      execute: async (input, context) => {
+        await assertWorkflowAccess(input.workflowId, input.projectId, context.userId);
+        await storage.deleteWorkflow(input.workflowId);
+        return { success: true, workflowId: input.workflowId };
+      }
+    });
+
+    this.registerTool({
+      name: 'get_workflow_logs',
+      displayName: 'Get Workflow Logs',
+      description: 'Get the most recent run logs for a specific workflow',
+      capability: 'ide_integration',
+      inputSchema: z.object({
+        projectId: z.string().describe('Project ID the workflow belongs to'),
+        workflowId: z.string().describe('Workflow ID to fetch logs for'),
+      }),
+      requiresAuth: true,
+      execute: async (input, context) => {
+        await assertWorkflowAccess(input.workflowId, input.projectId, context.userId);
+        const runs = await storage.getWorkflowRuns(input.workflowId, 5);
+        const latest = runs[0];
+        if (!latest) return { found: false, message: 'No runs found for this workflow' };
+        return {
+          found: true,
+          runId: latest.id,
+          status: latest.status,
+          startedAt: latest.startedAt,
+          finishedAt: latest.finishedAt,
+          durationMs: latest.durationMs,
+          stepResults: latest.stepResults || [],
+        };
       }
     });
   }

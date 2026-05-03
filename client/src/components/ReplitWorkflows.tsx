@@ -173,7 +173,10 @@ export function ReplitWorkflows({ projectId }: ReplitWorkflowsProps) {
         );
       }
 
-      const enhancedWorkflows: Workflow[] = (workflowPayload?.workflows ?? []).map((workflow: Workflow) => {
+      const rawWorkflows: Workflow[] = Array.isArray(workflowPayload)
+        ? workflowPayload
+        : (workflowPayload?.workflows ?? []);
+      const enhancedWorkflows: Workflow[] = rawWorkflows.map((workflow: Workflow) => {
         const workflowRuns = runsByWorkflow.get(workflow.id) ?? [];
         const latestRun = workflowRuns[0];
 

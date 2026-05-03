@@ -60,6 +60,7 @@ function runShellCommand(
   command: string,
   cwd: string,
   onLog?: (message: string, type: "info" | "error" | "success") => void,
+  abortControl?: AbortControl,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve) => {
     let stdout = "";
@@ -76,6 +77,12 @@ function runShellCommand(
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
+
+    // Register a kill function so callers can terminate this process on demand
+    const killFn = () => { if (!proc.killed) { killed = true; proc.kill("SIGTERM"); } };
+    abortControl?.kills.add(killFn);
+    // If already aborted, kill immediately
+    if (abortControl?.aborted) killFn();
 
     proc.stdout.on("data", (data: Buffer) => {
       const chunk = data.toString();
@@ -102,6 +109,7 @@ function runShellCommand(
     });
 
     proc.on("close", (exitCode) => {
+      abortControl?.kills.delete(killFn);
       resolve({
         stdout: truncateOutput(stdout),
         stderr: truncateOutput(stderr),
@@ -132,6 +140,7 @@ async function executeStep(
   projectDir: string,
   depth: number,
   onLog?: (message: string, type: "info" | "error" | "success") => void,
+  abortControl?: AbortControl,
 ): Promise<StepResult> {
   const stepStartTime = Date.now();
   try {
@@ -156,7 +165,7 @@ async function executeStep(
     }
 
     onLog?.(`\x1b[36m$ ${actualCommand}\x1b[0m`, "info");
-    const result = await runShellCommand(actualCommand, projectDir, onLog);
+    const result = await runShellCommand(actualCommand, projectDir, onLog, abortControl);
 
     return {
       stepId: step.id,
@@ -181,12 +190,37 @@ async function executeStep(
   }
 }
 
+type AbortControl = { aborted: boolean; kills: Set<() => void> };
+
+// Keyed by runId (UUID) for concurrency safety — multiple concurrent runs of the
+// same workflow each get their own independent AbortControl.
+const runningWorkflows = new Map<string, AbortControl>();
+
+// workflowId → Set<runId>: lets stopWorkflow(workflowId) find all active runs.
+const workflowRunIndex = new Map<string, Set<string>>();
+
+export function stopWorkflow(workflowId: string): boolean {
+  const runIds = workflowRunIndex.get(workflowId);
+  if (!runIds || runIds.size === 0) return false;
+  let stopped = false;
+  for (const runId of runIds) {
+    const entry = runningWorkflows.get(runId);
+    if (entry) {
+      entry.aborted = true;
+      entry.kills.forEach((k) => k());
+      entry.kills.clear();
+      stopped = true;
+    }
+  }
+  return stopped;
+}
+
 export async function executeWorkflow(
   workflowId: string,
   onStepUpdate?: (stepResults: StepResult[], currentStep: number) => void,
   onLog?: (message: string, type: "info" | "error" | "success") => void,
   depth: number = 0,
-): Promise<{ success: boolean; runId?: string; error?: string }> {
+): Promise<{ success: boolean; runId?: string; status?: string; error?: string }> {
   if (depth > MAX_WORKFLOW_DEPTH) {
     return { success: false, error: `Maximum workflow nesting depth (${MAX_WORKFLOW_DEPTH}) exceeded` };
   }
@@ -199,6 +233,12 @@ export async function executeWorkflow(
 
   const run = await storage.createWorkflowRun(workflowId);
   const startTime = Date.now();
+
+  // Register this run for cancellation support (keyed by runId for concurrency safety)
+  const abortControl: AbortControl = { aborted: false, kills: new Set() };
+  runningWorkflows.set(run.id, abortControl);
+  if (!workflowRunIndex.has(workflowId)) workflowRunIndex.set(workflowId, new Set());
+  workflowRunIndex.get(workflowId)!.add(run.id);
 
   const projectDir = join("/tmp", "workflow-run", randomUUID());
   await mkdir(projectDir, { recursive: true });
@@ -213,22 +253,62 @@ export async function executeWorkflow(
 
     let stepResults: StepResult[];
     let overallSuccess: boolean;
+    let aborted = false;
 
     if (workflow.executionMode === "parallel") {
-      const promises = steps.map((step) => executeStep(step, projectDir, depth, onLog));
+      const promises = steps.map((step) => executeStep(step, projectDir, depth, onLog, abortControl));
       stepResults = await Promise.all(promises);
-      overallSuccess = stepResults.every((r) => r.status === "success");
+      aborted = abortControl.aborted;
+      overallSuccess = !aborted && stepResults.every((r) => r.status === "success");
       onStepUpdate?.(stepResults, steps.length - 1);
     } else {
       stepResults = [];
       overallSuccess = true;
 
       for (let i = 0; i < steps.length; i++) {
+        // Check for cancellation before each step
+        if (abortControl.aborted) {
+          aborted = true;
+          onLog?.(`\x1b[33mWorkflow "${workflow.name}" was stopped.\x1b[0m`, "error");
+          for (let j = i; j < steps.length; j++) {
+            stepResults.push({
+              stepId: steps[j].id,
+              name: steps[j].name,
+              status: "skipped",
+              stdout: "",
+              stderr: "Workflow stopped",
+              exitCode: -1,
+              durationMs: 0,
+            });
+          }
+          overallSuccess = false;
+          break;
+        }
+
         const step = steps[i];
         onLog?.(`\x1b[33m── Step ${i + 1}/${steps.length}: ${step.name} ──\x1b[0m`, "info");
-        const stepResult = await executeStep(step, projectDir, depth, onLog);
+        const stepResult = await executeStep(step, projectDir, depth, onLog, abortControl);
         stepResults.push(stepResult);
         onStepUpdate?.(stepResults, i);
+
+        // Check abort AFTER step returns — catches steps killed mid-execution
+        if (abortControl.aborted) {
+          aborted = true;
+          overallSuccess = false;
+          onLog?.(`\x1b[33mWorkflow "${workflow.name}" was stopped.\x1b[0m`, "error");
+          for (let j = i + 1; j < steps.length; j++) {
+            stepResults.push({
+              stepId: steps[j].id,
+              name: steps[j].name,
+              status: "skipped",
+              stdout: "",
+              stderr: "Workflow stopped",
+              exitCode: -1,
+              durationMs: 0,
+            });
+          }
+          break;
+        }
 
         if (stepResult.status === "failed") {
           overallSuccess = false;
@@ -257,7 +337,7 @@ export async function executeWorkflow(
 
     const totalDuration = Date.now() - startTime;
     await storage.updateWorkflowRun(run.id, {
-      status: overallSuccess ? "success" : "failed",
+      status: aborted ? "stopped" : overallSuccess ? "success" : "failed",
       stepResults,
       durationMs: totalDuration,
       finishedAt: new Date(),
@@ -268,9 +348,13 @@ export async function executeWorkflow(
       : `\x1b[31m✗ Workflow "${workflow.name}" failed in ${totalDuration}ms\x1b[0m`;
     onLog?.(statusMsg, overallSuccess ? "success" : "error");
 
-    log(`Workflow "${workflow.name}" completed: ${overallSuccess ? "success" : "failed"} in ${totalDuration}ms`, "workflow");
-    return { success: overallSuccess, runId: run.id };
+    const finalStatus = aborted ? "stopped" : overallSuccess ? "completed" : "failed";
+    log(`Workflow "${workflow.name}" completed: ${finalStatus} in ${totalDuration}ms`, "workflow");
+    return { success: overallSuccess, runId: run.id, status: finalStatus };
   } finally {
+    runningWorkflows.delete(run.id);
+    workflowRunIndex.get(workflowId)?.delete(run.id);
+    if (workflowRunIndex.get(workflowId)?.size === 0) workflowRunIndex.delete(workflowId);
     rm(projectDir, { recursive: true, force: true }).catch(() => {});
   }
 }
@@ -359,7 +443,7 @@ export async function fireTrigger(projectId: string, triggerEvent: string): Prom
             type: "workflow_status",
             workflowId: wf.id,
             workflowName: wf.name,
-            status: result.success ? "completed" : "failed",
+            status: result.status ?? (result.success ? "completed" : "failed"),
           });
         }).catch((err) => {
           log(`Failed to auto-trigger workflow "${wf.name}": ${err.message}`, "workflow");

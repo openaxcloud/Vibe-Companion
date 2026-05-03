@@ -11,6 +11,7 @@ import { MobileSecretsPanel } from '@/components/mobile/MobileSecretsPanel';
 import { MobilePackagesPanel } from '@/components/mobile/MobilePackagesPanel';
 import { ReplitGitPanel } from '@/components/editor/ReplitGitPanel';
 import { MobileDebugPanel } from '@/components/mobile/MobileDebugPanel';
+import { WorkflowsPanel } from '@/components/ide/WorkflowsPanel';
 import { ReplitAgentPanelV3 } from '@/components/ai/ReplitAgentPanelV3';
 import { AgentPanelErrorBoundary } from '@/components/ai/AgentPanelErrorBoundary';
 import { Button } from '@/components/ui/button';
@@ -284,7 +285,8 @@ export default function MobileWorkspace() {
           {activeTool === 'integrations' && <MobilePackagesPanel projectId={projectId} />}
           {activeTool === 'git' && <ReplitGitPanel projectId={projectId} className="h-full" mode="mobile" />}
           {activeTool === 'developer' && <MobileDebugPanel projectId={projectId} />}
-          {!['database', 'auth', 'integrations', 'git', 'developer'].includes(activeTool || '') && (
+          {activeTool === 'workflows' && <WorkflowsPanel projectId={projectId} className="h-full" />}
+          {!['database', 'auth', 'integrations', 'git', 'developer', 'workflows'].includes(activeTool || '') && (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground text-[13px]">
                 {activeTool} panel — Coming soon
