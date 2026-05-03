@@ -27,3 +27,8 @@ project-workspaces/
 tests/e2e/report/
 tests/e2e/shots/
 test-results/
+# E2E auth state — generated at runtime by global-setup.ts; NEVER commit
+e2e/.auth-state.json
+# Playwright test artifacts
+playwright-report/
+test-results/
