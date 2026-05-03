@@ -876,6 +876,20 @@ export class PreviewService {
       return { type: 'static' as const };
     }
 
+    // No package.json / html / python — look for a lone Node entrypoint.
+    // We synthesize a minimal packageJson so startNodeApplication can run it.
+    const nodeEntryCandidates = ['index.js', 'index.mjs', 'index.cjs', 'server.js', 'app.js', 'main.js'];
+    const tsEntryCandidates = ['index.ts', 'server.ts', 'app.ts', 'main.ts'];
+    const jsEntry = nodeEntryCandidates.find(c => files.some(f => fname(f) === c));
+    if (jsEntry) {
+      return { type: 'node' as const, packageJson: { main: jsEntry, scripts: {} } };
+    }
+    const tsEntry = tsEntryCandidates.find(c => files.some(f => fname(f) === c));
+    if (tsEntry) {
+      // tsx is bundled with this stack; run via `npx --no-install tsx <file>` so missing deps don't crash.
+      return { type: 'node' as const, packageJson: { main: tsEntry, scripts: { start: `npx --no-install tsx ${tsEntry}` } } };
+    }
+
     return { type: 'static' as const };
   }
 
@@ -954,13 +968,30 @@ export class PreviewService {
   private async startNodeApplication(preview: PreviewInstance, frameworkInfo: any, previewPath: string, files: any[], projectEnvVars: Record<string, string> = {}) {
     const port = preview.primaryPort;
     preview.logs.push('Starting Node.js application...');
-    
-    try {
-      await this.runCommand('npm', ['install', '--ignore-scripts'], previewPath);
-    } catch (installErr: any) {
-      preview.logs.push(`[WARN] npm install had warnings: ${installErr.message} — continuing anyway`);
+
+    // If the workspace has no package.json on disk, this is a synthetic node project
+    // (lone index.js / index.ts / server.ts etc.). Materialize the synthetic packageJson
+    // so npm + start scripts behave normally, and skip npm install (no deps to fetch).
+    const pkgPath = path.join(previewPath, 'package.json');
+    let pkgExistsOnDisk = false;
+    try { await fs.access(pkgPath); pkgExistsOnDisk = true; } catch {}
+    if (!pkgExistsOnDisk) {
+      try {
+        await fs.writeFile(pkgPath, JSON.stringify(frameworkInfo.packageJson || { main: 'index.js' }, null, 2));
+        preview.logs.push('Created synthetic package.json (no manifest in project)');
+      } catch (e: any) {
+        preview.logs.push(`[WARN] could not write synthetic package.json: ${e?.message || e}`);
+      }
     }
-    
+
+    if (pkgExistsOnDisk) {
+      try {
+        await this.runCommand('npm', ['install', '--ignore-scripts'], previewPath);
+      } catch (installErr: any) {
+        preview.logs.push(`[WARN] npm install had warnings: ${installErr.message} — continuing anyway`);
+      }
+    }
+
     let startCommand: string[] = [];
     if (frameworkInfo.packageJson.scripts?.start) {
       startCommand = ['npm', 'start'];
@@ -968,7 +999,12 @@ export class PreviewService {
       startCommand = ['npm', 'run', 'dev'];
     } else {
       const mainFile = frameworkInfo.packageJson.main || 'index.js';
-      startCommand = ['node', mainFile];
+      // .ts entrypoints need tsx; the bundled "tsx" binary is available via npx
+      if (mainFile.endsWith('.ts') || mainFile.endsWith('.tsx')) {
+        startCommand = ['npx', '--no-install', 'tsx', mainFile];
+      } else {
+        startCommand = ['node', mainFile];
+      }
     }
 
     const nodeProcess = spawn(startCommand[0], startCommand.slice(1), {
@@ -1039,14 +1075,59 @@ const mimeMap = {
   '.ico':'image/x-icon','.woff':'font/woff','.woff2':'font/woff2',
   '.ttf':'font/ttf','.ts':'text/plain','.tsx':'text/plain','.jsx':'text/plain'
 };
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function listDir(dir, base) {
+  const out = [];
+  try {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (ent.name.startsWith('.')) continue;
+      const rel = path.posix.join(base, ent.name);
+      if (ent.isDirectory()) {
+        out.push({ name: ent.name + '/', href: rel + '/', dir: true });
+      } else {
+        out.push({ name: ent.name, href: rel, dir: false });
+      }
+    }
+  } catch (e) {}
+  return out;
+}
+function renderIndex() {
+  const items = listDir(root, '/');
+  const list = items.length
+    ? items.map(i => '<li><a href="' + escapeHtml(i.href) + '">' + escapeHtml(i.name) + '</a></li>').join('')
+    : '<li><em>(empty project)</em></li>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>E-Code preview</title>' +
+    '<style>body{font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;background:#0d1117;color:#c9d1d9;margin:0;padding:32px;max-width:780px}' +
+    'h1{font-size:18px;margin:0 0 8px;color:#58a6ff}p{color:#8b949e;margin:0 0 24px}ul{list-style:none;padding:0;margin:0;background:#161b22;border:1px solid #30363d;border-radius:8px}' +
+    'li{padding:10px 16px;border-bottom:1px solid #21262d}li:last-child{border-bottom:none}a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}' +
+    'code{background:#161b22;padding:2px 6px;border-radius:4px;color:#f0f6fc}</style></head><body>' +
+    '<h1>Preview is running</h1>' +
+    '<p>This project has no <code>index.html</code> entrypoint. Add one to your project root to see your app rendered here. Files in your workspace:</p>' +
+    '<ul>' + list + '</ul></body></html>';
+}
 http.createServer((req, res) => {
-  const safePath = path.normalize(req.url.split('?')[0]);
+  const safePath = path.normalize(decodeURIComponent(req.url.split('?')[0]));
   let target = path.join(root, safePath);
+  if (!target.startsWith(root)) { res.writeHead(403); return res.end('forbidden'); }
   let stat;
   try { stat = fs.statSync(target); } catch (e) {}
-  if (!stat || stat.isDirectory()) { target = path.join(root, 'index.html'); }
+  if (stat && stat.isDirectory()) {
+    const idx = path.join(target, 'index.html');
+    if (fs.existsSync(idx)) { target = idx; stat = fs.statSync(target); }
+    else if (target === root) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      return res.end(renderIndex());
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<h1>404</h1><p>Directory listing disabled.</p>');
+    }
+  }
+  if (!stat) {
+    res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end('<h1>404</h1><p>Not found: <code>' + escapeHtml(safePath) + '</code></p>');
+  }
   fs.readFile(target, (err, data) => {
-    if (err) { res.writeHead(404,'Not Found',{'Content-Type':'text/plain'}); return res.end('404'); }
+    if (err) { res.writeHead(500,{'Content-Type':'text/plain'}); return res.end('read error'); }
     const ext = path.extname(target).toLowerCase();
     res.writeHead(200, { 'Content-Type': mimeMap[ext] || 'application/octet-stream', 'Access-Control-Allow-Origin': '*' });
     res.end(data);

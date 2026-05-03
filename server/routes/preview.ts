@@ -654,6 +654,59 @@ ${getHotReloadScript(projectId)}
       return;
     }
     
+    // No index.html found. Decide between two pages:
+    //  - "Building..." spinner (auto-reload) when the agent might still be generating files
+    //    or a preview is actively starting/running and we should wait.
+    //  - "Preview ready, but no entrypoint" diagnostic page when the preview process
+    //    has finished without binding a port (script exited, error state, etc.).
+    let previewState: { status?: string; logs?: string[]; frameworkType?: string | null } = {};
+    try {
+      const { previewService } = await import('../preview/preview-service');
+      const p = previewService.getPreview(projectId);
+      if (p) previewState = { status: p.status, logs: p.logs?.slice(-30), frameworkType: p.frameworkType };
+    } catch {}
+
+    const logsStr = (previewState.logs || []).join('\n');
+    const processExited = /exited with code/i.test(logsStr);
+    const isTerminal = previewState.status === 'error' || (previewState.status === 'running' && processExited) || previewState.status === 'stopped';
+
+    if (isTerminal) {
+      const escapeHtml = (s: string) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+      const fileList = files
+        .filter((f: any) => !f.isDirectory)
+        .slice(0, 50)
+        .map((f: any) => `<li><code>${escapeHtml(f.filename || f.path || '')}</code></li>`)
+        .join('') || '<li><em>(no files yet)</em></li>';
+      const logBlock = previewState.logs?.length
+        ? `<pre>${escapeHtml(previewState.logs.join(''))}</pre>`
+        : '<p><em>No preview logs available.</em></p>';
+      return res.status(200).type('html').send(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Preview not serving</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:32px;max-width:860px;margin:0 auto;line-height:1.5}
+h1{font-size:1.25rem;margin-bottom:.5rem;color:#f97316}
+h2{font-size:.95rem;margin:24px 0 8px;color:#e6edf3}
+p{color:#8b949e;font-size:.9rem;margin-bottom:8px}
+code{background:#161b22;padding:2px 6px;border-radius:4px;color:#f0f6fc;font-size:.85rem}
+pre{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;overflow:auto;font-size:.78rem;color:#c9d1d9;max-height:280px;white-space:pre-wrap;word-break:break-word}
+ul{background:#161b22;border:1px solid #30363d;border-radius:8px;list-style:none;padding:0;margin:0}
+li{padding:8px 16px;border-bottom:1px solid #21262d}li:last-child{border-bottom:none}
+.tag{display:inline-block;background:#30363d;color:#c9d1d9;font-size:.7rem;padding:2px 8px;border-radius:10px;margin-left:6px}
+</style>
+${getHotReloadScript(projectId)}
+</head><body>
+<h1>Preview is up, but your app didn't serve a page</h1>
+<p>Detected framework: <span class="tag">${escapeHtml(previewState.frameworkType || 'unknown')}</span> &nbsp; State: <span class="tag">${escapeHtml(previewState.status || 'unknown')}</span></p>
+<p>Your project has no <code>index.html</code> entrypoint, and your app process didn't bind to a port. Common causes: a script that just <code>console.log</code>s and exits, a missing <code>http.createServer(...).listen(process.env.PORT)</code>, or a framework that needs <code>npm install</code>.</p>
+<h2>Recent preview logs</h2>
+${logBlock}
+<h2>Files in your project</h2>
+<ul>${fileList}</ul>
+</body></html>`);
+    }
+
     return res.status(200).type('html').send(`<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Building...</title>
