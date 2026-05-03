@@ -8,6 +8,7 @@ import Landing from "@/pages/Landing";
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
 import Settings from "@/pages/Settings";
+import UserSettings from "@/pages/UserSettings";
 import DemoProject from "@/pages/DemoProject";
 import SharedProject from "@/pages/SharedProject";
 import Pricing from "@/pages/Pricing";
@@ -280,6 +281,7 @@ function App() {
                 <Route path="/project/:id">{() => <ProtectedRoute component={UnifiedProjectRoute} />}</Route>
                 <Route path="/ide/:id">{() => <ProtectedRoute component={UnifiedProjectRoute} />}</Route>
                 <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
+                <Route path="/user/settings">{() => <ProtectedRoute component={UserSettings} />}</Route>
                 <Route path="/teams">{() => <ProtectedRoute component={Teams} />}</Route>
                 <Route path="/admin">{() => <ProtectedRoute component={Admin} />}</Route>
                 <Route path="/frameworks">{() => <ProtectedRoute component={Frameworks} />}</Route>

@@ -26,6 +26,7 @@ export interface UserPreferencesStored {
   tabSize?: number;
   wordWrap?: boolean;
   theme?: string;
+  language?: string;
   agentToolsConfig?: { liteMode?: boolean; webSearch?: boolean; appTesting?: boolean; codeOptimizations?: boolean; architect?: boolean };
   autoCloseBrackets?: boolean;
   indentationDetection?: boolean;
@@ -170,6 +171,7 @@ export const users = pgTable("users", {
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   website: varchar("website"),
+  location: varchar("location"),
   githubUsername: varchar("github_username"),
   twitterUsername: varchar("twitter_username"),
   linkedinUsername: varchar("linkedin_username"),
@@ -2332,6 +2334,9 @@ export const notificationPreferences = pgTable("notification_preferences", {
   security: boolean("security").notNull().default(true),
   team: boolean("team").notNull().default(true),
   system: boolean("system").notNull().default(true),
+  projectUpdates: boolean("project_updates").notNull().default(true),
+  commentsMentions: boolean("comments_mentions").notNull().default(true),
+  newsletter: boolean("newsletter").notNull().default(false),
 }, (table) => [
   uniqueIndex("notification_prefs_user_unique").on(table.userId),
 ]);
@@ -2358,6 +2363,25 @@ export const insertSshKeySchema = createInsertSchema(sshKeys).pick({
 });
 export type InsertSshKey = z.infer<typeof insertSshKeySchema>;
 export type SshKey = typeof sshKeys.$inferSelect;
+
+export const userApiTokens = pgTable("user_api_tokens", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  tokenPrefix: text("token_prefix").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at"),
+  expiresAt: timestamp("expires_at"),
+}, (table) => [
+  index("user_api_tokens_user_id_idx").on(table.userId),
+]);
+
+export const insertUserApiTokenSchema = createInsertSchema(userApiTokens).pick({
+  name: true,
+});
+export type InsertUserApiToken = z.infer<typeof insertUserApiTokenSchema>;
+export type UserApiToken = typeof userApiTokens.$inferSelect;
 
 export interface MergeConflictFile {
   filename: string;

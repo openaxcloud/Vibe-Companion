@@ -28,7 +28,8 @@ export interface TwoFactorVerificationResult {
 }
 
 export class Real2FAService {
-  private tempSecrets: Map<number, {
+  // Key is string userId (UUIDs); typed as string throughout so callers don't need casts
+  private tempSecrets: Map<string, {
     secret: string;
     backupCodes: string[];
     timestamp: number;
@@ -40,7 +41,7 @@ export class Real2FAService {
     setInterval(() => this.cleanupTempSecrets(), 60 * 1000); // Every minute
   }
 
-  async setupTwoFactor(userId: number): Promise<TwoFactorSetupResult> {
+  async setupTwoFactor(userId: string): Promise<TwoFactorSetupResult> {
     const user = await storage.getUser(userId);
     if (!user) {
       throw new Error('User not found');
@@ -84,7 +85,7 @@ export class Real2FAService {
   }
 
   async confirmTwoFactorSetup(
-    userId: number, 
+    userId: string,
     token: string
   ): Promise<TwoFactorVerificationResult> {
     const tempData = this.tempSecrets.get(userId);
@@ -135,7 +136,7 @@ export class Real2FAService {
   }
 
   async verifyTwoFactorToken(
-    userId: number, 
+    userId: string,
     token: string
   ): Promise<TwoFactorVerificationResult> {
     const user = await this.getUser2FASettings(userId);
@@ -216,7 +217,7 @@ export class Real2FAService {
     return { verified: true };
   }
 
-  async generateEmergencyToken(userId: number): Promise<string> {
+  async generateEmergencyToken(userId: string): Promise<string> {
     const user = await storage.getUser(userId);
     if (!user) {
       throw new Error('User not found');
@@ -237,7 +238,7 @@ export class Real2FAService {
   }
 
   async verifyEmergencyToken(
-    userId: number, 
+    userId: string,
     code: string
   ): Promise<TwoFactorVerificationResult> {
     const storedCode = await this.getEmergencyCode(userId);
@@ -257,18 +258,10 @@ export class Real2FAService {
     return { verified: true };
   }
 
-  async disableTwoFactor(
-    userId: number, 
-    password: string
-  ): Promise<boolean> {
-    // Verify password first
+  async disableTwoFactor(userId: string): Promise<boolean> {
+    // Password must be verified by the caller before invoking this method.
     const user = await storage.getUser(userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    // In production, verify password properly
-    // For now, assume password is verified
+    if (!user) throw new Error('User not found');
 
     await this.updateUser2FASettings(userId, {
       twoFactorEnabled: false,
@@ -277,11 +270,10 @@ export class Real2FAService {
     });
 
     logger.info(`2FA disabled for user ${userId}`);
-    
     return true;
   }
 
-  async regenerateBackupCodes(userId: number): Promise<string[]> {
+  async regenerateBackupCodes(userId: string): Promise<string[]> {
     const backupCodes = this.generateBackupCodes(8);
     
     await this.updateUserBackupCodes(userId, backupCodes);
@@ -305,7 +297,7 @@ export class Real2FAService {
   }
 
   async verifyBackupCode(
-    userId: number, 
+    userId: string,
     code: string
   ): Promise<TwoFactorVerificationResult> {
     const backupCodes = await this.getUserBackupCodes(userId);
@@ -378,7 +370,7 @@ export class Real2FAService {
   }
 
   private async updateUser2FASettings(
-    userId: number, 
+    userId: string,
     settings: {
       twoFactorEnabled: boolean;
       twoFactorSecret: string | null;
@@ -397,12 +389,12 @@ export class Real2FAService {
     logger.info(`Updated 2FA settings for user ${userId}`);
   }
 
-  private async getUser2FASettings(userId: number): Promise<any> {
+  private async getUser2FASettings(userId: string): Promise<any> {
     const user = await storage.getUser(userId);
     return user;
   }
 
-  private async updateUserBackupCodes(userId: number, codes: string[]) {
+  private async updateUserBackupCodes(userId: string, codes: string[]) {
     await db.update(users)
       .set({
         twoFactorBackupCodes: codes,
@@ -413,7 +405,7 @@ export class Real2FAService {
     logger.info(`Updated backup codes for user ${userId}`);
   }
 
-  private async getUserBackupCodes(userId: number): Promise<string[]> {
+  private async getUserBackupCodes(userId: string): Promise<string[]> {
     const [user] = await db.select({ backupCodes: users.twoFactorBackupCodes })
       .from(users)
       .where(eq(users.id, userId));
@@ -421,7 +413,7 @@ export class Real2FAService {
     return user?.backupCodes || [];
   }
 
-  private async storeEmergencyCode(userId: number, code: string) {
+  private async storeEmergencyCode(userId: string, code: string) {
     const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     
     await db.update(users)
@@ -433,7 +425,7 @@ export class Real2FAService {
       .where(eq(users.id, userId));
   }
 
-  private async getEmergencyCode(userId: number): Promise<string | null> {
+  private async getEmergencyCode(userId: string): Promise<string | null> {
     const [user] = await db.select({
       code: users.twoFactorEmergencyCode,
       expiry: users.twoFactorEmergencyExpiry
@@ -453,7 +445,7 @@ export class Real2FAService {
     return user.code;
   }
 
-  private async clearEmergencyCode(userId: number) {
+  private async clearEmergencyCode(userId: string) {
     await db.update(users)
       .set({
         twoFactorEmergencyCode: null,
@@ -463,18 +455,18 @@ export class Real2FAService {
       .where(eq(users.id, userId));
   }
 
-  private async logFailedAttempt(userId: number) {
+  private async logFailedAttempt(userId: string) {
     // Log failed 2FA attempt for security monitoring
     logger.warn(`Failed 2FA attempt for user ${userId}`);
   }
 
   // Public API for checking 2FA status
-  async isTwoFactorEnabled(userId: number): Promise<boolean> {
+  async isTwoFactorEnabled(userId: string): Promise<boolean> {
     const user = await this.getUser2FASettings(userId);
     return user?.twoFactorEnabled || false;
   }
 
-  async getTwoFactorStatus(userId: number): Promise<{
+  async getTwoFactorStatus(userId: string): Promise<{
     enabled: boolean;
     backupCodesRemaining: number;
     lastUsed?: Date;

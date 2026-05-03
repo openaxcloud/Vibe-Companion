@@ -63,22 +63,9 @@ export async function registerUsernameRoutes(app: Express, ctx: any): Promise<vo
   const path = path_;
 
 
-  // --- USERNAME ---
-  app.put("/api/user/username", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { username } = z.object({ username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/) }).parse(req.body);
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) return res.status(404).json({ message: "User not found" });
-      if (user.usernameChangedAt) return res.status(400).json({ message: "Username can only be changed once" });
-      const existing = await storage.getUserByUsername(username);
-      if (existing && existing.id !== req.session.userId) return res.status(409).json({ message: "Username already taken" });
-      const updated = await storage.changeUsername(req.session.userId!, username);
-      if (!updated) return res.status(400).json({ message: "Failed to change username" });
-      return res.json({ username: updated.username, usernameChangedAt: updated.usernameChangedAt });
-    } catch (err: any) {
-      if (err.name === "ZodError") return res.status(400).json({ message: "Username must be 3-30 characters, alphanumeric, hyphens, or underscores" });
-      return res.status(500).json({ message: "Failed to change username" });
-    }
-  });
+  // NOTE: PUT /api/user/username removed — now owned by user-settings.router
+  // (mounted at /api/user via MainRouter) with CSRF + authLimiter protections.
+  // Keeping it here shadowed the hardened version because legacy routes register
+  // before MainRouter in Express, and Express uses first-match-wins.
 
 }

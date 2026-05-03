@@ -116,7 +116,8 @@ export class MainRouter {
     if (usersMod) {
       const ur = new usersMod.UsersRouter(this.storage).getRouter();
       app.use('/api/users', tierLimiters.api, ur);
-      app.use('/api/user', tierLimiters.api, ur);
+      // NOTE: /api/user is intentionally NOT aliased here.
+      // user-settings.router owns /api/user/* to avoid catch-all /:id shadowing.
     }
     if (projectsMod) app.use('/api/projects', tierLimiters.api, new projectsMod.ProjectsRouter(this.storage).getRouter());
     if (filesMod) app.use('/api/projects', tierLimiters.api, new filesMod.FilesRouter(this.storage).getRouter());
@@ -334,8 +335,9 @@ export class MainRouter {
       safeImport("automations", () => import("./automations.router")),
     ]);
 
-    const [paymentsMod] = await Promise.all([
+    const [paymentsMod, userSettingsMod] = await Promise.all([
       safeImport("payments", () => import("./payments.router")),
+      safeImport("user-settings", () => import("./user-settings.router")),
     ]);
 
     const [openhandsMod, gooseMod, agentProvidersMod, claudeAgentMod] = await Promise.all([
@@ -491,6 +493,7 @@ export class MainRouter {
     mount(app, '/api', tierLimiters.api, def(sshInfoMod));
     mount(app, '/api', tierLimiters.api, def(automationsMod));
     mountOr503(app, 'payments', '/api/payments', tierLimiters.api, def(paymentsMod));
+    if (userSettingsMod) mount(app, '/api/user', tierLimiters.api, def(userSettingsMod));
 
     mount(app, '/api/openhands', tierLimiters.api, def(openhandsMod));
     mount(app, '/api/goose', tierLimiters.api, def(gooseMod));

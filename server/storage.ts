@@ -13,6 +13,7 @@ import {
   projectCollaborators, projectInviteLinks,
   storageKv, storageObjects, storageBandwidth, storageBuckets, bucketAccess,
   projectAuthConfig, projectAuthUsers,
+  userApiTokens, type UserApiToken,
   integrationCatalog, projectIntegrations, integrationLogs, userConnections, oauthStates,
   automations, automationRuns,
   workflows, workflowSteps, workflowRuns,
@@ -171,7 +172,19 @@ export interface IStorage {
   getUserByTwitterId(twitterId: string): Promise<User | undefined>;
   getUserByReplitId(replitId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { githubId?: string; googleId?: string; appleId?: string; twitterId?: string; replitId?: string; avatarUrl?: string; emailVerified?: boolean }): Promise<User>;
-  updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string; googleId: string; appleId: string; twitterId: string; replitId: string; isBanned: boolean; bannedAt: Date | null; banReason: string | null }>): Promise<User | undefined>;
+  updateUser(id: string, data: Partial<{
+    displayName: string; avatarUrl: string; password: string; emailVerified: boolean;
+    githubId: string | null; googleId: string | null; appleId: string | null;
+    twitterId: string | null; replitId: string | null;
+    isBanned: boolean; bannedAt: Date | null; banReason: string | null;
+    bio: string | null; website: string | null; location: string | null;
+    githubUsername: string | null; twitterUsername: string | null;
+    email: string | null;
+    githubTokenCiphertext: string | null; githubTokenIv: string | null;
+  }>): Promise<User | undefined>;
+  createApiToken(userId: string, name: string, tokenHash: string, tokenPrefix: string): Promise<UserApiToken>;
+  listApiTokens(userId: string): Promise<UserApiToken[]>;
+  deleteApiToken(id: string, userId: string): Promise<boolean>;
   getUserPreferences(userId: string): Promise<UserPreferences>;
   updateUserPreferences(userId: string, prefs: Partial<UserPreferencesStored>): Promise<UserPreferences>;
   getDynamicIntelligenceSettings(userId: string): Promise<Record<string, any>>;
@@ -471,6 +484,10 @@ export interface IStorage {
   connectIntegration(projectId: string, integrationId: string, config: Record<string, string>): Promise<ProjectIntegration>;
   disconnectIntegration(projectId: string, id: string): Promise<boolean>;
   updateIntegrationStatus(id: string, status: string): Promise<ProjectIntegration | undefined>;
+  getUserConnections(userId: string): Promise<any[]>;
+  createUserConnection(userId: string, integrationId: string, data: { accessToken?: string; refreshToken?: string; tokenExpiresAt?: Date; status?: string; metadata?: Record<string, string> }): Promise<any>;
+  disconnectUserConnection(userId: string, id: string): Promise<boolean>;
+  getUserConnectionForIntegration(userId: string, integrationId: string): Promise<any>;
   getIntegrationLogs(projectId: string, projectIntegrationId: string, limit?: number): Promise<IntegrationLog[]>;
   addIntegrationLog(projectIntegrationId: string, level: string, message: string): Promise<IntegrationLog>;
 
@@ -635,7 +652,7 @@ export interface IStorage {
   deleteNotification(id: string, userId: string): Promise<boolean>;
 
   getNotificationPreferences(userId: string): Promise<NotificationPreferences>;
-  updateNotificationPreferences(userId: string, data: Partial<{ agent: boolean; billing: boolean; deployment: boolean; security: boolean; team: boolean; system: boolean }>): Promise<NotificationPreferences>;
+  updateNotificationPreferences(userId: string, data: Partial<{ agent: boolean; billing: boolean; deployment: boolean; security: boolean; team: boolean; system: boolean; projectUpdates: boolean; commentsMentions: boolean; newsletter: boolean }>): Promise<NotificationPreferences>;
 
   getSystemModules(projectId: string): Promise<SystemModule[]>;
   createSystemModule(data: InsertSystemModule): Promise<SystemModule>;
@@ -803,8 +820,18 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async updateUser(id: string, data: Partial<{ displayName: string; avatarUrl: string; password: string; emailVerified: boolean; githubId: string; googleId: string; appleId: string; twitterId: string; replitId: string; isBanned: boolean; bannedAt: Date | null; banReason: string | null }>): Promise<User | undefined> {
-    const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+  async updateUser(id: string, data: Partial<{
+    displayName: string; avatarUrl: string; password: string; emailVerified: boolean;
+    githubId: string | null; googleId: string | null; appleId: string | null;
+    twitterId: string | null; replitId: string | null;
+    isBanned: boolean; bannedAt: Date | null; banReason: string | null;
+    bio: string | null; website: string | null; location: string | null;
+    githubUsername: string | null; twitterUsername: string | null;
+    email: string | null;
+    // Token material — must be nullable so unlink can wipe them
+    githubTokenCiphertext: string | null; githubTokenIv: string | null;
+  }>): Promise<User | undefined> {
+    const [user] = await db.update(users).set(data as any).where(eq(users.id, id)).returning();
     return user;
   }
 
@@ -4236,7 +4263,7 @@ export class DatabaseStorage implements IStorage {
     return refetch;
   }
 
-  async updateNotificationPreferences(userId: string, data: Partial<{ agent: boolean; billing: boolean; deployment: boolean; security: boolean; team: boolean; system: boolean }>): Promise<NotificationPreferences> {
+  async updateNotificationPreferences(userId: string, data: Partial<{ agent: boolean; billing: boolean; deployment: boolean; security: boolean; team: boolean; system: boolean; projectUpdates: boolean; commentsMentions: boolean; newsletter: boolean }>): Promise<NotificationPreferences> {
     const existing = await this.getNotificationPreferences(userId);
     const [updated] = await db.update(notificationPreferences)
       .set(data)
@@ -4355,6 +4382,20 @@ export class DatabaseStorage implements IStorage {
   async findSshKeyByFingerprint(fingerprint: string): Promise<SshKey | undefined> {
     const [key] = await db.select().from(sshKeys).where(eq(sshKeys.fingerprint, fingerprint)).limit(1);
     return key;
+  }
+
+  async createApiToken(userId: string, name: string, tokenHash: string, tokenPrefix: string): Promise<UserApiToken> {
+    const [token] = await db.insert(userApiTokens).values({ userId, name, tokenHash, tokenPrefix }).returning();
+    return token;
+  }
+
+  async listApiTokens(userId: string): Promise<UserApiToken[]> {
+    return db.select().from(userApiTokens).where(eq(userApiTokens.userId, userId)).orderBy(desc(userApiTokens.createdAt));
+  }
+
+  async deleteApiToken(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(userApiTokens).where(and(eq(userApiTokens.id, id), eq(userApiTokens.userId, userId))).returning();
+    return result.length > 0;
   }
 
   async getArtifactTemplates(outputType?: string): Promise<ArtifactTemplate[]> {
