@@ -864,7 +864,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
         scenes = (videoData.scenes as any[]).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
       }
 
-      const { exportAnimationToMp4, cleanupExportDir } = await import("./videoExporter");
+      const { exportAnimationToMp4, cleanupExportDir } = await import("../videoExporter");
       const result = await exportAnimationToMp4(
         scenes,
         { width, height, fps, duration, quality },
@@ -920,7 +920,7 @@ export async function registerSlidesVideoRoutes(app: Express, ctx: any): Promise
         scenes = (videoData.scenes as any[]).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
       }
 
-      const { exportAnimationToMp4, cleanupExportDir } = await import("./videoExporter");
+      const { exportAnimationToMp4, cleanupExportDir } = await import("../videoExporter");
       const result = await exportAnimationToMp4(
         scenes,
         { width, height, fps, duration, quality },

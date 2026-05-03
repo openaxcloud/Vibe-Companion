@@ -70,7 +70,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const ports = await storage.getPortConfigs(project.id);
-      const { checkPortListening } = await import("./portDetection");
+      const { checkPortListening } = await import("../portDetection");
       const portsWithStatus = await Promise.all(
         ports.map(async (p) => {
           const { listening, localhostOnly } = await checkPortListening(p.internalPort);
@@ -96,7 +96,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
       if (!Number.isInteger(internalPort) || internalPort < 1 || internalPort > 65535) {
         return res.status(400).json({ message: "Port must be an integer between 1 and 65535" });
       }
-      const { isPortBlocked, isAllowedInternalPort, isValidExternalPort, getNextAvailableExternalPort } = await import("./portDetection");
+      const { isPortBlocked, isAllowedInternalPort, isValidExternalPort, getNextAvailableExternalPort } = await import("../portDetection");
       if (isPortBlocked(internalPort)) return res.status(400).json({ message: `Port ${internalPort} is blocked` });
       if (!isAllowedInternalPort(internalPort)) return res.status(400).json({ message: `Port ${internalPort} is not in the allowed port list (3000-3003, 4200, 5000, 5173, 6000, 6800, 8000, 8008, 8080, 8081)` });
       const existingConfigs = await storage.getPortConfigs(project.id);
@@ -161,7 +161,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
-      const { autoDetectPorts } = await import("./portDetection");
+      const { autoDetectPorts } = await import("../portDetection");
       await autoDetectPorts(project.id);
       const ports = await storage.getPortConfigs(project.id);
       res.json(ports);
@@ -277,7 +277,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
       const query = (qstr(req.query.q) || "").trim();
       if (!query) return res.status(400).json({ message: "Search query required" });
       const tlds = req.query.tlds ? qstr(req.query.tlds).split(",") : [];
-      const { getRegistrar } = await import("./domainRegistrar");
+      const { getRegistrar } = await import("../domainRegistrar");
       const registrar = getRegistrar();
       const results = await registrar.searchAvailability(query, tlds);
       res.json(results);
@@ -301,7 +301,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
         if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       }
 
-      const { getRegistrar, SUPPORTED_TLDS } = await import("./domainRegistrar");
+      const { getRegistrar, SUPPORTED_TLDS } = await import("../domainRegistrar");
       if (!SUPPORTED_TLDS.includes(tld)) return res.status(400).json({ message: "Unsupported TLD" });
       const registrar = getRegistrar();
       const searchResults = await registrar.searchAvailability(domain.replace(tld, ""), [tld]);
@@ -422,7 +422,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
         ttl: parsedTtl,
       });
 
-      const { getRegistrar } = await import("./domainRegistrar");
+      const { getRegistrar } = await import("../domainRegistrar");
       const allRecords = await storage.getDomainDnsRecords(domain.id);
       await getRegistrar().configureDns(domain.domain, allRecords.map(r => ({
         type: r.recordType, name: r.name, value: r.value, ttl: r.ttl ?? 3600,
@@ -452,7 +452,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
       const updated = await storage.updateDnsRecord(req.params.recordId, updateData);
       if (!updated) return res.status(500).json({ message: "Failed to update record" });
 
-      const { getRegistrar } = await import("./domainRegistrar");
+      const { getRegistrar } = await import("../domainRegistrar");
       const allRecords = await storage.getDomainDnsRecords(domain.id);
       await getRegistrar().configureDns(domain.domain, allRecords.map(r => ({
         type: r.recordType, name: r.name, value: r.value, ttl: r.ttl ?? 3600,
@@ -470,7 +470,7 @@ export async function registerNetworkingRoutes(app: Express, ctx: any): Promise<
       if (!record || record.domainId !== domain.id) return res.status(404).json({ message: "Record not found" });
       await storage.deleteDnsRecord(req.params.recordId);
 
-      const { getRegistrar } = await import("./domainRegistrar");
+      const { getRegistrar } = await import("../domainRegistrar");
       const remainingRecords = await storage.getDomainDnsRecords(domain.id);
       await getRegistrar().configureDns(domain.domain, remainingRecords.map(r => ({
         type: r.recordType, name: r.name, value: r.value, ttl: r.ttl ?? 3600,

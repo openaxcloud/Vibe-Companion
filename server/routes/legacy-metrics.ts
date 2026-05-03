@@ -91,7 +91,7 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
     const { owner, repo, name, branch, async: asyncMode } = req.body;
     if (!owner || !repo) return res.status(400).json({ message: "owner and repo required" });
     if (asyncMode) {
-      const { startAsyncImport } = await import("./importService");
+      const { startAsyncImport } = await import("../importService");
       const jobId = startAsyncImport("github", req.session.userId!, { owner, repo, name, branch });
       return res.status(202).json({ jobId, async: true });
     }
@@ -162,7 +162,7 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
   app.post("/api/import/zip", requireAuth, zipUpload.single("file"), async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ message: "ZIP file required" });
     const projectName = (req.body.name || "zip-import").slice(0, 50);
-    const { startAsyncZipImport } = await import("./importService");
+    const { startAsyncZipImport } = await import("../importService");
     const jobId = startAsyncZipImport(req.session.userId!, req.file.buffer, projectName);
     return res.status(202).json({ jobId, async: true });
   });
@@ -185,7 +185,7 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
   app.post("/api/import/figma", requireAuth, async (req: Request, res: Response) => {
     const { url, name, provider, designContext } = req.body;
     if (!url) return res.status(400).json({ message: "Figma URL required" });
-    const { startAsyncImport } = await import("./importService");
+    const { startAsyncImport } = await import("../importService");
     const jobId = startAsyncImport("figma", req.session.userId!, { url, name: name || "figma-import", provider: provider || "openai", designContext });
     return res.status(202).json({ jobId, async: true });
   });
@@ -193,7 +193,7 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
   app.post("/api/import/vercel", requireAuth, async (req: Request, res: Response) => {
     const { url, name } = req.body;
     if (!url) return res.status(400).json({ message: "Vercel URL required" });
-    const { startAsyncImport } = await import("./importService");
+    const { startAsyncImport } = await import("../importService");
     const jobId = startAsyncImport("vercel", req.session.userId!, { url, name });
     return res.status(202).json({ jobId, async: true });
   });
@@ -201,7 +201,7 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
   app.post("/api/import/bolt", requireAuth, async (req: Request, res: Response) => {
     const { url, name } = req.body;
     if (!url) return res.status(400).json({ message: "GitHub repo URL required" });
-    const { startAsyncImport } = await import("./importService");
+    const { startAsyncImport } = await import("../importService");
     const jobId = startAsyncImport("bolt", req.session.userId!, { url, name });
     return res.status(202).json({ jobId, async: true });
   });
@@ -209,7 +209,7 @@ export async function registerMetricsRoutes(app: Express, ctx: any): Promise<voi
   app.post("/api/import/lovable", requireAuth, async (req: Request, res: Response) => {
     const { url, name } = req.body;
     if (!url) return res.status(400).json({ message: "GitHub repo URL required" });
-    const { startAsyncImport } = await import("./importService");
+    const { startAsyncImport } = await import("../importService");
     const jobId = startAsyncImport("lovable", req.session.userId!, { url, name });
     return res.status(202).json({ jobId, async: true });
   });

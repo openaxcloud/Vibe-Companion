@@ -915,7 +915,7 @@ http.createServer((req, res) => {
   const safePath = path.normalize(req.url.split('?')[0]);
   let target = path.join(root, safePath);
   let stat;
-  try { stat = fs.statSync(target); } catch (err: any) { console.error("[catch]", err?.message || err);}
+  try { stat = fs.statSync(target); } catch (e) {}
   if (!stat || stat.isDirectory()) { target = path.join(root, 'index.html'); }
   fs.readFile(target, (err, data) => {
     if (err) { res.writeHead(404,'Not Found',{'Content-Type':'text/plain'}); return res.end('404'); }

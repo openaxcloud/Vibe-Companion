@@ -2048,7 +2048,7 @@ Rules:
       if (toolName.startsWith("mcp__") && mcpDefs) {
         const mcpDef = mcpDefs.find(d => d.name === toolName);
         if (mcpDef) {
-          const mcpClientModule = await import("./mcpClient");
+          const mcpClientModule = await import("../mcpClient");
           const server = await storage.getMcpServer(mcpDef.serverId);
 
           const mcpCallId = `mcp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -2505,7 +2505,7 @@ Rules:
       let mcpToolDefinitions: { name: string; originalName: string; description: string; inputSchema: Record<string, any>; serverId: string }[] = [];
       try {
         const mcpServers = await storage.getMcpServers(projectId);
-        const mcpClientModule = await import("./mcpClient");
+        const mcpClientModule = await import("../mcpClient");
         for (const server of mcpServers) {
           if (server.serverType === "remote" && server.baseUrl) {
             const remoteClient = mcpClientModule.getRemoteClient(server.id);

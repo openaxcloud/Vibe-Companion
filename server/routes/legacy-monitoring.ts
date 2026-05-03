@@ -117,7 +117,7 @@ export async function registerMonitoringRoutes(app: Express, ctx: any): Promise<
       if (!await verifyProjectAccess(project.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const realMetrics = getRealMetrics();
       const counters = getAndResetCounters();
-      const { getUptimePercent } = await import("./metricsCollector");
+      const { getUptimePercent } = await import("../metricsCollector");
       const uptime = getUptimePercent(project.id);
       await Promise.all([
         storage.recordMonitoringMetric(project.id, "cpu_usage", Math.round(realMetrics.cpuPercent)),

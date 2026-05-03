@@ -82,7 +82,7 @@ export async function registerReverseProxyRoutes(app: Express, ctx: any): Promis
         return res.status(403).json({ message: "Port not configured or not public" });
       }
 
-      const { checkPortListening, isPortBlocked, isAllowedInternalPort } = await import("./portDetection");
+      const { checkPortListening, isPortBlocked, isAllowedInternalPort } = await import("../portDetection");
       if (isPortBlocked(config.internalPort) || !isAllowedInternalPort(config.internalPort)) {
         return res.status(403).json({ message: "Target port is not allowed for proxying" });
       }

@@ -70,7 +70,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
       return res.status(404).json({ message: "Project not found" });
     }
     const servers = await storage.getMcpServers(req.params.projectId);
-    const mcpClientModule = await import("./mcpClient");
+    const mcpClientModule = await import("../mcpClient");
     const serversWithStatus = servers.map(s => {
       if (s.serverType === "remote") {
         const remoteClient = mcpClientModule.getRemoteClient(s.id);
@@ -185,7 +185,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
       return res.status(404).json({ message: "MCP server not found" });
     }
     try {
-      const mcpClientModule = await import("./mcpClient");
+      const mcpClientModule = await import("../mcpClient");
       if (server.serverType === "remote") {
         mcpClientModule.disconnectRemoteClient(server.id);
       } else {
@@ -218,7 +218,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
       return res.status(400).json({ success: false, message: urlValidation.error });
     }
     try {
-      const mcpClientModule = await import("./mcpClient");
+      const mcpClientModule = await import("../mcpClient");
       const result = await mcpClientModule.testRemoteConnection(baseUrl, reqHeaders || {});
       return res.json(result);
     } catch (err: any) {
@@ -237,7 +237,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
     }
     try {
       if (server.serverType === "remote" && server.baseUrl) {
-        const mcpClientModule = await import("./mcpClient");
+        const mcpClientModule = await import("../mcpClient");
         const result = await mcpClientModule.testRemoteConnection(
           server.baseUrl,
           server.headers as Record<string, string> || {}
@@ -270,7 +270,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
       return res.status(400).json({ message: "Only remote servers can be connected this way" });
     }
     try {
-      const mcpClientModule = await import("./mcpClient");
+      const mcpClientModule = await import("../mcpClient");
       const result = await mcpClientModule.connectRemoteServer(
         server.id,
         server.baseUrl,
@@ -312,7 +312,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
       return res.status(404).json({ message: "MCP server not found" });
     }
     try {
-      const mcpClientModule = await import("./mcpClient");
+      const mcpClientModule = await import("../mcpClient");
       const client = await mcpClientModule.startClient(server.id, server.command, server.args as string[] || [], server.env as Record<string, string> || {});
       await storage.updateMcpServer(server.id, { status: "running" });
       const tools = await client.listTools();
@@ -342,7 +342,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
       return res.status(404).json({ message: "MCP server not found" });
     }
     try {
-      const mcpClientModule = await import("./mcpClient");
+      const mcpClientModule = await import("../mcpClient");
       await mcpClientModule.stopClient(server.id);
     } catch {}
     await storage.updateMcpServer(server.id, { status: "stopped" });
@@ -359,7 +359,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
       return res.status(404).json({ message: "MCP server not found" });
     }
     try {
-      const mcpClientModule = await import("./mcpClient");
+      const mcpClientModule = await import("../mcpClient");
       await mcpClientModule.stopClient(server.id);
       const client = await mcpClientModule.startClient(server.id, server.command, server.args as string[] || [], server.env as Record<string, string> || {});
       await storage.updateMcpServer(server.id, { status: "running" });
@@ -390,7 +390,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
       return res.status(404).json({ message: "MCP server not found" });
     }
 
-    const mcpClientModule = await import("./mcpClient");
+    const mcpClientModule = await import("../mcpClient");
     const client = mcpClientModule.getClient(server.id);
 
     if (req.headers.accept === "text/event-stream") {
@@ -452,7 +452,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
       return res.status(400).json({ message: "toolName is required" });
     }
     try {
-      const mcpClientModule = await import("./mcpClient");
+      const mcpClientModule = await import("../mcpClient");
       const client = mcpClientModule.getClient(server.id);
       if (!client || client.status !== "running") {
         return res.status(400).json({ message: "Server is not running" });
@@ -470,7 +470,7 @@ export async function registerMcpServersRoutes(app: Express, ctx: any): Promise<
       return res.status(404).json({ message: "Project not found" });
     }
     try {
-      const { ensureBuiltInServers } = await import("./mcpServers");
+      const { ensureBuiltInServers } = await import("../mcpServers");
       const created = await ensureBuiltInServers(req.params.projectId);
       return res.json({ created: created.length, servers: created });
     } catch (err: any) {

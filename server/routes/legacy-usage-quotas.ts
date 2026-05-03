@@ -145,7 +145,7 @@ export async function registerUsageQuotasRoutes(app: Express, ctx: any): Promise
       return res.status(400).json({ message: "Plan or priceId required" });
     }
     try {
-      const { getUncachableStripeClient, isStripeConfigured } = await import("./stripeClient");
+      const { getUncachableStripeClient, isStripeConfigured } = await import("../stripeClient");
       const configured = await isStripeConfigured();
       if (!configured) {
         return res.status(503).json({ url: null, message: "Payment processing is not configured. Please contact the administrator to enable billing." });
@@ -217,7 +217,7 @@ export async function registerUsageQuotasRoutes(app: Express, ctx: any): Promise
 
   app.post("/api/billing/portal", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { getUncachableStripeClient, isStripeConfigured } = await import("./stripeClient");
+      const { getUncachableStripeClient, isStripeConfigured } = await import("../stripeClient");
       const configured = await isStripeConfigured();
       if (!configured) return res.status(503).json({ url: null, message: "Billing management is not configured. Please contact the administrator." });
       const stripeClient = await getUncachableStripeClient();
@@ -379,7 +379,7 @@ export async function registerUsageQuotasRoutes(app: Express, ctx: any): Promise
 
   app.post("/api/billing/add-payment-method", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { getUncachableStripeClient, isStripeConfigured } = await import("./stripeClient");
+      const { getUncachableStripeClient, isStripeConfigured } = await import("../stripeClient");
       const configured = await isStripeConfigured();
       if (!configured) {
         return res.json({ clientSecret: null, message: "Stripe is not configured yet." });

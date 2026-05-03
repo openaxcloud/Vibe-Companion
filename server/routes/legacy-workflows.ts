@@ -103,7 +103,7 @@ export async function registerWorkflowsRoutes(app: Express, ctx: any): Promise<v
     try {
       if (!await verifyProjectAccess(req.params.id, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
       const { templateName } = req.body;
-      const { WORKFLOW_TEMPLATES } = await import("./workflowExecutor");
+      const { WORKFLOW_TEMPLATES } = await import("../workflowExecutor");
       const template = WORKFLOW_TEMPLATES.find(t => t.name === templateName);
       if (!template) return res.status(404).json({ message: "Template not found" });
 
@@ -210,7 +210,7 @@ export async function registerWorkflowsRoutes(app: Express, ctx: any): Promise<v
       if (!workflow) return res.status(404).json({ message: "Not found" });
       if (!await verifyProjectAccess(workflow.projectId, req.session.userId!)) return res.status(403).json({ message: "Access denied" });
 
-      const { executeWorkflow } = await import("./workflowExecutor");
+      const { executeWorkflow } = await import("../workflowExecutor");
 
       broadcastToProject(workflow.projectId, {
         type: "workflow_status",
@@ -291,7 +291,7 @@ export async function registerWorkflowsRoutes(app: Express, ctx: any): Promise<v
       const workflow = await storage.getWorkflow(project.selectedWorkflowId);
       if (!workflow || workflow.projectId !== req.params.id) return res.status(404).json({ message: "Selected workflow not found or does not belong to this project" });
 
-      const { executeWorkflow } = await import("./workflowExecutor");
+      const { executeWorkflow } = await import("../workflowExecutor");
 
       broadcastToProject(project.id, {
         type: "workflow_status",
@@ -361,7 +361,7 @@ export async function registerWorkflowsRoutes(app: Express, ctx: any): Promise<v
   });
 
   app.get("/api/workflow-templates", requireAuth, async (_req: Request, res: Response) => {
-    const { WORKFLOW_TEMPLATES } = await import("./workflowExecutor");
+    const { WORKFLOW_TEMPLATES } = await import("../workflowExecutor");
     res.json(WORKFLOW_TEMPLATES);
   });
 

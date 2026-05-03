@@ -158,7 +158,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
         }
       }
       await storage.updateWorkspaceStatus(workspace.id, "running");
-      const { startPortScanning, autoDetectPorts } = await import("./portDetection");
+      const { startPortScanning, autoDetectPorts } = await import("../portDetection");
       autoDetectPorts(project.id).catch(() => {});
       startPortScanning(project.id);
       return res.json({ status: "running", systemModules: systemModules.length, systemDeps: systemDeps.length });
@@ -178,7 +178,7 @@ export async function registerWorkspaceRunnerRoutes(app: Express, ctx: any): Pro
       return res.status(404).json({ message: "Workspace not found" });
     }
     try {
-      const { stopPortScanning } = await import("./portDetection");
+      const { stopPortScanning } = await import("../portDetection");
       stopPortScanning(project.id);
       await runnerClient.stopWorkspace(workspace.id);
       await storage.updateWorkspaceStatus(workspace.id, "stopped");

@@ -120,7 +120,7 @@ export async function registerAutomationsRoutes(app: Express, ctx: any): Promise
           log(`Failed to start Slack bot: ${err.message}`, "automation"));
       }
       if (type === "telegram" && automation.enabled && automation.telegramBotToken) {
-        const { startTelegramBot } = await import("./telegramBot");
+        const { startTelegramBot } = await import("../telegramBot");
         startTelegramBot(automation.id, automation.telegramBotToken).catch(err =>
           log(`Failed to start Telegram bot: ${err.message}`, "automation"));
       }
@@ -170,7 +170,7 @@ export async function registerAutomationsRoutes(app: Express, ctx: any): Promise
         }
       }
       if (updated && updated.type === "telegram") {
-        const { startTelegramBot, stopTelegramBot } = await import("./telegramBot");
+        const { startTelegramBot, stopTelegramBot } = await import("../telegramBot");
         if (updated.enabled && updated.telegramBotToken) {
           await startTelegramBot(updated.id, updated.telegramBotToken);
         } else {
@@ -329,7 +329,7 @@ export async function registerAutomationsRoutes(app: Express, ctx: any): Promise
     try {
       const { botToken } = req.body;
       if (!botToken) return res.status(400).json({ message: "Bot token is required" });
-      const { testTelegramConnection } = await import("./telegramBot");
+      const { testTelegramConnection } = await import("../telegramBot");
       const result = await testTelegramConnection(botToken);
       res.json(result);
     } catch {
@@ -348,7 +348,7 @@ export async function registerAutomationsRoutes(app: Express, ctx: any): Promise
         const { getSlackBotStatus } = await import("./slackBot");
         status = getSlackBotStatus(automation.id);
       } else if (automation.type === "telegram") {
-        const { getTelegramBotStatus } = await import("./telegramBot");
+        const { getTelegramBotStatus } = await import("../telegramBot");
         status = getTelegramBotStatus(automation.id);
       }
 

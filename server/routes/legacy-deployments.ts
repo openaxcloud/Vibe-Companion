@@ -217,7 +217,7 @@ export async function registerDeploymentsRoutes(app: Express, ctx: any): Promise
       const deploymentType = deployConfig.deploymentType || "static";
 
       if (deploymentType === "autoscale" || deploymentType === "reserved-vm") {
-        const { validatePortForDeployment } = await import("./portDetection");
+        const { validatePortForDeployment } = await import("../portDetection");
         const portConfigsList = await storage.getPortConfigs(project.id);
         const validation = await validatePortForDeployment(portConfigsList, deploymentType);
         if (!validation.valid) {
