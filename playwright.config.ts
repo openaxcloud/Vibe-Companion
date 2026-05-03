@@ -8,7 +8,17 @@ export default defineConfig({
     baseURL: 'http://localhost:5000',
     headless: true,
     launchOptions: {
-      executablePath: process.env.CHROMIUM_PATH || '/nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.0.7204.100/bin/chromium',
+      // In CI we rely on Playwright's bundled Chromium (installed via
+      // `npx playwright install`). On Replit we use the Nix-provided
+      // chromium binary. Set CHROMIUM_PATH to override; set
+      // PLAYWRIGHT_USE_BUNDLED=1 to skip executablePath entirely.
+      ...(process.env.PLAYWRIGHT_USE_BUNDLED
+        ? {}
+        : {
+            executablePath:
+              process.env.CHROMIUM_PATH ||
+              '/nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.0.7204.100/bin/chromium',
+          }),
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
     },
   },

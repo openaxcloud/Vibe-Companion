@@ -86,28 +86,14 @@ function getOpenAIModelCapabilities(model: string): OpenAIModelCapabilities {
 const router = Router();
 
 // ---------------------------------------------------------------------------
-// Per-user concurrency cap for streaming endpoints
-// Prevents a single user from holding unlimited SSE connections open, which
-// would exhaust provider rate limits and drive up costs. Cap = 3 concurrent
-// streams per user. The Map is process-scoped; for multi-process deployments
-// use Redis instead, but this protects the common single-process case.
+// Per-user concurrency cap for streaming endpoints (extracted to its own
+// module so it can be unit-tested without booting the full server).
 // ---------------------------------------------------------------------------
-const MAX_CONCURRENT_STREAMS_PER_USER = 3;
-const activeStreamsByUser = new Map<string | number, number>();
-
-function acquireStreamSlot(userId: string | number): boolean {
-  const current = activeStreamsByUser.get(userId) ?? 0;
-  if (current >= MAX_CONCURRENT_STREAMS_PER_USER) return false;
-  activeStreamsByUser.set(userId, current + 1);
-  return true;
-}
-
-function releaseStreamSlot(userId: string | number): void {
-  const current = activeStreamsByUser.get(userId) ?? 0;
-  const next = Math.max(0, current - 1);
-  if (next === 0) activeStreamsByUser.delete(userId);
-  else activeStreamsByUser.set(userId, next);
-}
+import {
+  MAX_CONCURRENT_STREAMS_PER_USER,
+  acquireStreamSlot,
+  releaseStreamSlot,
+} from './ai-streaming-concurrency';
 
 // AI Usage Tracking (Pay-As-You-Go) - Track ALL streaming endpoints for billing
 // No blocking - users pay for what they use via Stripe metered billing
@@ -177,8 +163,15 @@ const setupSSE = (res: any, req?: any): ((cleanupFn?: () => void) => void) | nul
         try { fn(); } catch (e) { /* ignore cleanup errors */ }
       });
     };
-    
-    req.on('close', handleClose);
+
+    // Express 5 / Node 20: req emits 'close' when the request body finishes
+    // being read, not only on disconnect. Use res 'close' (which only fires
+    // when the underlying TCP connection actually closes) to detect a real
+    // client abort, so we don't cancel streams the moment the request body
+    // is done parsing.
+    res.on('close', () => {
+      if (!res.writableEnded) handleClose();
+    });
     req.on('error', (err: Error) => {
       logger.warn('[SSE] Client connection error', { error: err.message });
       handleClose();

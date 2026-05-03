@@ -71,3 +71,58 @@ jobs:
           cache: 'npm'
       - run: npm ci --no-audit --no-fund
       - run: npm run build
+
+  e2e:
+    name: E2E (Playwright cross-surface)
+    runs-on: ubuntu-latest
+    needs: [test]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/e2e
+      NODE_ENV: test
+      OPENAI_API_KEY: test-key
+      ANTHROPIC_API_KEY: test-key
+      GOOGLE_API_KEY: test-key
+      SESSION_SECRET: test-session-secret-for-ci-only
+      E2E_ADMIN_EMAIL: admin@test.com
+      E2E_ADMIN_PASSWORD: e2e-admin-password
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - name: Push database schema
+        run: npm run db:push --if-present || npx drizzle-kit push --force || true
+      - name: Seed e2e admin user (deterministic, fail-loud)
+        run: npx tsx scripts/reset-e2e-admin.ts
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run cross-surface AI chat E2E
+        env:
+          PLAYWRIGHT_USE_BUNDLED: "1"
+        run: npx playwright test e2e/ai-chat-surfaces.spec.ts --reporter=list
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
