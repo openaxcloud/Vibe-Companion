@@ -65,9 +65,21 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
         manualChunks(id) {
-          if (id.includes("node_modules")) {
-            return "vendor";
-          }
+          // Monaco editor is ~2 MB minified — isolate it so it can be cached
+          // independently and loaded in parallel with the app shell.
+          if (id.includes("monaco-editor")) return "monaco";
+          // xterm bundles a WebGL renderer + addons — keep separate from Monaco
+          // so neither blocks the other.
+          if (id.includes("xterm")) return "xterm";
+          // React core stays in its own chunk; a cache bust on tanstack or
+          // lucide doesn't force a re-download of the framework.
+          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/")) return "react";
+          // Heavy UI / data libraries that change together.
+          if (id.includes("@tanstack") || id.includes("@radix-ui")) return "ui-vendors";
+          // Icon set is large (all tree-shaken at build time but still ~300 kB).
+          if (id.includes("lucide-react")) return "lucide";
+          // Remaining third-party code.
+          if (id.includes("node_modules")) return "vendor";
         },
       },
     },
