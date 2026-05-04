@@ -59,7 +59,7 @@ export function useTerminalMetrics(options?: {
     enabled,
     refetchInterval,
     refetchIntervalInBackground: false,
-    staleTime: 3000,
+    staleTime: refetchInterval,
   });
 }
 
@@ -78,6 +78,6 @@ export function useTerminalHealth(options?: {
     enabled,
     refetchInterval,
     refetchIntervalInBackground: false,
-    staleTime: 5000,
+    staleTime: refetchInterval,
   });
 }
