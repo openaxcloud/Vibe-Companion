@@ -102,7 +102,10 @@ export class ProjectsRouter {
     
     req.params.projectId = String(project.id);
     req.params.id = String(project.id);
-    
+    // Cache the already-fetched project on req so route handlers skip a redundant
+    // getProject() DB call (saves one query per request on every /:projectId route).
+    (req as any)._project = project;
+
     // ✅ FIX (Nov 24, 2025): Validate bootstrap token and enforce project-specific access
     if (bootstrapToken) {
       try {
@@ -159,6 +162,9 @@ export class ProjectsRouter {
     
     // Check if user is owner
     if (String(project.userId) === String(userId)) {
+      // The requesting user IS the owner — they are already on req.user (Passport).
+      // Cache them so GET /:projectId can skip a second DB round-trip for the owner.
+      (req as any)._projectOwner = req.user;
       return next();
     }
     
@@ -542,21 +548,24 @@ export class ProjectsRouter {
     this.router.get("/:projectId", this.ensureProjectAccess, async (req: Request, res: Response) => {
       try {
         const projectId = req.params.projectId;
-        const project = await this.storage.getProject(projectId);
-        
+        // _project was attached by ensureProjectAccess — skip the redundant DB call.
+        const project = (req as any)._project ?? await this.storage.getProject(projectId);
+
         if (!project) {
           return res.status(404).json({
             message: "Project not found",
             code: "PROJECT_NOT_FOUND"
           });
         }
-        
-        const owner = await this.storage.getUser(String(project.userId));
-        
+
+        // _projectOwner is attached when the requesting user is the owner (most common path).
+        // For collaborators / public viewers we fall back to a single getUser() lookup.
+        const owner = (req as any)._projectOwner ?? await this.storage.getUser(String(project.userId));
+
         res.json({ ...project, owner: sanitizeOwner(owner) });
       } catch (error) {
         projectLogger.error('Error fetching project:', error);
-        res.status(500).json({ 
+        res.status(500).json({
           message: "Failed to fetch project",
           code: "FETCH_ERROR"
         });
