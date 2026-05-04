@@ -82,7 +82,7 @@ export function ResponsiveWebPreview({ projectId }: ResponsiveWebPreviewProps) {
     queryKey: ["/api/preview/projects", projectId, "status"],
     queryFn: () => fetch(`${basePreviewUrl}/status`, { credentials: "include" }).then(r => r.ok ? r.json() : null).catch(() => null),
     refetchInterval: previewStatus === "starting" ? 2000 : previewStatus === "running" ? 30000 : false,
-    staleTime: 3000,
+    staleTime: 30_000,
   });
 
   useEffect(() => {

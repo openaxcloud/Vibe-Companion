@@ -146,7 +146,7 @@ export function useMaxAutonomy(sessionId: string | null, projectId?: number) {
     },
     enabled: isSessionEnabled,
     refetchInterval: (_data, _query) => shouldPollSession(_data?.session),
-    staleTime: 1000,
+    staleTime: POLLING_INTERVAL_MS,
   });
 
   const progressQuery = useQuery<ProgressResponse>({
