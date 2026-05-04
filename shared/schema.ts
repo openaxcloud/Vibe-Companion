@@ -522,6 +522,7 @@ export const files = pgTable("files", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
+  index("files_project_id_idx").on(table.projectId),
   index("files_artifact_id_idx").on(table.artifactId),
 ]);
 
