@@ -82,28 +82,28 @@ async function loadCommitHistoryForRepo(projectId: string) {
   const dbCommits = await storage.getCommits(projectId);
   if (dbCommits.length === 0) return undefined;
 
-  const authorCache = new Map<string, { name: string; email: string }>();
-  const results = [];
-  for (const c of dbCommits) {
-    let authorInfo = authorCache.get(c.authorId);
-    if (!authorInfo) {
-      const user = await storage.getUser(c.authorId);
-      authorInfo = {
-        name: user?.displayName || user?.email || "User",
-        email: user?.email || "user@ide.local",
-      };
-      authorCache.set(c.authorId, authorInfo);
-    }
-    results.push({
+  // Batch-fetch all authors in one query instead of one getUser() per commit.
+  const uniqueAuthorIds = [...new Set(dbCommits.map(c => c.authorId))];
+  const authorRows = await storage.getUsersByIds(uniqueAuthorIds);
+  const authorMap = new Map(
+    authorRows.map(u => [u.id, {
+      name: u.displayName || u.email || "User",
+      email: u.email || "user@ide.local",
+    }])
+  );
+  const fallback = { name: "User", email: "user@ide.local" };
+
+  return dbCommits.map(c => {
+    const author = authorMap.get(c.authorId) ?? fallback;
+    return {
       message: c.message,
-      authorName: authorInfo.name,
-      authorEmail: authorInfo.email,
+      authorName: author.name,
+      authorEmail: author.email,
       snapshot: c.snapshot as Record<string, string>,
       branchName: c.branchName,
       createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : String(c.createdAt),
-    });
-  }
-  return results;
+    };
+  });
 }
 
 async function ensureRepoWithPersistence(
