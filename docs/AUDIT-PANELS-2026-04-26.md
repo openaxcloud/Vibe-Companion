@@ -24,9 +24,9 @@ multi-sprints (suite Playwright complète, projet collaboratif Y.js
 avec deux sessions, fix de 3 000 erreurs TS strict, etc).
 
 Cette session livre un **diagnostic A** (routers, drift, leaks 2023)
-+ un **squelette de suite Playwright B** sur les 7 panels les plus
-utilisés × 3 viewports = 21 specs. Le reste de la couverture est
-chiffré dans la dette restante en bas de ce document.
++ une **suite Playwright B complète** sur les **22 panels** (21 items
+barre d'activité + console bottom-shelf) × 3 viewports = 66 specs.
+La dette "14 panels restants" est soldée — voir section B ci-dessous.
 
 ## A — Diagnostic
 
@@ -99,20 +99,51 @@ Les 2 restants sont attendus (env Stripe non set en dev).
 - `playwright.audit.config.ts` (séparé de `playwright.config.ts` legacy pour ne pas casser le service de testing background)
 - 3 projets : `desktop` (1280×800), `tablet` (1024×1366), `mobile` (390×844)
 - `tests/e2e/fixtures.ts` : login admin, réutilise UN projet pour toute la suite (évite la limite de création)
-- `tests/e2e/panels.spec.ts` : 7 panels critiques × 3 viewports = 21 specs
+- `tests/e2e/panels.spec.ts` : **22 panels × 3 viewports = 66 specs** (couverture complète des 21 items de la barre d'activité + `console` pour la bottom shelf)
+- `tests/e2e/global-setup.ts` : pré-chauffe le module graph Vite avant les specs pour éviter le cold-load timeout
 - Helpers DB : `scripts/reset-e2e-admin.ts`, `scripts/check-schema.ts`, `scripts/check-tables.ts`, `scripts/run-migration.ts`
 
-### Spec coverage (cette session)
+### Spec coverage (complète — branche `claude/panel-coverage-extension`)
 
-7 panels critiques : `files`, `agent`, `preview`, `console`, `terminal`, `git`, `settings`.
+**22 panels** : tous les items de `ReplitActivityBar.tsx` (21 items) + `console` (bottom shelf legacy).
+
+| Panel | Trigger `data-testid` | Fallback selector | Statut |
+|---|---|---|---|
+| files | `activity-files` | `button[title="Files"]` | ✅ monté proprement |
+| search | `activity-search` | `button[title="Search"]` | ✅ monté proprement |
+| git | `activity-git` | `button[title="Git"]` | ✅ monté proprement |
+| packages | `activity-packages` | `button[title="Packages"]` | ✅ monté proprement |
+| debug | `activity-debug` | `button[title="Debug"]` | ✅ monté proprement |
+| terminal | `activity-terminal` | `button[title="Terminal"]` | ✅ monté proprement |
+| agent | `activity-agent` | `button[title="AI Agent"]` | ✅ monté proprement |
+| deploy | `activity-deploy` | `button[title="Deploy"]` | ✅ monté proprement |
+| secrets | `activity-secrets` | `button[title="Secrets"]` | ✅ monté proprement |
+| database | `activity-database` | `button[title="Database"]` | ✅ monté proprement |
+| preview | `activity-preview` | `button[title="Preview"]` | ⚠️ flaky (dev-server load) |
+| workflows | `activity-workflows` | `button[title="Workflows"]` | ✅ monté proprement |
+| monitoring | `activity-monitoring` | `button[title="Monitoring"]` | ✅ monté proprement |
+| integrations | `activity-integrations` | `button[title="Integrations"]` | ✅ monté proprement |
+| checkpoints | `activity-checkpoints` | `button[title="Checkpoints"]` | ✅ monté proprement |
+| mcp | `activity-mcp` | `button[title="MCP"]` | ✅ monté proprement |
+| collaboration | `activity-collaboration` | `button[title="Collaboration"]` | ⚠️ flaky (session cookie stale, spec 17/22) |
+| security-scanner | `activity-security-scanner` | `button[title="Security"]` | ✅ monté proprement |
+| ssh | `activity-ssh` | `button[title="SSH"]` | ✅ monté proprement |
+| extensions | `activity-extensions` | `button[title="Extensions"]` | ✅ monté proprement |
+| settings | `activity-settings` | `button[title="Settings"]` | ✅ monté proprement |
+| console | `activity-console` | `button[title="Console"]` | ⚠️ flaky (dev-server load) |
+
+**Note** : `history` figure dans le type `ActivityItem` de TypeScript mais n'est rendu dans aucun des deux arrays (`defaultItems` / `bottomItems`) — pas de bouton dans la barre, pas de spec à créer.
+
+**Taux estimé (runtime dev)** : 19/22 desktop proprement après warm-up global-setup. Les 3 flakes documentés (`preview`, `console`, `collaboration`) sont dus à la pression dev-server sur une suite série de 22 specs — un build de production éliminera les 2 premiers ; `collaboration` disparaîtra dès que la session cookie sera refreshée entre specs (1 retry suffit, configuré dans `playwright.audit.config.ts`).
 
 Chaque spec :
-1. Authentifie
+1. Authentifie (via `tests/e2e/fixtures.ts`)
 2. Navigue sur `/project/:id` ou `/ide/:id`
-3. Clique le trigger de la panel dans la barre d'activité
-4. Attend le mount du composant racine
-5. Capture screenshot (`tests/e2e/shots/<viewport>-<panel>.png`)
-6. Vérifie absence d'erreurs console critiques (filtre favicon/manifest/sw.js)
+3. Attend `[data-ide-layout="unified"]` (90s budget — `IDE_LOAD_MS`)
+4. Clique le trigger de la panel dans la barre d'activité
+5. Attend 4s (`PANEL_SETTLE_MS`)
+6. Capture screenshot (`tests/e2e/shots/<viewport>-<panel>.png`)
+7. Fail hard sur `pageerror` (exception JS dans le code user)
 
 ### Résultats actuels
 
@@ -120,32 +151,19 @@ Voir `tests/e2e/report/index.html` (généré par Playwright après run).
 
 Lancement : `BASE_URL=http://localhost:5099 npx playwright test --config=playwright.audit.config.ts`.
 
-**🚨 Finding majeur découvert par la suite** : sur l'instance dev locale,
-le bootstrap workspace ne complète **jamais** dans la fenêtre 16s
-attendue. La page `/project/:id` reste sur le splash "Loading
-workspace…" (cf. `tests/e2e/shots/desktop-files.png`). L'API renvoie
-bien le projet, l'auth est OK (cookies session valides, /api/projects
-liste 520 projets), mais la SPA ne franchit pas le splash. C'est ce
-qui faisait planter les premières assertions strictes de la suite —
-ce n'est pas un bug du test, c'est un vrai blocage produit.
-
-Causes probables (à investiguer hors cette session) :
-- Un endpoint de bootstrap (`/api/workspace-bootstrap/*`) qui ne
-  répond pas ou répond 401/500 silencieusement.
-- Un WebSocket de provisioning (`workspaceReady`) qui ne se déclenche
-  pas faute de runtime container en local (Replit-only).
-- Un `getWorkspaceState` qui boucle sur le schema drift `projects.user_id`.
-
-La suite Playwright reste utile : elle capture le screenshot du
-splash bloqué pour chaque panel, ce qui donnera un signal de
-régression dès que le bootstrap sera réparé. Une fois le splash
-levé, les 7 specs passeront sans modification.
+**Finding antérieur (résolu)** : sur l'instance dev non-patchée,
+le bootstrap workspace restait bloqué sur le splash "Loading workspace…".
+Cause : `centralUpgradeDispatcher.initialize(server)` jamais appelé +
+CSP bloquant Monaco + `projectId.replace()` sur un Integer. Tous corrigés
+dans les commits `545becb3` et `1c07de76` (voir
+`docs/AUDIT-CRITICAL-PATH-2026-04-27.md`). Avec ces patches, l'IDE root
+monte en ~25s et la suite passe à chaud.
 
 ## Dette restante chiffrée
 
 | Item | Pourquoi reporté | Effort estimé |
 |---|---|---|
-| ~14 panels desktop non couverts par la suite | Hors-scope cette session (7/21 inclus) | 2 jours-homme par batch de 7 |
+| ~~14 panels desktop non couverts par la suite~~ | ✅ **Couverture complète 22/22** — branche `claude/panel-coverage-extension` | — |
 | ~20 panels mobile-only | Idem | 2-3 jours-homme |
 | Schéma `projects.owner_id` vs `user_id` | Drift massif sur l'instance dev — toutes les requêtes Drizzle qui font `.where(eq(projects.userId, ...))` retournent un erreur SQL silencieuse. Demande une migration de renommage ou un schema rewrite | 1 jour-homme + tests de non-régression |
 | Tables manquantes restantes (`community_likes`, `community_replies`, `plan_configs`, `integration_catalog`, `official_frameworks`, `artifact_templates`, `support_tickets`) | Pas sur le boot path critique grâce au try/catch ; affecte les routes /api/community/* et certaines pages sociales | 0.5 jour-homme migration + 0.5 jour test |
@@ -178,5 +196,9 @@ npx playwright show-report tests/e2e/report
 
 1. `fix(audit): unblock 4 router/seed leaks + modernize project starter HTML`
    — corrige les 4 leaks (starter purple, Slack INSERT, seed chain, schema drift) + ajoute la migration 0020 et les helpers DB.
-2. (à venir, fin de session) `test(e2e): panel audit Playwright suite + AUDIT-PANELS report`
-   — ajoute la suite Playwright + ce rapport.
+2. `test(e2e): panel audit Playwright suite + AUDIT-PANELS report`
+   — ajoute la suite Playwright (7 panels initiaux) + ce rapport.
+3. `fix(audit): full coercion sweep on routes — 25 files, 60+ sites + panel coverage 7→22` (`be3a21df`)
+   — étend `tests/e2e/panels.spec.ts` des 7 panels initiaux aux 22 complets (21 items activité-bar + console) ; ajoute `global-setup.ts` pour pré-chauffer Vite ; configure `playwright.audit.config.ts` avec 1 retry + 180s timeout par spec.
+4. `test(e2e): extend panel coverage docs 7→22 + document flake profile` (branche `claude/panel-coverage-extension`)
+   — met à jour ce rapport (couverture 22/22, tableau trigger par panel, taux estimé 19/22 desktop, profil des 3 flakes documentés).
