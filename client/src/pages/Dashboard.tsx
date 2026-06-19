@@ -359,6 +359,18 @@ export default function Dashboard() {
     staleTime: 30000,
   });
 
+  interface CollaboratedProject extends Project {
+    userRole: "editor" | "viewer" | "owner";
+  }
+  const collaboratedProjectsQuery = useQuery<CollaboratedProject[]>({
+    queryKey: ["/api/projects/collaborated"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/projects/collaborated");
+      return res.json();
+    },
+    staleTime: 30000,
+  });
+
   const notificationsQuery = useQuery<{ notifications: Notification[]; unreadCount: number }>({
     queryKey: ["/api/notifications"],
     queryFn: async () => {
@@ -2236,6 +2248,81 @@ export default function Dashboard() {
                   })}
                 </div>
                 )}
+
+              {/* Shared with me section */}
+              {collaboratedProjectsQuery.data && collaboratedProjectsQuery.data.length > 0 && (
+                <div className="mt-8" data-testid="section-shared-projects">
+                  <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-3">Shared with me</h3>
+                  <div className="border border-[var(--ide-border)]/50 rounded-xl overflow-hidden bg-[var(--ide-panel)]/20">
+                    {collaboratedProjectsQuery.data.map((project, idx) => {
+                      const langInfo = LANG_ICONS[(project as any).language] || LANG_ICONS.javascript;
+                      const roleBadgeClass = project.userRole === "editor"
+                        ? "bg-[#0079F2]/10 text-[#0079F2] border-[#0079F2]/20"
+                        : "bg-[var(--ide-surface)] text-[var(--ide-text-muted)] border-[var(--ide-border)]";
+                      return (
+                        <div
+                          key={project.id}
+                          className={`flex items-center gap-3 px-4 py-3 hover:bg-[var(--ide-panel)]/60 cursor-pointer transition-all group ${idx !== 0 ? "border-t border-[var(--ide-border)]/30" : ""}`}
+                          onClick={() => setLocation(`/project/${project.id}`)}
+                          data-testid={`shared-project-${project.id}`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[9px] font-bold shrink-0 ${langInfo.bg} ${langInfo.color}`}>
+                            {langInfo.label}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-[13px] text-[var(--ide-text)] truncate">{project.name}</h3>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-[var(--ide-text-muted)] capitalize">{(project as any).language}</span>
+                              <span className="text-[8px] text-[var(--ide-text-muted)]">&middot;</span>
+                              <span className="text-[10px] text-[var(--ide-text-muted)]">{timeAgo((project as any).updatedAt)}</span>
+                            </div>
+                          </div>
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium border capitalize ${roleBadgeClass}`}
+                            data-testid={`badge-role-${project.id}`}
+                          >
+                            {project.userRole}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Pending invites inline (desktop only) */}
+              {pendingInvitesQuery.data && pendingInvitesQuery.data.length > 0 && (
+                <div className="mt-8" data-testid="section-pending-invites-desktop">
+                  <h3 className="text-[11px] font-semibold text-[var(--ide-text-muted)] uppercase tracking-wider mb-3">Pending Invites</h3>
+                  <div className="border border-[var(--ide-border)]/50 rounded-xl overflow-hidden bg-[var(--ide-panel)]/20">
+                    {pendingInvitesQuery.data.map((invite, idx) => (
+                      <div
+                        key={invite.id}
+                        className={`flex items-center gap-3 px-4 py-3 ${idx !== 0 ? "border-t border-[var(--ide-border)]/30" : ""}`}
+                        data-testid={`invite-row-${invite.id}`}
+                      >
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#7C65CB]/10 border border-[#7C65CB]/20">
+                          <Users className="w-4 h-4 text-[#7C65CB]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12px] text-[var(--ide-text)] truncate">
+                            <span className="font-medium">{invite.inviterEmail.split("@")[0]}</span> invited you to <span className="font-medium">{invite.projectName}</span>
+                          </p>
+                          <p className="text-[10px] text-[var(--ide-text-muted)] capitalize">Role: {invite.role}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button size="sm" className="h-7 px-3 text-[11px] bg-[#0CCE6B] hover:bg-[#0AB85E] text-black font-medium rounded-lg" onClick={() => acceptInviteMutation.mutate(invite.id)} disabled={acceptInviteMutation.isPending} data-testid={`button-accept-invite-${invite.id}`}>
+                            Accept
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-[var(--ide-text-muted)] hover:text-red-400 rounded-lg" onClick={() => declineInviteMutation.mutate(invite.id)} disabled={declineInviteMutation.isPending} data-testid={`button-decline-invite-${invite.id}`}>
+                            Decline
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>

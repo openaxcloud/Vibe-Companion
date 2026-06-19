@@ -232,6 +232,21 @@ export class ProjectsRouter {
   }
 
   private initializeRoutes() {
+    // Get projects where the current user is a collaborator (not owner)
+    this.router.get("/collaborated", this.ensureAuthenticated, async (req: Request, res: Response) => {
+      try {
+        const userId = (req.user as User).id;
+        const collabs = await this.storage.getCollaboratedProjects(String(userId));
+        const result = collabs
+          .filter(c => c.project && String(c.project.userId) !== String(userId))
+          .map(c => ({ ...c.project, userRole: c.role }));
+        res.json(result);
+      } catch (error) {
+        projectLogger.error('Error fetching collaborated projects:', error);
+        res.status(500).json({ message: "Failed to fetch collaborated projects" });
+      }
+    });
+
     // Get user's projects with pagination
     this.router.get("/", this.ensureAuthenticated, async (req: Request, res: Response) => {
       try {
@@ -267,7 +282,7 @@ export class ProjectsRouter {
         
         const enrichedProjects = await Promise.all(projects.map(async (project) => {
           const owner = await this.storage.getUser(String(project.userId));
-          return { ...project, owner: sanitizeOwner(owner) };
+          return { ...project, userRole: "owner" as const, owner: sanitizeOwner(owner) };
         }));
         
         res.json({

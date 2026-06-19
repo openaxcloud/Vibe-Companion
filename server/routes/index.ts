@@ -503,6 +503,20 @@ export class MainRouter {
     mount(app, '/api/agent-providers', tierLimiters.api, def(agentProvidersMod));
     mount(app, '/api', tierLimiters.streaming, def(claudeAgentMod));
 
+    // JWT invite flow: per-project invite creation + token-based acceptance
+    try {
+      const { invitesRouter } = await import("./invites.router");
+      mount(app, '/api/projects', tierLimiters.api, invitesRouter);
+    } catch (err: any) {
+      console.error(`[routes] Failed to load invites.router: ${err.message}`);
+    }
+    try {
+      const { inviteTokenRouter } = await import("./invite-token.router");
+      mount(app, '/api/invites', tierLimiters.api, inviteTokenRouter);
+    } catch (err: any) {
+      console.error(`[routes] Failed to load invite-token.router: ${err.message}`);
+    }
+
     if (setupPreviewRoutes) setupPreviewRoutes(app);
 
     console.log(`[routes] Loaded ${loadedCount} routers, ${failedCount} failed${failedRouters.length ? ': ' + failedRouters.join(', ') : ''}`);
