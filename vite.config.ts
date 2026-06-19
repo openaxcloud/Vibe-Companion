@@ -65,9 +65,23 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
         manualChunks(id) {
-          if (id.includes("node_modules")) {
-            return "vendor";
-          }
+          if (!id.includes("node_modules")) return undefined;
+          // Monaco Editor is ~2 MB on its own — isolate so other chunks
+          // aren't blocked by it and browsers can cache it independently.
+          if (id.includes("monaco-editor")) return "vendor-monaco";
+          // Framer Motion pulls in a large animation runtime.
+          if (id.includes("framer-motion")) return "vendor-motion";
+          // Radix UI primitives are stable; split so they can be cached
+          // across deploys that don't touch the design system.
+          if (id.includes("@radix-ui")) return "vendor-radix";
+          // TanStack Query + devtools
+          if (id.includes("@tanstack")) return "vendor-tanstack";
+          // React core — smallest chunk, almost never changes
+          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/react-is/") || id.includes("/scheduler/")) return "vendor-react";
+          // Yjs collaboration stack
+          if (id.includes("/yjs/") || id.includes("y-protocols") || id.includes("y-codemirror") || id.includes("lib0")) return "vendor-yjs";
+          // All remaining third-party modules
+          return "vendor";
         },
       },
     },
